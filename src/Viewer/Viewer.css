@@ -1,0 +1,9 @@
+/* Viewer 组件样式 */
+.viewer-loading {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f0f0f0;
+}

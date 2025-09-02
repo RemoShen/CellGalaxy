@@ -1,0 +1,55 @@
+/* App 组件样式 */
+.app-container {
+  height: 100vh;
+  width: 100vw;
+}
+
+.webgl-array-viewer {
+  width: 100%;
+  min-height: 100vh;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.viewer-container {
+  width: 100%;
+  flex: 1;
+  min-height: 400px;
+}
+
+.metadata-info {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.8);
+  padding: 15px;
+  border-radius: 10px;
+  color: white;
+  font-size: 12px;
+}
+
+.metadata-info h3 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+}
+
+.metadata-info p {
+  margin: 5px 0;
+}
+
+.no-data-message {
+  text-align: center;
+  padding: 50px 20px;
+  color: #666;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.no-data-message h3 {
+  color: #333;
+  font-size: 18px;
+} 

@@ -1,0 +1,41 @@
+/* UMAP选择器样式 */
+.umap-section {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.umap-title {
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+.umap-options {
+  display: flex;
+  gap: 8px;
+}
+
+.umap-btn {
+  padding: 8px 16px;
+  border: 2px solid #ffffff;
+  border-radius: 6px;
+  background: transparent;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex: 1;
+}
+
+.umap-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.umap-btn.active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #ffffff;
+}

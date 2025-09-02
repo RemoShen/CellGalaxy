@@ -1,0 +1,41 @@
+/* 文件上传区域样式 */
+.file-upload-section {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.upload-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.upload-btn {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.upload-zarr {
+  background-color: #5c5c5c;
+  color: #e2e8f0;
+}
+
+.upload-zarr:hover {
+  background-color: #222223;
+}
+
+.upload-csv {
+  background-color: #5c5c5c;
+  color: #e2e8f0;
+}
+
+.upload-csv:hover {
+  background-color: #222223;
+}

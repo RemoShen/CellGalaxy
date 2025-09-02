@@ -1,0 +1,4 @@
+node_modules
+public/cache
+public/output.zarr
+public/data.csv

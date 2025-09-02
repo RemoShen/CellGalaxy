@@ -1,0 +1,58 @@
+/* Control 组件样式 */
+.control-panel {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(79, 79, 79, 0.9);
+  border: 1px solid #ffffff;
+  padding: 12px;
+  width: 250px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  font-family: ui-sans-serif, system-ui;
+}
+
+.control-section {
+  margin-bottom: 8px;
+}
+
+.control-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.control-row-with-margin {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.control-label {
+  width: 60px;
+}
+
+.control-input {
+  flex: 1;
+}
+
+
+
+.control-section-title {
+  margin-bottom: 6px;
+}
+
+/* ChannelPicker 组件样式 */
+.channel-picker {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+
+.channel-label {
+  font-size: 12px;
+}
+
+.channel-checkbox {
+  margin-right: 4px;
+}
