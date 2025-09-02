@@ -1,4 +1,4 @@
-# Multi-scale Image Projection
+# MultiScaleImageProjection
 
 一个基于React和DeckGL的多尺度图像投影可视化工具，支持2D/3D视图切换和UMAP投影。
 
