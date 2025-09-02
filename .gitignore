@@ -2,3 +2,5 @@ node_modules
 public/cache
 public/output.zarr
 public/data.csv
+public/coords.json
+public/.DS_Store
