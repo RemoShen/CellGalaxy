@@ -16,8 +16,6 @@ export default function App() {
         chunkUV={dataLoader.chunkUV}
         atlasURL={dataLoader.atlasURL}
         channels={dataLoader.channels}
-        minVal={dataLoader.minVal}
-        maxVal={dataLoader.maxVal}
         weights={dataLoader.weights}
         alphas={dataLoader.alphas}
         colors={dataLoader.colors}
@@ -28,10 +26,6 @@ export default function App() {
       />
       <Control
         meta={dataLoader.meta}
-        minVal={dataLoader.minVal}
-        setMinVal={dataLoader.setMinVal}
-        maxVal={dataLoader.maxVal}
-        setMaxVal={dataLoader.setMaxVal}
         channels={dataLoader.channels}
         setChannels={dataLoader.setChannels}
         renderMode={dataLoader.renderMode}

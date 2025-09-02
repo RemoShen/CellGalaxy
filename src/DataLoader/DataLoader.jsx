@@ -9,8 +9,6 @@ export default function useDataLoader() {
 
   // 渲染参数（可绑定到 UI）
   const [channels, setChannels] = useState([0]); // 默认选一个通道
-  const [minVal, setMinVal] = useState(0);
-  const [maxVal, setMaxVal] = useState(65535);
   const [weights, setWeights] = useState({}); // {ch: weight}
   const [alphas, setAlphas] = useState({});  // {ch: alpha}
   const [colors, setColors] = useState({});  // {ch: [r,g,b] 0..1}
@@ -233,7 +231,7 @@ export default function useDataLoader() {
     setChunkUV((prev) => ({ ...prev, [chunkId]: uv }));
   };
 
-  // 请求某个 chunk 的 atlas（服务器端合成 RGBA）
+      // 请求某个 chunk 的 atlas（服务器端合成 RGBA）
   const fetchAtlas = async (chunkId) => {
     if (atlasURL[chunkId]) return;
     if (fetchingChunks.has(chunkId)) return;
@@ -241,11 +239,6 @@ export default function useDataLoader() {
 
     const body = {
       channels,
-      window: {
-        mode: "global",
-        global: { min: Number(minVal), max: Number(maxVal) },
-        gamma: 1.0
-      },
       composite: {
         weights,
         alphas,
@@ -278,7 +271,7 @@ export default function useDataLoader() {
     });
   };
 
-  // 计算视野内优先 chunk（这里只做最简单：按 chunk 分组，全部都拉）
+      // 计算视野内优先 chunk（这里只做最简单：按 chunk 分组，全部都拉）
   useEffect(() => {
     if (!meta || loading) return;
     const chunks = new Set(points.map((p) => p.chunk_id));
@@ -289,7 +282,7 @@ export default function useDataLoader() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meta, loading, channels, minVal, maxVal, renderMode, is3D, useUMAP]);
+  }, [meta, loading, channels, renderMode, is3D, useUMAP]);
 
   return {
     // 数据状态
@@ -302,8 +295,6 @@ export default function useDataLoader() {
     
     // 渲染参数
     channels,
-    minVal,
-    maxVal,
     weights,
     alphas,
     colors,
@@ -318,8 +309,6 @@ export default function useDataLoader() {
     
     // 设置函数
     setChannels,
-    setMinVal,
-    setMaxVal,
     setWeights,
     setAlphas,
     setColors,

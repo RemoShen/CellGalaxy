@@ -32,10 +32,6 @@ function ChannelPicker({ allChannels, selected, setSelected }) {
 
 export default function Control({
   meta,
-  minVal,
-  setMinVal,
-  maxVal,
-  setMaxVal,
   channels,
   setChannels,
   renderMode,
@@ -71,24 +67,6 @@ export default function Control({
         setImageSize={setImageSize}
       />
       
-      <div className="control-row">
-        <div className="control-label">min</div>
-        <input
-          className="control-input"
-          type="number"
-          value={minVal}
-          onChange={(e) => setMinVal(e.target.value)}
-        />
-      </div>
-      <div className="control-row-with-margin">
-        <div className="control-label">max</div>
-        <input
-          className="control-input"
-          type="number"
-          value={maxVal}
-          onChange={(e) => setMaxVal(e.target.value)}
-        />
-      </div>
       <div className="control-section">
         <div className="control-section-title">选择通道：</div>
         <ChannelPicker

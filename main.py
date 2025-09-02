@@ -69,21 +69,7 @@ def grid_for_count(n_items: int):
 # =========================
 # 数据模型
 # =========================
-class RangeSpec(BaseModel):
-    min: float
-    max: float
-    @validator("max")
-    def _validate_minmax(cls, v, values):
-        mn = values.get("min")
-        if mn is not None and v <= mn:
-            raise ValueError("max must be greater than min")
-        return v
 
-class WindowSpec(BaseModel):
-    mode: str = Field("per_channel", description='"global" | "per_channel"')
-    global_: Optional[RangeSpec] = Field(None, alias="global")
-    per_channel: Optional[Dict[int, RangeSpec]] = None
-    gamma: float = 1.0
 
 class CompositeSpec(BaseModel):
     method: str = Field("weighted_mean", description='"mean"|"max"|"weighted_mean"')
@@ -93,15 +79,13 @@ class CompositeSpec(BaseModel):
 
 class AtlasRequest(BaseModel):
     channels: List[int]
-    window: WindowSpec = Field(default_factory=WindowSpec)
     composite: CompositeSpec = Field(default_factory=CompositeSpec)
     tile: int = DEFAULT_TILE
 
 # =========================
 # 图像处理函数
 # =========================
-def default_window_for_dtype(dtype) -> RangeSpec:
-    return RangeSpec(min=0.0, max=65535.0)
+
 
 def norm01(x: np.ndarray, lo: float, hi: float, gamma: float = 1.0) -> np.ndarray:
     den = max(hi - lo, 1e-8)
@@ -354,8 +338,7 @@ def atlas(chunk_id: int, req: AtlasRequest = Body(...)):
     cache_payload = {
         "chunk_id": chunk_id,
         "channels": chans,
-        "window": json.loads(req.window.json(by_alias=True)),
-        "composite": json.loads(req.composite.json()),
+        "composite": json.dumps(req.composite.json()),
         "tile": req.tile
     }
     cache_key = hashlib.sha1(json.dumps(cache_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
