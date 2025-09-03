@@ -12,7 +12,7 @@ import math
 import json
 import hashlib
 from typing import Optional, List, Dict
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 from PIL import Image
 import zarr
 
@@ -69,8 +69,6 @@ def grid_for_count(n_items: int):
 # =========================
 # 数据模型
 # =========================
-
-
 class CompositeSpec(BaseModel):
     method: str = Field("weighted_mean", description='"mean"|"max"|"weighted_mean"')
     weights: Dict[int, float] = Field(default_factory=dict)
@@ -85,8 +83,6 @@ class AtlasRequest(BaseModel):
 # =========================
 # 图像处理函数
 # =========================
-
-
 def norm01(x: np.ndarray, lo: float, hi: float, gamma: float = 1.0) -> np.ndarray:
     den = max(hi - lo, 1e-8)
     t = (x.astype(np.float32) - lo) / den
@@ -103,14 +99,10 @@ def ensure_rgb01(v: List[float]) -> np.ndarray:
         raise ValueError("color must be length-3 RGB")
     return arr
 
-def compose_rgba_from_channels(
-    t_stack: np.ndarray,
-    chan_ids: List[int],
-    comp: CompositeSpec
-) -> np.ndarray:
+def compose_rgba_from_channels(t_stack: np.ndarray, chan_ids: List[int], comp: CompositeSpec) -> np.ndarray:
     K, M, H, W = t_stack.shape
     w = np.array([comp.weights.get(cid, 1.0) for cid in chan_ids], dtype=np.float32).reshape(K,1,1,1)
-    a = np.array([comp.alphas.get(cid, 1.0)  for cid in chan_ids], dtype=np.float32).reshape(K,1,1,1)
+    a = np.array([comp.alphas.get(cid, 1.0) for cid in chan_ids], dtype=np.float32).reshape(K,1,1,1)
     cols = np.stack([ensure_rgb01(comp.colors.get(cid, [1.0, 1.0, 1.0])) for cid in chan_ids], axis=0)
 
     if comp.method == "max":
@@ -164,6 +156,101 @@ def tiles_to_atlas(rgba_tiles: np.ndarray, tile: int) -> Image.Image:
     return out
 
 # =========================
+# 数据生成函数
+# =========================
+def get_channel_info(df: pd.DataFrame, img=None):
+    """获取channel信息，支持zarr和CSV两种方式"""
+    columns = list(df.columns)
+    channel_columns = columns[9:-7]
+    channels = []
+    
+    for i, col_name in enumerate(channel_columns):
+        # 从zarr获取像素值范围，使用累积分布的5%-95%
+        channel_data = img[i, :, :, :]
+        # 将像素值展平并排序
+        sorted_pixels = np.sort(channel_data.flatten())
+        total_pixels = len(sorted_pixels)
+        
+        # 找到5%和95%位置对应的像素值
+        min_idx = int(0.05 * total_pixels)
+        max_idx = int(0.95 * total_pixels)
+        
+        min_value = float(sorted_pixels[min_idx])
+        max_value = float(sorted_pixels[max_idx])
+        
+        channels.append({
+            'id': i,
+            'name': col_name,
+            'column_index': i + 9,
+            'pixel_value_range': {'min': min_value, 'max': max_value}
+        })
+    
+    return channels
+
+async def generate_json_files():
+    """生成所有必要的JSON文件"""
+    csv_path = os.path.join(DATA_DIR, "data.csv")
+    if not os.path.exists(csv_path):
+        return
+    
+    try:
+        df = pd.read_csv(csv_path)
+        img = None
+        
+        # 尝试读取zarr数据
+        if os.path.isdir(ZARR_DIR):
+            try:
+                img = open_zarr()
+            except Exception as e:
+                print(f"Zarr读取失败: {str(e)}")
+        
+        # 生成坐标数据
+        if img is not None:
+            C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
+            N = min(len(df), N)
+        else:
+            N = len(df)
+            n_per_chunk = 1
+            n_chunks = N
+
+        coords = []
+        for idx in range(N):
+            x_raw = float(df.iloc[idx].get('X_centroid', 0))
+            y_raw = float(df.iloc[idx].get('Y_centroid', 0))
+            x_umap2d = float(df.iloc[idx].get('umap2_x', x_raw))
+            y_umap2d = float(df.iloc[idx].get('umap2_y', y_raw))
+            x_umap3d = float(df.iloc[idx].get('umap3_x', x_raw))
+            y_umap3d = float(df.iloc[idx].get('umap3_y', y_raw))
+            z_umap3d = float(df.iloc[idx].get('umap3_z', 0))
+            
+            chunk_id = idx // n_per_chunk if 'n_per_chunk' in locals() else 0
+            local_index = idx % n_per_chunk if 'n_per_chunk' in locals() else idx
+            
+            coords.append({
+                "id": idx, 
+                "chunk_id": int(chunk_id), 
+                "local_index": int(local_index),
+                "raw": {"x": x_raw, "y": y_raw, "z": 0},
+                "umap2d": {"x": x_umap2d, "y": y_umap2d, "z": 0},
+                "umap3d": {"x": x_umap3d, "y": y_umap3d, "z": z_umap3d}
+            })
+        
+        # 生成channel信息
+        channels = get_channel_info(df, img)
+        
+        # 保存文件
+        with open(os.path.join(DATA_DIR, "coords.json"), 'w', encoding='utf-8') as f:
+            json.dump(coords, f, ensure_ascii=False, indent=2)
+        
+        with open(os.path.join(DATA_DIR, "channel_info.json"), 'w', encoding='utf-8') as f:
+            json.dump({"channels": channels, "total_channels": len(channels)}, f, ensure_ascii=False, indent=2)
+        
+        print(f"已生成JSON文件: coords.json ({len(coords)} 个点), channel_info.json ({len(channels)} 个channel)")
+        
+    except Exception as e:
+        print(f"生成JSON文件失败: {str(e)}")
+
+# =========================
 # API 端点
 # =========================
 @app.get("/")
@@ -175,11 +262,8 @@ async def upload_files(file_type: str, file: UploadFile = File(...)):
     if file_type not in ["zarr", "csv"]:
         raise HTTPException(status_code=400, detail="不支持的文件类型")
 
-    if file_type == "csv":
-        file_path = os.path.join(DATA_DIR, "data.csv")
-    else:
-        file_path = os.path.join(DATA_DIR, file.filename)
-
+    file_path = os.path.join(DATA_DIR, file.filename if file_type == "zarr" else "data.csv")
+    
     with open(file_path, "wb") as f:
         content = await file.read()
         f.write(content)
@@ -189,8 +273,7 @@ async def upload_files(file_type: str, file: UploadFile = File(...)):
             zip_ref.extractall(DATA_DIR)
         os.remove(file_path)
     elif file_type == "csv":
-        # 生成坐标数据JSON文件
-        await generate_coords_json()
+        await generate_json_files()
 
     return {"message": f"{file.filename} 上传成功"}
 
@@ -199,47 +282,11 @@ async def get_channels():
     csv_path = os.path.join(DATA_DIR, "data.csv")
     if not os.path.exists(csv_path):
         raise HTTPException(status_code=404, detail="data.csv 文件不存在")
-    df = pd.read_csv(csv_path, nrows=1)
-    columns = list(df.columns)
-    channel_columns = columns[9:-7]
-    channels = []
-    for i, col_name in enumerate(channel_columns):
-        channels.append({
-            'id': i,
-            'name': col_name,
-            'column_index': i + 9
-        })
-    return {
-        "channels": channels,
-        "total_channels": len(channels)
-    }
-
-@app.get("/positions")
-async def get_positions():
-    csv_path = os.path.join(DATA_DIR, "data.csv")
-    if not os.path.exists(csv_path):
-        raise HTTPException(status_code=400, detail="data.csv 文件不存在")
+    
     df = pd.read_csv(csv_path)
-    positions = []
-    for index, row in df.iterrows():
-        x = float(row.get('X_centroid', 0))
-        y = float(row.get('Y_centroid', 0))
-        umap_x_2d = float(row.get('umap2_x', x))
-        umap_y_2d = float(row.get('umap2_y', y))
-        umap_x_3d = float(row.get('umap3_x', x))
-        umap_y_3d = float(row.get('umap3_y', y))
-        umap_z_3d = float(row.get('umap3_z', 0))
-        positions.append({
-            'id': index,
-            'x': x, 'y': y,
-            'umap_x_2d': umap_x_2d, 'umap_y_2d': umap_y_2d,
-            'umap_x_3d': umap_x_3d, 'umap_y_3d': umap_y_3d, 'umap_z_3d': umap_z_3d,
-            'cell_id': str(row.get('CellID', index))
-        })
-    return {
-        "positions": positions,
-        "total": len(positions)
-    }
+    channels = get_channel_info(df)
+    
+    return {"channels": channels, "total_channels": len(channels)}
 
 @app.get("/meta")
 def meta():
@@ -260,8 +307,8 @@ def meta():
 def coords(limit: Optional[int] = Query(None)):
     if not os.path.exists(os.path.join(DATA_DIR, "data.csv")):
         raise HTTPException(status_code=404, detail="data.csv 文件不存在")
-    df = pd.read_csv(os.path.join(DATA_DIR, "data.csv"))
     
+    df = pd.read_csv(os.path.join(DATA_DIR, "data.csv"))
     img = open_zarr()
     C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
     N = min(len(df), N)
@@ -355,10 +402,9 @@ def atlas(chunk_id: int, req: AtlasRequest = Body(...)):
     data = np.asarray(img[chans, slc, :, :], dtype=np.float32)
     K, M, Hx, Wx = data.shape
 
-    # 图像处理 - 直接使用原始数据，不进行窗口处理
+    # 图像处理
     t_list = []
     for k in range(K):
-        # 直接归一化到0-1范围
         t_list.append(norm01(data[k], data[k].min(), data[k].max(), 1.0))
 
     t_stack = np.stack(t_list, axis=0)
@@ -373,64 +419,6 @@ def atlas(chunk_id: int, req: AtlasRequest = Body(...)):
         f.write(data_bytes)
     headers = {"Cache-Control": "public, max-age=86400", "ETag": cache_key}
     return StreamingResponse(io.BytesIO(data_bytes), media_type="image/png", headers=headers)
-
-async def generate_coords_json():
-    """生成包含所有坐标数据的JSON文件"""
-    csv_path = os.path.join(DATA_DIR, "data.csv")
-    if not os.path.exists(csv_path):
-        return
-    
-    try:
-        df = pd.read_csv(csv_path)
-        
-        # 检查是否有Zarr数据
-        if os.path.isdir(ZARR_DIR):
-            img = open_zarr()
-            C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
-            N = min(len(df), N)
-        else:
-            # 如果没有Zarr数据，使用CSV的行数
-            N = len(df)
-            n_per_chunk = 1
-            n_chunks = N
-
-        out = []
-        for idx in range(N):
-            x_raw = float(df.iloc[idx].get('X_centroid', 0))
-            y_raw = float(df.iloc[idx].get('Y_centroid', 0))
-            x_umap2d = float(df.iloc[idx].get('umap2_x', x_raw))
-            y_umap2d = float(df.iloc[idx].get('umap2_y', y_raw))
-            x_umap3d = float(df.iloc[idx].get('umap3_x', x_raw))
-            y_umap3d = float(df.iloc[idx].get('umap3_y', y_raw))
-            z_umap3d = float(df.iloc[idx].get('umap3_z', 0))
-            
-            chunk_id = idx // n_per_chunk if 'n_per_chunk' in locals() else 0
-            local_index = idx % n_per_chunk if 'n_per_chunk' in locals() else idx
-            
-            out.append({
-                "id": idx, 
-                "chunk_id": int(chunk_id), 
-                "local_index": int(local_index),
-                "raw": {"x": x_raw, "y": y_raw, "z": 0},
-                "umap2d": {"x": x_umap2d, "y": y_umap2d, "z": 0},
-                "umap3d": {"x": x_umap3d, "y": y_umap3d, "z": z_umap3d}
-            })
-        
-        # 保存到JSON文件
-        json_path = os.path.join(DATA_DIR, "coords.json")
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(out, f, ensure_ascii=False, indent=2)
-        
-        print(f"已生成坐标数据JSON文件: {json_path}, 包含 {len(out)} 个点")
-        
-    except Exception as e:
-        print(f"生成坐标数据JSON文件失败: {str(e)}")
-
-@app.get("/generate_coords_json")
-async def generate_coords_json_endpoint():
-    """手动生成坐标数据JSON文件的API端点"""
-    await generate_coords_json()
-    return {"message": "坐标数据JSON文件已生成"}
 
 # =========================
 # 启动
