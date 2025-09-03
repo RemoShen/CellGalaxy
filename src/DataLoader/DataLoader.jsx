@@ -1,3 +1,6 @@
+// =============================
+// useDataLoader.js  (modified)
+// =============================
 import { useEffect, useState } from "react";
 
 const API = '';
@@ -26,52 +29,38 @@ export default function useDataLoader() {
   const [atlasURL, setAtlasURL] = useState({});        // {chunkId: urlString}
   const [fetchingChunks, setFetchingChunks] = useState(new Set()); // 正在请求 atlas 的 chunk 集
 
-  // 存储所有坐标数据
+  // 存储所有坐标数据（原始/UMAP2D/UMAP3D）
   const [allCoords, setAllCoords] = useState([]);
+
+  // —— 工具：安全归一化，避免除以 0 ——
+  function safeScale(v, minV, maxV) {
+    const span = maxV - minV;
+    if (!isFinite(span) || span === 0) return 0;
+    return 2 * (v - minV) / span - 1;
+  }
 
   // 应用坐标投影（不重新加载数据）
   const applyCoordinateProjection = () => {
     if (!allCoords || allCoords.length === 0) return;
     let projectedCoords;
     if (useUMAP) {
-      // UMAP模式：根据2D/3D选择对应坐标
       if (is3D) {
         // 3D模式：使用UMAP 3D坐标
         projectedCoords = allCoords.map(p => {
           if (!p.umap3d || p.umap3d.x === undefined || p.umap3d.y === undefined) {
             console.warn('Missing umap3d data for point:', p);
-            return {
-              ...p,
-              x: p.raw?.x || 0,
-              y: p.raw?.y || 0,
-              z: 0
-            };
+            return { ...p, x: p.raw?.x || 0, y: p.raw?.y || 0, z: 0 };
           }
-          return {
-            ...p,
-            x: p.umap3d.x,
-            y: p.umap3d.y,
-            z: p.umap3d.z || 0
-          };
+          return { ...p, x: p.umap3d.x, y: p.umap3d.y, z: p.umap3d.z ?? 0 };
         });
       } else {
         // 2D模式：使用UMAP 2D坐标
         projectedCoords = allCoords.map(p => {
           if (!p.umap2d || p.umap2d.x === undefined || p.umap2d.y === undefined) {
             console.warn('Missing umap2d data for point:', p);
-            return {
-              ...p,
-              x: p.raw?.x || 0,
-              y: p.raw?.y || 0,
-              z: 0
-            };
+            return { ...p, x: p.raw?.x || 0, y: p.raw?.y || 0, z: 0 };
           }
-          return {
-            ...p,
-            x: p.umap2d.x,
-            y: p.umap2d.y,
-            z: 0
-          };
+          return { ...p, x: p.umap2d.x, y: p.umap2d.y, z: 0 };
         });
       }
     } else {
@@ -79,19 +68,9 @@ export default function useDataLoader() {
       projectedCoords = allCoords.map(p => {
         if (!p.raw || p.raw.x === undefined || p.raw.y === undefined) {
           console.warn('Missing raw data for point:', p);
-          return {
-            ...p,
-            x: 0,
-            y: 0,
-            z: 0
-          };
+          return { ...p, x: 0, y: 0, z: 0 };
         }
-        return {
-          ...p,
-          x: p.raw.x,
-          y: p.raw.y,
-          z: 0
-        };
+        return { ...p, x: p.raw.x, y: p.raw.y, z: 0 };
       });
     }
     
@@ -105,11 +84,12 @@ export default function useDataLoader() {
     
     const scaled = projectedCoords.map(p => ({
       ...p,
-      x: 2 * (p.x - minX) / (maxX - minX) - 1,
-      y: -2 * (p.y - minY) / (maxY - minY) - 1,
-      z: 2 * (p.z - minZ) / (maxZ - minZ) - 1
+      x: safeScale(p.x, minX, maxX),
+      y: -safeScale(p.y, minY, maxY),
+      z: safeScale(p.z || 0, minZ, maxZ),
     }));
     
+    // 重要：保持数组顺序不变，以便 deck.gl 按索引做 attribute transition
     setPoints(scaled);
   };
 
@@ -122,73 +102,38 @@ export default function useDataLoader() {
       // 直接从JSON文件读取坐标数据
       const coords = await fetch(`${API}/public/coords.json`).then((r) => r.json());
       setAllCoords(coords);
-      
-      // 直接使用coords数据应用投影，而不是依赖state中的allCoords
+
+      // 首次也应用一次投影
       if (coords.length > 0) {
         let projectedCoords;
         if (useUMAP) {
-          // UMAP模式：根据2D/3D选择对应坐标
           if (is3D) {
-            // 3D模式：使用UMAP 3D坐标
             projectedCoords = coords.map(p => {
               if (!p.umap3d || p.umap3d.x === undefined || p.umap3d.y === undefined) {
                 console.warn('Missing umap3d data for point:', p);
-                return {
-                  ...p,
-                  x: p.raw?.x || 0,
-                  y: p.raw?.y || 0,
-                  z: 0
-                };
+                return { ...p, x: p.raw?.x || 0, y: p.raw?.y || 0, z: 0 };
               }
-              return {
-                ...p,
-                x: p.umap3d.x,
-                y: p.umap3d.y,
-                z: p.umap3d.z || 0
-              };
+              return { ...p, x: p.umap3d.x, y: p.umap3d.y, z: p.umap3d.z ?? 0 };
             });
           } else {
-            // 2D模式：使用UMAP 2D坐标
             projectedCoords = coords.map(p => {
               if (!p.umap2d || p.umap2d.x === undefined || p.umap2d.y === undefined) {
                 console.warn('Missing umap2d data for point:', p);
-                return {
-                  ...p,
-                  x: p.raw?.x || 0,
-                  y: p.raw?.y || 0,
-                  z: 0
-                };
+                return { ...p, x: p.raw?.x || 0, y: p.raw?.y || 0, z: 0 };
               }
-              return {
-                ...p,
-                x: p.umap2d.x,
-                y: p.umap2d.y,
-                z: 0
-              };
+              return { ...p, x: p.umap2d.x, y: p.umap2d.y, z: 0 };
             });
           }
         } else {
-          // Raw模式：使用原始坐标
           projectedCoords = coords.map(p => {
             if (!p.raw || p.raw.x === undefined || p.raw.y === undefined) {
               console.warn('Missing raw data for point:', p);
-              return {
-                ...p,
-                x: 0,
-                y: 0,
-                z: 0
-              };
+              return { ...p, x: 0, y: 0, z: 0 };
             }
-            return {
-              ...p,
-              x: p.raw.x,
-              y: p.raw.y,
-              z: 0
-            };
+            return { ...p, x: p.raw.x, y: p.raw.y, z: 0 };
           });
         }
         
-        // 标准化坐标到 [-1, 1] 范围
         const xs = projectedCoords.map(p => p.x);
         const ys = projectedCoords.map(p => p.y);
         const zs = projectedCoords.map(p => p.z || 0);
@@ -198,9 +143,9 @@ export default function useDataLoader() {
         
         const scaled = projectedCoords.map(p => ({
           ...p,
-          x: 2 * (p.x - minX) / (maxX - minX) - 1,
-          y: -2 * (p.y - minY) / (maxY - minY) - 1,
-          z: 2 * (p.z - minZ) / (maxZ - minZ) - 1
+          x: safeScale(p.x, minX, maxX),
+          y: -safeScale(p.y, minY, maxY),
+          z: safeScale(p.z || 0, minZ, maxZ),
         }));
         
         setPoints(scaled);
@@ -208,21 +153,20 @@ export default function useDataLoader() {
       
       setLoading(false);
     })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 当allCoords数据加载完成后，确保应用坐标投影
   useEffect(() => {
-    if (allCoords.length > 0) {
-      applyCoordinateProjection();
-    }
+    if (allCoords.length > 0) applyCoordinateProjection();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allCoords]);
 
-  // 当UMAP模式或2D/3D模式改变时，重新应用坐标投影
+  // 当UMAP模式或2D/3D模式改变时，重新应用坐标投影（保持数组顺序，便于过渡）
   useEffect(() => {
-    if (allCoords.length > 0) {
-      applyCoordinateProjection();
-    }
-  }, [useUMAP, is3D, allCoords]);
+    if (allCoords.length > 0) applyCoordinateProjection();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useUMAP, is3D]);
 
   // 拉某个 chunk 的 UV（只拉一次）
   const ensureUV = async (chunkId) => {
@@ -231,7 +175,7 @@ export default function useDataLoader() {
     setChunkUV((prev) => ({ ...prev, [chunkId]: uv }));
   };
 
-      // 请求某个 chunk 的 atlas（服务器端合成 RGBA）
+  // 请求某个 chunk 的 atlas（服务器端合成 RGBA）
   const fetchAtlas = async (chunkId) => {
     if (atlasURL[chunkId]) return;
     if (fetchingChunks.has(chunkId)) return;
@@ -239,13 +183,9 @@ export default function useDataLoader() {
 
     const body = {
       channels,
-      composite: {
-        weights,
-        alphas,
-        colors
-      },
+      composite: { weights, alphas, colors },
       tile: meta?.atlas?.tile ?? 16,
-      profile: "default_v1"
+      profile: "default_v1",
     };
 
     const res = await fetch(`${API}/atlas/${chunkId}`, {
@@ -256,9 +196,7 @@ export default function useDataLoader() {
 
     if (!res.ok) {
       console.error("atlas request failed", await res.text());
-      setFetchingChunks((s) => {
-        const t = new Set(s); t.delete(chunkId); return t;
-      });
+      setFetchingChunks((s) => { const t = new Set(s); t.delete(chunkId); return t; });
       return;
     }
 
@@ -266,12 +204,10 @@ export default function useDataLoader() {
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     setAtlasURL((prev) => ({ ...prev, [chunkId]: url }));
-    setFetchingChunks((s) => {
-      const t = new Set(s); t.delete(chunkId); return t;
-    });
+    setFetchingChunks((s) => { const t = new Set(s); t.delete(chunkId); return t; });
   };
 
-      // 计算视野内优先 chunk（这里只做最简单：按 chunk 分组，全部都拉）
+  // 计算视野内优先 chunk（这里只做最简单：按 chunk 分组，全部都拉）
   useEffect(() => {
     if (!meta || loading) return;
     const chunks = new Set(points.map((p) => p.chunk_id));
@@ -282,7 +218,7 @@ export default function useDataLoader() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meta, loading, channels, renderMode, is3D, useUMAP]);
+  }, [meta, loading, channels, renderMode, is3D, useUMAP, points]);
 
   return {
     // 数据状态
@@ -319,6 +255,8 @@ export default function useDataLoader() {
     
     // 数据获取函数
     ensureUV,
-    fetchAtlas
+    fetchAtlas,
   };
 }
+
+
