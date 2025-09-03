@@ -42,17 +42,4 @@
   margin-bottom: 6px;
 }
 
-/* ChannelPicker 组件样式 */
-.channel-picker {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 6px;
-}
 
-.channel-label {
-  font-size: 12px;
-}
-
-.channel-checkbox {
-  margin-right: 4px;
-}

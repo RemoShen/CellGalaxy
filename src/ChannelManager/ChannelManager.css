@@ -1,0 +1,193 @@
+.channel-manager {
+    width: 100%;
+    margin-bottom: 12px;
+  }
+  
+.channel-section-title {
+  margin-bottom: 6px;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* 添加通道区域 */
+.add-channel-section {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin-bottom: 10px;
+  position: relative;
+}
+
+.add-channel-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: #007bff;
+  border-radius: 50%;
+  cursor: pointer;
+  margin-right: 8px;
+  font-size: 14px;
+  color: white;
+  transition: background-color 0.2s;
+}
+
+.add-channel-button:hover {
+  background: #0056b3;
+}
+
+.add-channel-text {
+  font-size: 12px;
+  color: #ccc;
+}
+
+/* 下拉列表 */
+.channel-dropdown {
+  position: absolute;
+  top: 100%;
+  left: -10;
+  right: 0;
+  background: rgba(41, 41, 41, 1);
+  border: 1px solid #444;
+  border-radius: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1001;
+  margin-top: 2px;
+  min-width: 200px;
+  width: auto;
+}
+
+.dropdown-item {
+  padding: 6px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid #333;
+  font-size: 12px;
+  transition: background-color 0.2s;
+}
+
+.dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item.disabled {
+  color: #666;
+  cursor: not-allowed;
+}
+
+/* 已选择的通道列表 */
+.selected-channels {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.channel-item {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* 颜色选择器 */
+.color-picker {
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  margin-right: 4px;
+}
+
+.color-picker::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.color-picker::-webkit-color-swatch {
+  border: none;
+  border-radius: 3px;
+}
+
+/* 通道名称 */
+.channel-name {
+  font-size: 11px;
+  color: #fff;
+  margin-right: 10px;
+  min-width: 50px;
+}
+
+/* 范围滑块容器 */
+.range-slider-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-right: 10px;
+}
+
+/* 双端滑块 */
+.range-slider {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: #444;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #007bff;
+  cursor: pointer;
+  border: 2px solid #fff;
+}
+
+.range-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #007bff;
+  cursor: pointer;
+  border: 2px solid #fff;
+}
+
+/* 范围值显示 */
+.range-values {
+  font-size: 10px;
+  color: #ccc;
+  text-align: center;
+  margin-top: 2px;
+}
+
+/* 删除按钮 */
+.delete-button {
+  background: none;
+  border: none;
+  color: #ff4444;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  transition: background-color 0.2s;
+}
+
+.delete-button:hover {
+  background: rgba(255, 68, 68, 0.2);
+}

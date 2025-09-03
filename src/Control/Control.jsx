@@ -4,31 +4,10 @@ import FileUpload from "../FileUpload/FileUpload";
 import RenderModeSelector from "../RenderModeSelector/RenderModeSelector";
 import UMAPSelector from "../UMAPSelector/UMAPSelector";
 import ImageSizeControl from "../ImageSizeControl/ImageSizeControl";
+import ChannelManager from "../ChannelManager/ChannelManager";
 
-// 通道选择器组件
-function ChannelPicker({ allChannels, selected, setSelected }) {
-  const toggle = (c) => {
-    setSelected((prev) =>
-      prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
-    );
-  };
-  
-  return (
-    <div className="channel-picker">
-      {Array.from({ length: allChannels }, (_, i) => i).map((c) => (
-        <label key={c} className="channel-label">
-          <input
-            type="checkbox"
-            className="channel-checkbox"
-            checked={selected.includes(c)}
-            onChange={() => toggle(c)}
-          />
-          ch{c}
-        </label>
-      ))}
-    </div>
-  );
-}
+
+
 
 export default function Control({
   meta,
@@ -66,15 +45,8 @@ export default function Control({
         imageSize={imageSize}
         setImageSize={setImageSize}
       />
-      
-      <div className="control-section">
-        <div className="control-section-title">选择通道：</div>
-        <ChannelPicker
-          allChannels={meta?.C}
-          selected={channels}
-          setSelected={setChannels}
-        />
-      </div>
+      <ChannelManager selected={channels} setSelected={setChannels} />
+     
     </div>
   );
 }
