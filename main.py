@@ -34,7 +34,7 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
-    allow_credentials=True
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -355,24 +355,11 @@ def atlas(chunk_id: int, req: AtlasRequest = Body(...)):
     data = np.asarray(img[chans, slc, :, :], dtype=np.float32)
     K, M, Hx, Wx = data.shape
 
-    # 窗口处理
-    default_rng = default_window_for_dtype(img.dtype)
+    # 图像处理 - 直接使用原始数据，不进行窗口处理
     t_list = []
-    if req.window.mode == "global":
-        rng = req.window.global_ or default_rng
-        for k in range(K):
-            t_list.append(norm01(data[k], rng.min, rng.max, req.window.gamma))
-    elif req.window.mode == "per_channel":
-        global_rng = req.window.global_ or default_rng
-        for k, cid in enumerate(chans):
-            r_spec = None
-            if req.window.per_channel and (cid in req.window.per_channel):
-                r_spec = req.window.per_channel[cid]
-            if r_spec is None:
-                r_spec = global_rng
-            t_list.append(norm01(data[k], r_spec.min, r_spec.max, req.window.gamma))
-    else:
-        raise HTTPException(status_code=400, detail="window.mode must be 'global' or 'per_channel'")
+    for k in range(K):
+        # 直接归一化到0-1范围
+        t_list.append(norm01(data[k], data[k].min(), data[k].max(), 1.0))
 
     t_stack = np.stack(t_list, axis=0)
     rgba_tiles = compose_rgba_from_channels(t_stack, chans, req.composite)
