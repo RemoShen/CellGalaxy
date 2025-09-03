@@ -20,6 +20,23 @@ export default function ChannelManager({ selected, setSelected }) {
     fetchChannelInfo();
   }, []);
 
+  // 监听点击事件，点击外部时关闭下拉菜单
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      // 如果点击的是下拉菜单项，不关闭菜单
+      if (event.target.closest('.dropdown-item')) {
+        return;
+      }
+      
+      if (showDropdown && !event.target.closest('.add-channel-section')) {
+        setShowDropdown(false);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [showDropdown]);
+
   // 计算可用的通道（未选择的）
   const availableChannels = channelInfo.channels?.filter(
     (ch) => !selected.includes(ch.id)
@@ -28,7 +45,6 @@ export default function ChannelManager({ selected, setSelected }) {
   // 添加通道
   const addChannel = (channel) => {
     setSelected(prev => [...prev, channel.id]);
-    setShowDropdown(false);
   };
 
   // 删除通道
