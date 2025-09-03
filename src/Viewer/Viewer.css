@@ -7,3 +7,15 @@
   justify-content: center;
   background: #f0f0f0;
 }
+.deck-tooltip {
+  font-size: 12px;
+  line-height: 1.25;
+  padding: 6px 8px;
+  background: rgba(20, 20, 20, 0.95);
+  color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  white-space: pre;           /* 保留换行 */
+  pointer-events: none;       /* 不影响鼠标事件 */
+  backdrop-filter: blur(2px); /* 可选小玻璃效果 */
+}

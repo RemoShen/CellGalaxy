@@ -1,6 +1,5 @@
-
 // =============================
-// Viewer.jsx  (modified for smooth transitions)
+// Viewer.jsx  (smooth transitions + hover tooltip, normal cursor)
 // =============================
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import DeckGL from "@deck.gl/react";
@@ -14,9 +13,7 @@ import {
 } from "@deck.gl/core";
 import "./Viewer.css";
 
-/**
- * Compute the geometric center of a point set.
- */
+/** Compute the geometric center of a point set. */
 function computeCenter(points) {
   if (!points?.length) return [0, 0, 0];
   let minX = Infinity, minY = Infinity, minZ = Infinity;
@@ -30,18 +27,14 @@ function computeCenter(points) {
   return [(minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2];
 }
 
-/**
- * Construct icon mappings per chunk for IconLayer from normalized UVs.
- */
+/** Construct icon mappings per chunk for IconLayer from normalized UVs. */
 function buildIconMappingsByChunk(meta, chunkUV) {
   if (!meta || !chunkUV) return {};
   const map = {};
-
   for (const [chunkIdStr, uvObj] of Object.entries(chunkUV)) {
     const chunkId = Number(chunkIdStr);
     const { tile, width, height, uv } = uvObj;
     const imap = {};
-
     for (const u of uv) {
       const x = Math.round(u.u0 * width);
       const y = Math.round(u.v0 * height);
@@ -57,7 +50,7 @@ function buildIconMappingsByChunk(meta, chunkUV) {
   return map;
 }
 
-// 轻量的缓动函数（smoothstep）
+// 轻量缓动（smoothstep）
 const ease = (t) => t * t * (3 - 2 * t);
 
 const Viewer = ({
@@ -70,10 +63,10 @@ const Viewer = ({
   is3D = false,
   imageSize = 4,
 }) => {
-  // center of data for view target
+  // center for initial target
   const center = useMemo(() => computeCenter(points), [points]);
 
-  // 统一的视图状态
+  // viewState（含过渡配置）
   const [viewState, setViewState] = useState(() => ({
     target: [0, 0, 0],
     zoom: 8,
@@ -85,7 +78,6 @@ const Viewer = ({
   }));
 
   const initialized = useRef(false);
-  // 首次根据数据中心居中（之后不再强制改 target）
   useEffect(() => {
     if (!initialized.current && points.length) {
       setViewState((prev) => ({ ...prev, target: center }));
@@ -93,23 +85,21 @@ const Viewer = ({
     }
   }, [center, points.length]);
 
-  // 在 2D <-> 3D 切换时，平滑地调整相机姿态（如 rotationX）
+  // 2D <-> 3D 相机姿态平滑
   useEffect(() => {
     setViewState((prev) => ({
       ...prev,
       rotationX: is3D ? 45 : 0,
-      // 可选：也可以轻微调整 zoom 获得更好的空间感
       transitionDuration: 600,
       transitionEasing: ease,
       transitionInterpolator: new LinearInterpolator([
-        'rotationX', 'rotationOrbit', 'zoom', 'target',
+        "rotationX", "rotationOrbit", "zoom", "target",
       ]),
     }));
   }, [is3D]);
 
-  // 处理视图状态变化（拖拽/缩放）
-  const handleViewStateChange = ({ viewState: newViewState }) => {
-    setViewState(newViewState);
+  const handleViewStateChange = ({ viewState: next }) => {
+    setViewState(next);
   };
 
   const iconMappingsByChunk = useMemo(
@@ -122,13 +112,12 @@ const Viewer = ({
     const all = [];
 
     if (renderMode === "sprites") {
-      // bucket points by chunk
+      // 分 chunk 渲染 IconLayer
       const byChunk = new Map();
       for (const p of points ?? []) {
         const cid = p.chunk_id ?? 0;
-        const arr = byChunk.get(cid) ?? [];
-        arr.push(p);
-        byChunk.set(cid, arr);
+        if (!byChunk.has(cid)) byChunk.set(cid, []);
+        byChunk.get(cid).push(p);
       }
 
       for (const [chunkId, arr] of byChunk.entries()) {
@@ -154,17 +143,15 @@ const Viewer = ({
             pickable: true,
             autoHighlight: true,
             parameters: { depthTest: true },
-            // —— 让点位与尺寸都能平滑过渡 ——
             transitions: {
               getPosition: { duration: 600, easing: ease },
               getSize: { duration: 300, easing: ease },
             },
-            // 如果 accessor 依赖外部 props，可在此声明触发器；
-            // 目前我们依靠 data 变化来触发即可
           })
         );
       }
     } else {
+      // 散点模式
       all.push(
         new ScatterplotLayer({
           id: "scatter",
@@ -175,7 +162,7 @@ const Viewer = ({
           radiusScale: 1,
           radiusUnits: "pixels",
           pickable: true,
-            autoHighlight: true,
+          autoHighlight: true,
           parameters: { depthTest: true },
           transitions: {
             getPosition: { duration: 600, easing: ease },
@@ -196,9 +183,10 @@ const Viewer = ({
     );
   }
 
-  // 2D模式：使用OrthographicController，只允许缩放和平移
-  // 3D模式：使用OrbitController，允许所有操作，包括旋转
-  const controller = is3D ? { type: OrbitController } : { type: OrthographicController };
+  // 控制器
+  const controller = is3D
+    ? { type: OrbitController }
+    : { type: OrthographicController };
 
   return (
     <DeckGL
@@ -211,8 +199,18 @@ const Viewer = ({
       viewState={viewState}
       onViewStateChange={handleViewStateChange}
       layers={layers}
-      getTooltip={({object}) => (object ? `id: ${object.id}
-label: ${object.label ?? ((object?.id ?? 0) % 11)}` : null)}
+      // 悬停提示文本
+      getTooltip={({ object }) =>
+        object
+          ? `id: ${object.id}\nlabel: ${object.label ?? ((object?.id ?? 0) % 11)}`
+          : null
+      }
+      // 固定为默认箭头；拖拽时可显示 grabbing（可改成始终 'default'）
+      getCursor={({ isDragging /* , isHovering */ }) =>
+        isDragging ? "grabbing" : "default"
+      }
+      pickingRadius={6}
+      className="deck-tooltip"
     />
   );
 };
