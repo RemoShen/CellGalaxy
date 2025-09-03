@@ -84,6 +84,8 @@ export default function useDataLoader() {
     
     const scaled = projectedCoords.map(p => ({
       ...p,
+      // 确保每个点都有稳定的 label（后端没给时用 id%11 兜底）
+      label: p.label ?? (p.id % 11),
       x: safeScale(p.x, minX, maxX),
       y: -safeScale(p.y, minY, maxY),
       z: safeScale(p.z || 0, minZ, maxZ),
@@ -142,11 +144,13 @@ export default function useDataLoader() {
         const minZ = Math.min(...zs), maxZ = Math.max(...zs);
         
         const scaled = projectedCoords.map(p => ({
-          ...p,
-          x: safeScale(p.x, minX, maxX),
-          y: -safeScale(p.y, minY, maxY),
-          z: safeScale(p.z || 0, minZ, maxZ),
-        }));
+      ...p,
+      // 确保每个点都有稳定的 label（后端没给时用 id%11 兜底）
+      label: p.label,
+      x: safeScale(p.x, minX, maxX),
+      y: -safeScale(p.y, minY, maxY),
+      z: safeScale(p.z || 0, minZ, maxZ),
+    }));
         
         setPoints(scaled);
       }
@@ -258,5 +262,4 @@ export default function useDataLoader() {
     fetchAtlas,
   };
 }
-
 

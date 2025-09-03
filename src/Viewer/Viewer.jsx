@@ -1,3 +1,4 @@
+
 // =============================
 // Viewer.jsx  (modified for smooth transitions)
 // =============================
@@ -150,7 +151,8 @@ const Viewer = ({
             far: 1000,
             sizeUnits: "pixels",
             billboard: true,
-            pickable: false,
+            pickable: true,
+            autoHighlight: true,
             parameters: { depthTest: true },
             // —— 让点位与尺寸都能平滑过渡 ——
             transitions: {
@@ -172,7 +174,8 @@ const Viewer = ({
           getRadius: imageSize / 2,
           radiusScale: 1,
           radiusUnits: "pixels",
-          pickable: false,
+          pickable: true,
+            autoHighlight: true,
           parameters: { depthTest: true },
           transitions: {
             getPosition: { duration: 600, easing: ease },
@@ -208,6 +211,8 @@ const Viewer = ({
       viewState={viewState}
       onViewStateChange={handleViewStateChange}
       layers={layers}
+      getTooltip={({object}) => (object ? `id: ${object.id}
+label: ${object.label ?? ((object?.id ?? 0) % 11)}` : null)}
     />
   );
 };

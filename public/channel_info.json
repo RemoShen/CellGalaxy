@@ -6,7 +6,7 @@
       "column_index": 9,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 23832.0
       }
     },
     {
@@ -15,7 +15,7 @@
       "column_index": 10,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 8091.0
       }
     },
     {
@@ -24,7 +24,7 @@
       "column_index": 11,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 48594.0
+        "max": 3055.0
       }
     },
     {
@@ -33,7 +33,7 @@
       "column_index": 12,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 17839.0
+        "max": 1210.0
       }
     },
     {
@@ -42,7 +42,7 @@
       "column_index": 13,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 33077.0
       }
     },
     {
@@ -51,7 +51,7 @@
       "column_index": 14,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 26763.0
+        "max": 2247.0
       }
     },
     {
@@ -60,7 +60,7 @@
       "column_index": 15,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 9808.0
+        "max": 769.0
       }
     },
     {
@@ -69,7 +69,7 @@
       "column_index": 16,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 5575.0
+        "max": 1249.0
       }
     },
     {
@@ -78,7 +78,7 @@
       "column_index": 17,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 33022.0
       }
     },
     {
@@ -87,7 +87,7 @@
       "column_index": 18,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 10169.0
       }
     },
     {
@@ -96,7 +96,7 @@
       "column_index": 19,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 33601.0
+        "max": 5632.0
       }
     },
     {
@@ -105,7 +105,7 @@
       "column_index": 20,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 18364.0
       }
     },
     {
@@ -114,7 +114,7 @@
       "column_index": 21,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 27595.0
       }
     },
     {
@@ -123,7 +123,7 @@
       "column_index": 22,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 34163.0
+        "max": 4836.0
       }
     },
     {
@@ -132,7 +132,7 @@
       "column_index": 23,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 18143.0
       }
     },
     {
@@ -141,7 +141,7 @@
       "column_index": 24,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 2655.0
       }
     },
     {
@@ -150,7 +150,7 @@
       "column_index": 25,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 46546.0
       }
     },
     {
@@ -159,7 +159,7 @@
       "column_index": 26,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 31866.0
+        "max": 5044.0
       }
     },
     {
@@ -168,7 +168,7 @@
       "column_index": 27,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 34588.0
+        "max": 4130.0
       }
     },
     {
@@ -177,7 +177,7 @@
       "column_index": 28,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 43570.0
+        "max": 1982.0
       }
     },
     {
@@ -186,7 +186,7 @@
       "column_index": 29,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 34640.0
       }
     },
     {
@@ -195,7 +195,7 @@
       "column_index": 30,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 4169.0
       }
     },
     {
@@ -204,7 +204,7 @@
       "column_index": 31,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 50312.0
+        "max": 1525.0
       }
     },
     {
@@ -213,7 +213,7 @@
       "column_index": 32,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 4246.0
       }
     },
     {
@@ -222,7 +222,7 @@
       "column_index": 33,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 51058.0
       }
     },
     {
@@ -231,7 +231,7 @@
       "column_index": 34,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 19068.0
+        "max": 2902.0
       }
     },
     {
@@ -240,7 +240,7 @@
       "column_index": 35,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 41029.0
+        "max": 1082.0
       }
     },
     {
@@ -249,7 +249,7 @@
       "column_index": 36,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 13550.0
+        "max": 2669.0
       }
     },
     {
@@ -258,7 +258,7 @@
       "column_index": 37,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 51782.0
       }
     },
     {
@@ -267,7 +267,7 @@
       "column_index": 38,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65291.0
+        "max": 7505.0
       }
     },
     {
@@ -276,7 +276,7 @@
       "column_index": 39,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 16458.0
+        "max": 1686.0
       }
     },
     {
@@ -285,7 +285,7 @@
       "column_index": 40,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 28444.0
       }
     },
     {
@@ -294,7 +294,7 @@
       "column_index": 41,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 31774.0
       }
     },
     {
@@ -303,7 +303,7 @@
       "column_index": 42,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 63227.0
+        "max": 12856.0
       }
     },
     {
@@ -312,7 +312,7 @@
       "column_index": 43,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 1181.0
       }
     },
     {
@@ -321,7 +321,7 @@
       "column_index": 44,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 1870.0
       }
     },
     {
@@ -330,7 +330,7 @@
       "column_index": 45,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 37010.0
       }
     },
     {
@@ -339,7 +339,7 @@
       "column_index": 46,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 12841.0
       }
     },
     {
@@ -348,7 +348,7 @@
       "column_index": 47,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 13387.0
+        "max": 1345.0
       }
     },
     {
@@ -357,7 +357,7 @@
       "column_index": 48,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 5167.0
       }
     },
     {
@@ -366,7 +366,7 @@
       "column_index": 49,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 45916.0
       }
     },
     {
@@ -375,7 +375,7 @@
       "column_index": 50,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 29522.0
       }
     },
     {
@@ -384,7 +384,7 @@
       "column_index": 51,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65535.0
+        "max": 46519.0
       }
     }
   ],

@@ -50,6 +50,12 @@ def open_zarr():
         raise RuntimeError(f"Zarr 目录不存在: {ZARR_DIR}")
     return zarr.open_array(ZARR_DIR, mode="r")
 
+def stable_label(idx: int, num_classes: int = 11) -> int:
+    # 基于 id 的稳定哈希，确保每次重启也一致
+    h = hashlib.sha1(str(idx).encode("utf-8")).hexdigest()
+    return int(h[:8], 16) % num_classes
+
+
 def meta_from_img(img):
     if img.ndim != 4:
         raise RuntimeError(f"期望 Zarr 形状 [C,N,H,W]，实际 {img.shape}")
@@ -232,7 +238,8 @@ async def generate_json_files():
                 "local_index": int(local_index),
                 "raw": {"x": x_raw, "y": y_raw, "z": 0},
                 "umap2d": {"x": x_umap2d, "y": y_umap2d, "z": 0},
-                "umap3d": {"x": x_umap3d, "y": y_umap3d, "z": z_umap3d}
+                "umap3d": {"x": x_umap3d, "y": y_umap3d, "z": z_umap3d},
+                "label": int(df.iloc[idx].get('label', stable_label(idx)))
             })
         
         # 生成channel信息
@@ -333,7 +340,8 @@ def coords(limit: Optional[int] = Query(None)):
             "local_index": int(local_index),
             "raw": {"x": x_raw, "y": y_raw, "z": 0},
             "umap2d": {"x": x_umap2d, "y": y_umap2d, "z": 0},
-            "umap3d": {"x": x_umap3d, "y": y_umap3d, "z": z_umap3d}
+            "umap3d": {"x": x_umap3d, "y": y_umap3d, "z": z_umap3d},
+            "label": int(df.iloc[idx].get('label', stable_label(idx)))
         })
     return JSONResponse(out)
 
