@@ -11,73 +11,16 @@ import {
   OrbitController,
   LinearInterpolator,
 } from "@deck.gl/core";
+import {
+  computeCenter,
+  ease,
+  buildIconMappingsByChunk,
+  getEventCoordinates,
+  computeSelectionBounds,
+  performBoxSelection,
+  performLassoSelection,
+} from "../utils";
 import "./Viewer.css";
-
-/** Compute the geometric center of a point set. */
-function computeCenter(points) {
-  if (!points?.length) return [0, 0, 0];
-  let minX = Infinity,
-    minY = Infinity,
-    minZ = Infinity;
-  let maxX = -Infinity,
-    maxY = -Infinity,
-    maxZ = -Infinity;
-  for (const p of points) {
-    const x = p.x,
-      y = p.y,
-      z = p.z ?? 0;
-    if (x < minX) minX = x;
-    if (x > maxX) maxX = x;
-    if (y < minY) minY = y;
-    if (y > maxY) maxY = y;
-    if (z < minZ) minZ = z;
-    if (z > maxZ) maxZ = z;
-  }
-  return [(minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2];
-}
-
-/** Construct icon mappings per chunk for IconLayer from normalized UVs. */
-function buildIconMappingsByChunk(meta, chunkUV) {
-  if (!meta || !chunkUV) return {};
-  const map = {};
-  for (const [chunkIdStr, uvObj] of Object.entries(chunkUV)) {
-    const chunkId = Number(chunkIdStr);
-    const { tile, width, height, uv } = uvObj;
-    const imap = {};
-    for (const u of uv) {
-      const x = Math.round(u.u0 * width);
-      const y = Math.round(u.v0 * height);
-      imap[`t_${u.local_index}`] = {
-        x,
-        y,
-        width: tile,
-        height: tile,
-        mask: true,
-        anchorY: tile / 2,
-        anchorX: tile / 2,
-      };
-    }
-    map[chunkId] = imap;
-  }
-  return map;
-}
-
-// smoothstep
-const ease = (t) => t * t * (3 - 2 * t);
-
-// 屏幕空间点是否在多边形内
-function pointInPolygon([px, py], poly) {
-  let inside = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const [xi, yi] = poly[i];
-    const [xj, yj] = poly[j];
-    const intersect =
-      yi > py !== yj > py &&
-      px < ((xj - xi) * (py - yi)) / (yj - yi || 1e-12) + xi;
-    if (intersect) inside = !inside;
-  }
-  return inside;
-}
 
 const Viewer = ({
   meta,
@@ -146,23 +89,7 @@ const Viewer = ({
   const [lassoPts, setLassoPts] = useState([]); // [[x,y],...] screen
 
   // 统一取得屏幕（相对 canvas 左上）的坐标
-  const getXY = (info) => {
-    if (info?.offsetCenter && Number.isFinite(info.offsetCenter.x)) {
-      return { x: info.offsetCenter.x, y: info.offsetCenter.y };
-    }
-    if (Number.isFinite(info?.x) && Number.isFinite(info?.y)) {
-      return { x: info.x, y: info.y };
-    }
-    const evt = info?.srcEvent;
-    if (evt && typeof evt.clientX === "number") {
-      const rect = containerRef.current?.getBoundingClientRect();
-      return {
-        x: evt.clientX - (rect?.left ?? 0),
-        y: evt.clientY - (rect?.top ?? 0),
-      };
-    }
-    return { x: 0, y: 0 };
-  };
+  const getXY = (info) => getEventCoordinates(info, containerRef);
 
   const onDragStart = (info) => {
     if (selectionMode === "none") return;
@@ -196,19 +123,11 @@ const Viewer = ({
     const ids = new Set();
 
     if (selectionMode === "box" && dragStart && dragEnd) {
-      const x0 = Math.min(dragStart.x, dragEnd.x);
-      const y0 = Math.min(dragStart.y, dragEnd.y);
-      const w = Math.max(1, Math.abs(dragStart.x - dragEnd.x));
-      const h = Math.max(1, Math.abs(dragStart.y - dragEnd.y));
-
-      const picked =
-        deck?.pickObjects({
-          x: x0,
-          y: y0,
-          width: w,
-          height: h,
-        }) || [];
-
+      // 使用utils函数计算选择框边界
+      const bounds = computeSelectionBounds(dragStart, dragEnd);
+      // 使用utils函数执行框选
+      const picked = performBoxSelection(deck, bounds);
+      
       for (const p of picked) {
         const id = p?.object?.id;
         if (id != null) ids.add(id);
@@ -216,12 +135,9 @@ const Viewer = ({
     }
 
     if (selectionMode === "lasso" && lassoPts.length >= 3 && viewport) {
-      // lasso 点乘 dpr -> 设备像素
-      const lassoDev = lassoPts.map(([x, y]) => [x, y]);
-      for (const p of points) {
-        const [sx, sy] = viewport.project([p.x, p.y, p.z ?? 0]); // 设备像素
-        if (pointInPolygon([sx, sy], lassoDev)) ids.add(p.id);
-      }
+      // 使用utils函数执行套索选择
+      const lassoIds = performLassoSelection(points, viewport, lassoPts);
+      lassoIds.forEach(id => ids.add(id));
     }
 
     setSelectedIds(ids);
@@ -276,11 +192,7 @@ const Viewer = ({
               getPosition: { duration: 600, easing: ease },
               getSize: { duration: 300, easing: ease },
             },
-            getColor: (d) => {
-              return selectedIds.has(d.id)
-                ? [255, 140, 0, 255]
-                : [255, 255, 255, 255];
-            },
+            getColor: (d) => selectedIds.has(d.id)? [255, 140, 0, 255]: [255, 255, 255, 255],
           })
         );
       }
@@ -290,12 +202,9 @@ const Viewer = ({
           id: "scatter",
           data: points ?? [],
           getPosition: (d) => [d.x, d.y, d.z ?? 0],
-          getFillColor: (d) => {
-            return selectedIds.has(d.id)
-              ? [255, 140, 0, 255]
-              : [255, 255, 255, 255];
-          },
-          getRadius: imageSize / 2,
+          getFillColor: (d) => selectedIds.has(d.id)? [255, 140, 0, 255]: [255, 255, 255, 255],
+          stroked: false,
+          getRadius: imageSize*0.75,
           radiusScale: 1,
           radiusUnits: "pixels",
           pickable: true,
@@ -305,12 +214,12 @@ const Viewer = ({
             getPosition: { duration: 600, easing: ease },
             getRadius: { duration: 300, easing: ease },
           },
+          updateTriggers: {
+            getFillColor: [selectedIds],
+          },
         })
       );
     }
-
-    // 选中叠加描边（置顶）
-    const selected = points.filter((p) => selectedIds.has(p.id));
 
     return all;
   }, [
