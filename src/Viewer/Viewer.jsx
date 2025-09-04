@@ -175,7 +175,8 @@ const Viewer = ({
 
         // 新：按通道叠加（每个通道一个 IconLayer，使用灰度 atlas 并用颜色着色）
         let addedGray = false;
-        for (const ch of channels) {
+        for (let i = 0; i < channels.length; i++) {
+          const ch = channels[i];
           const atlasGray = atlasByChannel?.[chunkId]?.[ch];
           if (!atlasGray) continue;
           addedGray = true;
@@ -189,6 +190,8 @@ const Viewer = ({
               id: `icon-ch${ch}-${chunkId}`,
               data: arr.map((d) => ({ ...d, icon: `t_${d.local_index}` })),
               iconAtlas: String(atlasGray),
+              // 尝试使用 ImageBitmap 提升解码与纹理上传性能
+              loadOptions: { image: { type: 'imagebitmap' } },
               iconMapping: mapping,
               getIcon: (d) => d.icon,
               getPosition: (d) => [d.x, d.y, d.z ?? 0],
@@ -199,7 +202,8 @@ const Viewer = ({
               far: 1000,
               sizeUnits: "pixels",
               billboard: true,
-              pickable: true,
+              // 仅最上层通道参与拾取，减少多层拾取开销
+              pickable: i === channels.length - 1,
               autoHighlight: true,
               parameters: { depthTest: true },
               transitions: {
@@ -223,6 +227,7 @@ const Viewer = ({
             id: `icon-merged-${chunkId}`,
             data: arr.map((d) => ({ ...d, icon: `t_${d.local_index}` })),
             iconAtlas: String(atlasMerged),
+            loadOptions: { image: { type: 'imagebitmap' } },
             iconMapping: mapping,
             getIcon: (d) => d.icon,
             getPosition: (d) => [d.x, d.y, d.z ?? 0],

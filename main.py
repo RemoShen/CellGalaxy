@@ -15,13 +15,20 @@ from typing import Optional, List, Dict
 from pydantic import BaseModel, Field
 from PIL import Image
 import zarr
+try:
+    from numcodecs import blosc as _blosc
+    _blosc.set_nthreads(max(1, os.cpu_count() or 1))
+except Exception:
+    pass
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 # =========================
 # 配置
 # =========================
 DATA_DIR = "public"
-# 将缓存目录放回 public，便于直接通过静态路径访问（/public 或 /cache）
-CACHE_DIR = os.path.join(DATA_DIR, "cache")
+# 将缓存目录移出 public，避免前端开发服务器监听导致的整页刷新
+CACHE_DIR = os.path.join(os.getcwd(), ".cache")
 ZARR_DIR = os.path.join(DATA_DIR, "output.zarr")
 DEFAULT_TILE = 16
 
@@ -41,15 +48,29 @@ app.add_middleware(
 )
 
 app.mount("/output.zarr", StaticFiles(directory=ZARR_DIR, check_dir=False), name="zarr_data")
+# 单独挂载缓存路径到 /public/cache，但物理目录不在 public 下，避免触发前端 HMR 刷新
+app.mount("/public/cache", StaticFiles(directory=CACHE_DIR, check_dir=False), name="cache_files")
 app.mount("/public", StaticFiles(directory=DATA_DIR, check_dir=False), name="public_files")
 
 # =========================
 # 核心工具函数
 # =========================
+# 进程级 Zarr 句柄缓存与线程池
+_IMG = None
+_IMG_LOCK = threading.Lock()
+_EXECUTOR = ThreadPoolExecutor(max_workers=max(2, (os.cpu_count() or 4)))
+_PREWARM_SET = set()  # {(channel, tile)} 标记正在预热，避免重复
+
 def open_zarr():
-    if not os.path.isdir(ZARR_DIR):
-        raise RuntimeError(f"Zarr 目录不存在: {ZARR_DIR}")
-    return zarr.open_array(ZARR_DIR, mode="r")
+    global _IMG
+    if _IMG is not None:
+        return _IMG
+    with _IMG_LOCK:
+        if _IMG is None:
+            if not os.path.isdir(ZARR_DIR):
+                raise RuntimeError(f"Zarr 目录不存在: {ZARR_DIR}")
+            _IMG = zarr.open_array(ZARR_DIR, mode="r")
+    return _IMG
 
 def stable_label(idx: int, num_classes: int = 11) -> int:
     h = hashlib.sha1(str(idx).encode("utf-8")).hexdigest()
@@ -131,6 +152,70 @@ def percentile_range(x: np.ndarray, p_lo: float = 5.0, p_hi: float = 95.0) -> (f
     if hi <= lo:
         hi = lo + 1.0
     return lo, hi
+
+# =========================
+# 生成与预热辅助
+# =========================
+def _generate_single_channel_mask(img, ch: int, slc: slice) -> np.ndarray:
+    data = np.asarray(img[[ch], slc, :, :], dtype=np.float32)
+    if data.ndim == 3:
+        data = data[np.newaxis, ...]
+    if data.ndim != 4:
+        raise RuntimeError(f"Unexpected data ndim: {data.ndim}")
+    t = norm01(data[0], 0.0, 65535.0, 1.0)
+    gray = t
+    alpha = t
+    mask = np.stack([gray, gray, gray, np.clip(alpha, 0.0, 1.0)], axis=-1)
+    return mask
+
+def _render_and_cache_atlas(img, ch: int, chunk_id: int, tile: int) -> str:
+    C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
+    if not (0 <= ch < C):
+        raise RuntimeError(f"channel {ch} out of range [0,{C-1}]")
+    if not (0 <= chunk_id < n_chunks):
+        raise RuntimeError("chunk_id out of range")
+    cache_path = single_cache_path(ch, chunk_id, int(tile))
+    if os.path.exists(cache_path):
+        return cache_path
+    start = chunk_id * n_per_chunk
+    end = min(start + n_per_chunk, N)
+    slc = slice(start, end)
+    mask = _generate_single_channel_mask(img, ch, slc)
+    atlas_img = tiles_to_atlas(mask, tile=int(tile))
+    buf = io.BytesIO()
+    atlas_img.save(buf, format="PNG", compress_level=1)
+    data_bytes = buf.getvalue()
+    with open(cache_path, "wb") as f:
+        f.write(data_bytes)
+    return cache_path
+
+def _prewarm_channel_async(ch: int, tile: int):
+    """后台预热指定通道/瓦片大小的所有 chunk（若未存在缓存则生成）。"""
+    key = (int(ch), int(tile))
+    if key in _PREWARM_SET:
+        return
+    _PREWARM_SET.add(key)
+    def _task():
+        try:
+            img = open_zarr()
+            C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
+            futures = []
+            for cid in range(n_chunks):
+                cp = single_cache_path(ch, cid, int(tile))
+                if os.path.exists(cp):
+                    continue
+                futures.append(_EXECUTOR.submit(_render_and_cache_atlas, img, ch, cid, tile))
+            for fut in as_completed(futures):
+                try:
+                    fut.result()
+                except Exception as e:
+                    try:
+                        print(f"prewarm task error: {e}")
+                    except Exception:
+                        pass
+        finally:
+            _PREWARM_SET.discard(key)
+    _EXECUTOR.submit(_task)
 
 # =========================
 # 数据生成函数
@@ -334,38 +419,17 @@ def atlas(chunk_id: int, req: AtlasRequest = Body(...)):
         headers = {"Cache-Control": "public, max-age=604800", "ETag": etag}
         return FileResponse(cache_path, media_type="image/png", headers=headers)
 
-    start = chunk_id * n_per_chunk
-    end = min(start + n_per_chunk, N)
-    slc = slice(start, end)
-    # 读取单通道
-    data = np.asarray(img[[ch], slc, :, :], dtype=np.float32)
-    if data.ndim == 3:
-        data = data[np.newaxis, ...]
-    if data.ndim != 4:
-        raise HTTPException(status_code=500, detail=f"Unexpected data ndim: {data.ndim}")
-
-    # 固定区间归一化到 [0,1]
-    t = norm01(data[0], 0.0, 65535.0, 1.0)
-
-    # 灰度 + alpha = 同一张灰度
-    gray = t
-    alpha = t
-    mask = np.stack([gray, gray, gray, np.clip(alpha, 0.0, 1.0)], axis=-1)
-
-    atlas_img = tiles_to_atlas(mask, tile=int(req.tile))
-
-    buf = io.BytesIO()
-    # 更快的 PNG 编码（轻压缩）
-    atlas_img.save(buf, format="PNG", compress_level=1)
-    data_bytes = buf.getvalue()
-    with open(cache_path, "wb") as f:
-        f.write(data_bytes)
+    # 渲染并缓存（可命中则直接返回文件）
+    _render_and_cache_atlas(img, ch, chunk_id, int(req.tile))
     try:
         print(f"Saved atlas cache: {cache_path}")
     except Exception:
         pass
+    # 后台预热同通道的其它 chunk
+    _prewarm_channel_async(ch, int(req.tile))
     headers = {"Cache-Control": "public, max-age=604800", "ETag": etag}
-    return StreamingResponse(io.BytesIO(data_bytes), media_type="image/png", headers=headers)
+    # 以 FileResponse 返还磁盘缓存（便于浏览器缓存与传输）
+    return FileResponse(cache_path, media_type="image/png", headers=headers)
 
 @app.get("/atlas/{chunk_id}")
 def atlas_get(chunk_id: int, channel: int = Query(...), tile: int = Query(DEFAULT_TILE), request: Request = None):
@@ -393,33 +457,26 @@ def atlas_get(chunk_id: int, channel: int = Query(...), tile: int = Query(DEFAUL
         headers = {"Cache-Control": "public, max-age=604800", "ETag": etag}
         return FileResponse(cache_path, media_type="image/png", headers=headers)
 
-    start = chunk_id * n_per_chunk
-    end = min(start + n_per_chunk, N)
-    slc = slice(start, end)
-    data = np.asarray(img[chans, slc, :, :], dtype=np.float32)
-    if data.ndim == 3:
-        data = data[np.newaxis, ...]
-    if data.ndim != 4:
-        raise HTTPException(status_code=500, detail=f"Unexpected data ndim: {data.ndim}")
-
-    # 归一化（固定 [0,65535]）
-    t = norm01(data[0], 0.0, 65535.0, 1.0)
-    gray = t
-    alpha = t
-    mask = np.stack([gray, gray, gray, np.clip(alpha, 0.0, 1.0)], axis=-1)
-
-    atlas_img = tiles_to_atlas(mask, tile=int(tile))
-    buf = io.BytesIO()
-    atlas_img.save(buf, format="PNG", compress_level=1)
-    data_bytes = buf.getvalue()
-    with open(cache_path, "wb") as f:
-        f.write(data_bytes)
+    # 渲染并缓存（若缓存命中则跳过）
+    _render_and_cache_atlas(img, chans[0], chunk_id, int(tile))
     try:
         print(f"Saved atlas cache: {cache_path}")
     except Exception:
         pass
+    # 后台预热同通道的其它 chunk
+    _prewarm_channel_async(chans[0], int(tile))
     headers = {"Cache-Control": "public, max-age=604800", "ETag": etag}
-    return StreamingResponse(io.BytesIO(data_bytes), media_type="image/png", headers=headers)
+    return FileResponse(cache_path, media_type="image/png", headers=headers)
+
+@app.post("/prewarm")
+def prewarm(channel: int = Query(...), tile: int = Query(DEFAULT_TILE)):
+    """触发后台预热：为指定通道与瓦片大小生成所有 chunk 的缓存。"""
+    img = open_zarr()
+    C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
+    if not (0 <= channel < C):
+        raise HTTPException(status_code=400, detail=f"channel {channel} out of range [0,{C-1}]")
+    _prewarm_channel_async(int(channel), int(tile))
+    return {"status": "ok", "message": "prewarm started", "channel": int(channel), "tile": int(tile)}
 
 # =========================
 # 启动

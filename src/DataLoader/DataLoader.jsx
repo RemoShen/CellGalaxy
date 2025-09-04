@@ -247,8 +247,8 @@ export default function useDataLoader() {
         const t = meta?.atlas?.tile ?? 16;
         const staticURL = `${API}/public/cache/ch${channel}/tile_${t}/chunk_${chunkId}.png`;
 
-        // 1) 先尝试直接访问固定路径的静态缓存
-        let head = await fetch(staticURL, { method: 'GET' });
+        // 1) 先尝试用 HEAD 探测固定路径的静态缓存（避免重复下载图片）
+        let head = await fetch(staticURL, { method: 'HEAD' });
         if (head.ok || head.status === 304) {
           setAtlasByChannel((prev) => ({
             ...prev,
@@ -306,6 +306,19 @@ export default function useDataLoader() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta, loading, channels, renderMode, is3D, useUMAP, points]);
+
+  // 当选择通道变化时，通知后端进行异步预热，减少后续首包延迟
+  useEffect(() => {
+    if (!meta || !channels || channels.length === 0) return;
+    const t = meta?.atlas?.tile ?? 16;
+    (async () => {
+      for (const ch of channels) {
+        try {
+          fetch(`${API}/prewarm?channel=${ch}&tile=${t}`, { method: 'POST', keepalive: true }).catch(() => {});
+        } catch {}
+      }
+    })();
+  }, [channels, meta]);
 
   return {
     // 数据状态
