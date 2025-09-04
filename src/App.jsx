@@ -23,6 +23,11 @@ export default function App() {
         is3D={dataLoader.is3D}
         useUMAP={dataLoader.useUMAP}
         imageSize={dataLoader.imageSize}
+        /* 选择（传递给 Viewer，用于绘制与更新） */
+        selectionMode={dataLoader.selectionMode}
+        selectedIds={dataLoader.selectedIds}
+        setSelectedIds={dataLoader.setSelectedIds}
+        clearSelection={dataLoader.clearSelection}
       />
       <Control
         meta={dataLoader.meta}
@@ -36,6 +41,11 @@ export default function App() {
         setUseUMAP={dataLoader.setUseUMAP}
         imageSize={dataLoader.imageSize}
         setImageSize={dataLoader.setImageSize}
+        /* 选择（传递给 Control，用于切换与清空） */
+        selectionMode={dataLoader.selectionMode}
+        setSelectionMode={dataLoader.setSelectionMode}
+        selectedIds={dataLoader.selectedIds}
+        clearSelection={dataLoader.clearSelection}
       />
     </div>
   );

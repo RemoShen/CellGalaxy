@@ -1,5 +1,5 @@
 // =============================
-// useDataLoader.js  (modified)
+// useDataLoader.js  (with selection states)
 // =============================
 import { useEffect, useState } from "react";
 
@@ -7,15 +7,15 @@ const API = '';
 
 export default function useDataLoader() {
   const [meta, setMeta] = useState(null);
-  const [points, setPoints] = useState([]); // [{id,x,y,chunk_id,local_index}]
+  const [points, setPoints] = useState([]); // [{id,x,y,z,chunk_id,local_index,label}]
   const [loading, setLoading] = useState(true);
 
   // 渲染参数（可绑定到 UI）
-  const [channels, setChannels] = useState([0]); // 默认选一个通道
-  const [weights, setWeights] = useState({}); // {ch: weight}
-  const [alphas, setAlphas] = useState({});  // {ch: alpha}
-  const [colors, setColors] = useState({});  // {ch: [r,g,b] 0..1}
-  const [imageSize, setImageSize] = useState(4); // 图像大小控制
+  const [channels, setChannels] = useState([0]);
+  const [weights, setWeights] = useState({});
+  const [alphas, setAlphas] = useState({});
+  const [colors, setColors] = useState({});
+  const [imageSize, setImageSize] = useState(4);
 
   // 渲染模式设置
   const [renderMode, setRenderMode] = useState('sprites'); // 'sprites' | 'points'
@@ -25,12 +25,17 @@ export default function useDataLoader() {
   const [useUMAP, setUseUMAP] = useState(false); // false: raw, true: umap
 
   // 每个 chunk 的 UV 映射与 atlas URL
-  const [chunkUV, setChunkUV] = useState({});          // {chunkId: {tile,cols,rows,width,height, uv:[{local_index,u0..}]}}
-  const [atlasURL, setAtlasURL] = useState({});        // {chunkId: urlString}
-  const [fetchingChunks, setFetchingChunks] = useState(new Set()); // 正在请求 atlas 的 chunk 集
+  const [chunkUV, setChunkUV] = useState({});
+  const [atlasURL, setAtlasURL] = useState({});
+  const [fetchingChunks, setFetchingChunks] = useState(new Set());
 
   // 存储所有坐标数据（原始/UMAP2D/UMAP3D）
   const [allCoords, setAllCoords] = useState([]);
+
+  // —— 选择相关（新增）——
+  const [selectionMode, setSelectionMode] = useState('none'); // 'none' | 'box' | 'lasso'
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const clearSelection = () => setSelectedIds(new Set());
 
   // —— 工具：安全归一化，避免除以 0 ——
   function safeScale(v, minV, maxV) {
@@ -45,7 +50,6 @@ export default function useDataLoader() {
     let projectedCoords;
     if (useUMAP) {
       if (is3D) {
-        // 3D模式：使用UMAP 3D坐标
         projectedCoords = allCoords.map(p => {
           if (!p.umap3d || p.umap3d.x === undefined || p.umap3d.y === undefined) {
             console.warn('Missing umap3d data for point:', p);
@@ -54,7 +58,6 @@ export default function useDataLoader() {
           return { ...p, x: p.umap3d.x, y: p.umap3d.y, z: p.umap3d.z ?? 0 };
         });
       } else {
-        // 2D模式：使用UMAP 2D坐标
         projectedCoords = allCoords.map(p => {
           if (!p.umap2d || p.umap2d.x === undefined || p.umap2d.y === undefined) {
             console.warn('Missing umap2d data for point:', p);
@@ -64,7 +67,6 @@ export default function useDataLoader() {
         });
       }
     } else {
-      // Raw模式：使用原始坐标
       projectedCoords = allCoords.map(p => {
         if (!p.raw || p.raw.x === undefined || p.raw.y === undefined) {
           console.warn('Missing raw data for point:', p);
@@ -144,13 +146,12 @@ export default function useDataLoader() {
         const minZ = Math.min(...zs), maxZ = Math.max(...zs);
         
         const scaled = projectedCoords.map(p => ({
-      ...p,
-      // 确保每个点都有稳定的 label（后端没给时用 id%11 兜底）
-      label: p.label,
-      x: safeScale(p.x, minX, maxX),
-      y: -safeScale(p.y, minY, maxY),
-      z: safeScale(p.z || 0, minZ, maxZ),
-    }));
+          ...p,
+          label: p.label ?? (p.id % 11),
+          x: safeScale(p.x, minX, maxX),
+          y: -safeScale(p.y, minY, maxY),
+          z: safeScale(p.z || 0, minZ, maxZ),
+        }));
         
         setPoints(scaled);
       }
@@ -174,6 +175,7 @@ export default function useDataLoader() {
 
   // 拉某个 chunk 的 UV（只拉一次）
   const ensureUV = async (chunkId) => {
+    if (!meta) return;
     if (chunkUV[chunkId]) return;
     const uv = await fetch(`${API}/atlas_uv/${chunkId}?tile=${meta.atlas.tile}`).then((r) => r.json());
     setChunkUV((prev) => ({ ...prev, [chunkId]: uv }));
@@ -246,6 +248,13 @@ export default function useDataLoader() {
     
     // UMAP模式
     useUMAP,
+
+    // —— 选择（导出给 App/Viewer/Control 使用）——
+    selectionMode,
+    setSelectionMode,
+    selectedIds,
+    setSelectedIds,
+    clearSelection,
     
     // 设置函数
     setChannels,
@@ -262,4 +271,3 @@ export default function useDataLoader() {
     fetchAtlas,
   };
 }
-

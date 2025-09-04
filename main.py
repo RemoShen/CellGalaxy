@@ -51,10 +51,8 @@ def open_zarr():
     return zarr.open_array(ZARR_DIR, mode="r")
 
 def stable_label(idx: int, num_classes: int = 11) -> int:
-    # 基于 id 的稳定哈希，确保每次重启也一致
     h = hashlib.sha1(str(idx).encode("utf-8")).hexdigest()
     return int(h[:8], 16) % num_classes
-
 
 def meta_from_img(img):
     if img.ndim != 4:
@@ -97,120 +95,59 @@ def norm01(x: np.ndarray, lo: float, hi: float, gamma: float = 1.0) -> np.ndarra
         t = np.power(t, 1.0 / float(gamma), where=t > 0.0, out=t)
     return t
 
-def ensure_rgb01(v: List[float]) -> np.ndarray:
-    arr = np.array(v, dtype=np.float32)
-    if arr.max() > 1.0:
-        arr = arr / 255.0
-    if arr.shape != (3,):
-        raise ValueError("color must be length-3 RGB")
-    return arr
-
-def compose_rgba_from_channels(t_stack: np.ndarray, chan_ids: List[int], comp: CompositeSpec) -> np.ndarray:
-    K, M, H, W = t_stack.shape
-    w = np.array([comp.weights.get(cid, 1.0) for cid in chan_ids], dtype=np.float32).reshape(K,1,1,1)
-    a = np.array([comp.alphas.get(cid, 1.0) for cid in chan_ids], dtype=np.float32).reshape(K,1,1,1)
-    cols = np.stack([ensure_rgb01(comp.colors.get(cid, [1.0, 1.0, 1.0])) for cid in chan_ids], axis=0)
-
-    if comp.method == "max":
-        r = (t_stack * cols[:, 0].reshape(K,1,1,1))
-        g = (t_stack * cols[:, 1].reshape(K,1,1,1))
-        b = (t_stack * cols[:, 2].reshape(K,1,1,1))
-        R = np.max(r, axis=0); G = np.max(g, axis=0); B = np.max(b, axis=0)
-        A = np.max(t_stack * a, axis=0)
-    else:
-        if comp.method == "mean":
-            w = np.ones_like(w)
-        wsum = np.sum(w, axis=0); wsum = np.maximum(wsum, 1e-8)
-        R = np.sum(w * t_stack * cols[:,0].reshape(K,1,1,1), axis=0) / wsum
-        G = np.sum(w * t_stack * cols[:,1].reshape(K,1,1,1), axis=0) / wsum
-        B = np.sum(w * t_stack * cols[:,2].reshape(K,1,1,1), axis=0) / wsum
-        A = np.sum(w * t_stack * a, axis=0) / wsum
-
-    rgba = np.stack([R,G,B, np.clip(A,0.0,1.0)], axis=-1)
-    return np.clip(rgba, 0.0, 1.0)
-
 def tiles_to_atlas(rgba_tiles: np.ndarray, tile: int) -> Image.Image:
     M, H, W, _ = rgba_tiles.shape
     rows, cols = grid_for_count(M)
     atlas_h = rows * tile
     atlas_w = cols * tile
 
-    if tile == H == W:
-        atlas = np.zeros((atlas_h, atlas_w, 4), dtype=np.float32)
-        idx = 0
-        for r in range(rows):
-            r0 = r * tile
-            for c in range(cols):
-                if idx >= M: break
-                c0 = c * tile
-                atlas[r0:r0+tile, c0:c0+tile, :] = rgba_tiles[idx]
-                idx += 1
-        atlas = (atlas * 255.0 + 0.5).astype(np.uint8)
-        return Image.fromarray(atlas, mode="RGBA")
-
-    out = Image.new("RGBA", (atlas_w, atlas_h))
+    atlas = np.zeros((atlas_h, atlas_w, 4), dtype=np.float32)
     idx = 0
     for r in range(rows):
+        r0 = r * tile
         for c in range(cols):
             if idx >= M: break
-            tile_img = (rgba_tiles[idx] * 255.0 + 0.5).astype(np.uint8)
-            im = Image.fromarray(tile_img, mode="RGBA")
-            if im.size != (tile, tile):
-                im = im.resize((tile, tile), Image.BILINEAR)
-            out.paste(im, (c * tile, r * tile))
+            c0 = c * tile
+            atlas[r0:r0+tile, c0:c0+tile, :] = rgba_tiles[idx]
             idx += 1
-    return out
+    atlas = (atlas * 255.0 + 0.5).astype(np.uint8)
+    return Image.fromarray(atlas, mode="RGBA")
 
 # =========================
 # 数据生成函数
 # =========================
 def get_channel_info(df: pd.DataFrame, img=None):
-    """获取channel信息，支持zarr和CSV两种方式"""
     columns = list(df.columns)
     channel_columns = columns[9:-7]
     channels = []
-    
     for i, col_name in enumerate(channel_columns):
-        # 从zarr获取像素值范围，使用累积分布的5%-95%
         channel_data = img[i, :, :, :]
-        # 将像素值展平并排序
         sorted_pixels = np.sort(channel_data.flatten())
         total_pixels = len(sorted_pixels)
-        
-        # 找到5%和95%位置对应的像素值
         min_idx = int(0.05 * total_pixels)
         max_idx = int(0.95 * total_pixels)
-        
         min_value = float(sorted_pixels[min_idx])
         max_value = float(sorted_pixels[max_idx])
-        
         channels.append({
             'id': i,
             'name': col_name,
             'column_index': i + 9,
             'pixel_value_range': {'min': min_value, 'max': max_value}
         })
-    
     return channels
 
 async def generate_json_files():
-    """生成所有必要的JSON文件"""
     csv_path = os.path.join(DATA_DIR, "data.csv")
     if not os.path.exists(csv_path):
         return
-    
     try:
         df = pd.read_csv(csv_path)
         img = None
-        
-        # 尝试读取zarr数据
         if os.path.isdir(ZARR_DIR):
             try:
                 img = open_zarr()
             except Exception as e:
                 print(f"Zarr读取失败: {str(e)}")
-        
-        # 生成坐标数据
         if img is not None:
             C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
             N = min(len(df), N)
@@ -218,7 +155,6 @@ async def generate_json_files():
             N = len(df)
             n_per_chunk = 1
             n_chunks = N
-
         coords = []
         for idx in range(N):
             x_raw = float(df.iloc[idx].get('X_centroid', 0))
@@ -228,10 +164,8 @@ async def generate_json_files():
             x_umap3d = float(df.iloc[idx].get('umap3_x', x_raw))
             y_umap3d = float(df.iloc[idx].get('umap3_y', y_raw))
             z_umap3d = float(df.iloc[idx].get('umap3_z', 0))
-            
             chunk_id = idx // n_per_chunk if 'n_per_chunk' in locals() else 0
             local_index = idx % n_per_chunk if 'n_per_chunk' in locals() else idx
-            
             coords.append({
                 "id": idx, 
                 "chunk_id": int(chunk_id), 
@@ -241,19 +175,12 @@ async def generate_json_files():
                 "umap3d": {"x": x_umap3d, "y": y_umap3d, "z": z_umap3d},
                 "label": int(df.iloc[idx].get('label', stable_label(idx)))
             })
-        
-        # 生成channel信息
         channels = get_channel_info(df, img)
-        
-        # 保存文件
         with open(os.path.join(DATA_DIR, "coords.json"), 'w', encoding='utf-8') as f:
             json.dump(coords, f, ensure_ascii=False, indent=2)
-        
         with open(os.path.join(DATA_DIR, "channel_info.json"), 'w', encoding='utf-8') as f:
             json.dump({"channels": channels, "total_channels": len(channels)}, f, ensure_ascii=False, indent=2)
-        
         print(f"已生成JSON文件: coords.json ({len(coords)} 个点), channel_info.json ({len(channels)} 个channel)")
-        
     except Exception as e:
         print(f"生成JSON文件失败: {str(e)}")
 
@@ -268,20 +195,16 @@ async def root():
 async def upload_files(file_type: str, file: UploadFile = File(...)):
     if file_type not in ["zarr", "csv"]:
         raise HTTPException(status_code=400, detail="不支持的文件类型")
-
     file_path = os.path.join(DATA_DIR, file.filename if file_type == "zarr" else "data.csv")
-    
     with open(file_path, "wb") as f:
         content = await file.read()
         f.write(content)
-
     if file_type == "zarr":
         with zipfile.ZipFile(file_path, 'r') as zip_ref:
             zip_ref.extractall(DATA_DIR)
         os.remove(file_path)
     elif file_type == "csv":
         await generate_json_files()
-
     return {"message": f"{file.filename} 上传成功"}
 
 @app.get("/channels")
@@ -289,10 +212,8 @@ async def get_channels():
     csv_path = os.path.join(DATA_DIR, "data.csv")
     if not os.path.exists(csv_path):
         raise HTTPException(status_code=404, detail="data.csv 文件不存在")
-    
     df = pd.read_csv(csv_path)
     channels = get_channel_info(df)
-    
     return {"channels": channels, "total_channels": len(channels)}
 
 @app.get("/meta")
@@ -314,12 +235,10 @@ def meta():
 def coords(limit: Optional[int] = Query(None)):
     if not os.path.exists(os.path.join(DATA_DIR, "data.csv")):
         raise HTTPException(status_code=404, detail="data.csv 文件不存在")
-    
     df = pd.read_csv(os.path.join(DATA_DIR, "data.csv"))
     img = open_zarr()
     C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
     N = min(len(df), N)
-
     out = []
     total = N if limit is None else min(N, int(limit))
     for idx in range(total):
@@ -330,10 +249,8 @@ def coords(limit: Optional[int] = Query(None)):
         x_umap3d = float(df.iloc[idx].get('umap3_x', x_raw))
         y_umap3d = float(df.iloc[idx].get('umap3_y', y_raw))
         z_umap3d = float(df.iloc[idx].get('umap3_z', 0))
-        
         chunk_id = idx // n_per_chunk
         local_index = idx % n_per_chunk
-        
         out.append({
             "id": idx, 
             "chunk_id": int(chunk_id), 
@@ -354,7 +271,6 @@ def atlas_uv(chunk_id: int, tile: int = Query(DEFAULT_TILE)):
     rows, cols = grid_for_count(n_per_chunk)
     width = cols * tile
     height = rows * tile
-
     uvs = []
     for i in range(n_per_chunk):
         gindex = chunk_id * n_per_chunk + i
@@ -379,9 +295,11 @@ def atlas_uv(chunk_id: int, tile: int = Query(DEFAULT_TILE)):
 
 @app.post("/atlas/{chunk_id}")
 def atlas(chunk_id: int, req: AtlasRequest = Body(...)):
+    """
+    输出 mask atlas (灰度+alpha)，前端用 getColor 染色
+    """
     img = open_zarr()
     C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
-
     chans = sorted(set(int(c) for c in req.channels))
     for c in chans:
         if not (0 <= c < C):
@@ -389,37 +307,32 @@ def atlas(chunk_id: int, req: AtlasRequest = Body(...)):
     if len(chans) == 0:
         raise HTTPException(status_code=400, detail="channels must be non-empty")
 
-    # 缓存检查
-    cache_payload = {
-        "chunk_id": chunk_id,
-        "channels": chans,
-        "composite": json.dumps(req.composite.json()),
-        "tile": req.tile
-    }
+    cache_payload = {"chunk_id": chunk_id, "channels": chans, "tile": req.tile, "mode": "mask"}
     cache_key = hashlib.sha1(json.dumps(cache_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
     cache_path = os.path.join(CACHE_DIR, f"{cache_key}.png")
-    
     if os.path.exists(cache_path):
         headers = {"Cache-Control": "public, max-age=86400", "ETag": cache_key}
         return FileResponse(cache_path, media_type="image/png", headers=headers)
 
-    # 读取数据
     start = chunk_id * n_per_chunk
     end = min(start + n_per_chunk, N)
     slc = slice(start, end)
     data = np.asarray(img[chans, slc, :, :], dtype=np.float32)
     K, M, Hx, Wx = data.shape
 
-    # 图像处理
+    # 归一化
     t_list = []
     for k in range(K):
         t_list.append(norm01(data[k], data[k].min(), data[k].max(), 1.0))
-
     t_stack = np.stack(t_list, axis=0)
-    rgba_tiles = compose_rgba_from_channels(t_stack, chans, req.composite)
-    atlas_img = tiles_to_atlas(rgba_tiles, tile=int(req.tile))
 
-    # 保存缓存并返回
+    # 灰度 + alpha = 平均
+    gray = np.mean(t_stack, axis=0)
+    alpha = np.mean(t_stack, axis=0)
+    mask = np.stack([gray, gray, gray, np.clip(alpha, 0.0, 1.0)], axis=-1)
+
+    atlas_img = tiles_to_atlas(mask, tile=int(req.tile))
+
     buf = io.BytesIO()
     atlas_img.save(buf, format="PNG")
     data_bytes = buf.getvalue()
