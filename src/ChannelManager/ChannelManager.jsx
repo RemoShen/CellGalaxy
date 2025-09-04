@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import "./ChannelManager.css";
 
-export default function ChannelManager({ selected, setSelected }) {
+export default function ChannelManager({ selected, setSelected, colors = {}, setColors = () => {} }) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [channelInfo, setChannelInfo] = useState({});
   const [sliderValues, setSliderValues] = useState({});
@@ -42,9 +42,29 @@ export default function ChannelManager({ selected, setSelected }) {
     (ch) => !selected.includes(ch.id)
   ) || [];
 
+  const palette = [
+    [255, 0, 0], [0, 255, 0], [0, 128, 255], [255, 255, 0], [255, 0, 255],
+    [0, 255, 255], [255, 128, 0], [128, 0, 255], [0, 255, 128], [255, 0, 128]
+  ];
+  const toHex = (rgb) => {
+    const [r, g, b] = rgb || [255, 255, 255];
+    const h = (v) => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0');
+    return `#${h(r)}${h(g)}${h(b)}`;
+  };
+  const fromHex = (hex) => {
+    const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex || '#ffffff');
+    if (!m) return [255, 255, 255];
+    return [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)];
+  };
+  const defaultColorFor = (id) => palette[id % palette.length];
+
   // 添加通道
   const addChannel = (channel) => {
     setSelected(prev => [...prev, channel.id]);
+    if (!colors[channel.id]) {
+      const c = defaultColorFor(channel.id);
+      setColors((prev) => ({ ...prev, [channel.id]: c }));
+    }
   };
 
   // 删除通道
@@ -75,7 +95,7 @@ export default function ChannelManager({ selected, setSelected }) {
     setTooltip({ show: false, value: '', x: 0, y: 0 });
   };
 
-  // 渲染滑块
+  // 渲染滑块（目前仅 UI；可扩展为归一化 lo/hi 控制）
   const renderSlider = (channelId, type, defaultValue, min, max) => {
     const currentValue = sliderValues[`${channelId}-${type}`] ?? defaultValue;
     
@@ -146,7 +166,8 @@ export default function ChannelManager({ selected, setSelected }) {
               <input
                 type="color"
                 className="color-picker"
-                defaultValue="#ffffff"
+                value={toHex(colors[channelId] || defaultColorFor(channelId))}
+                onChange={(e) => setColors((prev) => ({ ...prev, [channelId]: fromHex(e.target.value) }))}
               />
 
               {/* 通道名称 */}

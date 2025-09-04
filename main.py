@@ -115,6 +115,16 @@ def tiles_to_atlas(rgba_tiles: np.ndarray, tile: int) -> Image.Image:
     atlas = (atlas * 255.0 + 0.5).astype(np.uint8)
     return Image.fromarray(atlas, mode="RGBA")
 
+def percentile_range(x: np.ndarray, p_lo: float = 5.0, p_hi: float = 95.0) -> (float, float):
+    flat = x.astype(np.float32).ravel()
+    if flat.size == 0:
+        return 0.0, 1.0
+    lo = float(np.percentile(flat, p_lo))
+    hi = float(np.percentile(flat, p_hi))
+    if hi <= lo:
+        hi = lo + 1.0
+    return lo, hi
+
 # =========================
 # 数据生成函数
 # =========================
@@ -335,6 +345,70 @@ def atlas(chunk_id: int, req: AtlasRequest = Body(...)):
 
     atlas_img = tiles_to_atlas(mask, tile=int(req.tile))
 
+    buf = io.BytesIO()
+    atlas_img.save(buf, format="PNG")
+    data_bytes = buf.getvalue()
+    with open(cache_path, "wb") as f:
+        f.write(data_bytes)
+    headers = {"Cache-Control": "public, max-age=86400", "ETag": cache_key}
+    return StreamingResponse(io.BytesIO(data_bytes), media_type="image/png", headers=headers)
+
+@app.get("/atlas_gray/{chunk_id}")
+def atlas_gray(
+    chunk_id: int,
+    channel: int = Query(..., description="单个通道索引"),
+    tile: int = Query(DEFAULT_TILE),
+    lo: Optional[float] = Query(None, description="归一化下界，可选"),
+    hi: Optional[float] = Query(None, description="归一化上界，可选"),
+    gamma: float = Query(1.0, description="Gamma 校正")
+):
+    """
+    输出单通道的灰度 atlas（RGB 相同，A=灰度）。
+    前端可对每个通道图进行着色与混合，实现交互式通道叠加。
+    """
+    img = open_zarr()
+    C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
+    if not (0 <= channel < C):
+        raise HTTPException(status_code=400, detail=f"channel {channel} out of range [0,{C-1}]")
+    if not (0 <= chunk_id < n_chunks):
+        raise HTTPException(status_code=404, detail="chunk_id out of range")
+
+    # 缓存（包含归一化参数）
+    cache_payload = {
+        "mode": "gray",
+        "chunk_id": int(chunk_id),
+        "channel": int(channel),
+        "tile": int(tile),
+        "lo": None if lo is None else float(lo),
+        "hi": None if hi is None else float(hi),
+        "gamma": float(gamma),
+    }
+    cache_key = hashlib.sha1(json.dumps(cache_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    cache_path = os.path.join(CACHE_DIR, f"{cache_key}.png")
+    if os.path.exists(cache_path):
+        headers = {"Cache-Control": "public, max-age=86400", "ETag": cache_key}
+        return FileResponse(cache_path, media_type="image/png", headers=headers)
+
+    # 取出该 chunk 的切片
+    start = chunk_id * n_per_chunk
+    end = min(start + n_per_chunk, N)
+    slc = slice(start, end)
+    data = np.asarray(img[channel, slc, :, :], dtype=np.float32)  # [M,H,W]
+
+    # 归一化范围（默认使用 5-95 百分位，鲁棒一点）
+    lo_v = float(lo) if lo is not None else None
+    hi_v = float(hi) if hi is not None else None
+    if lo_v is None or hi_v is None:
+        plo, phi = percentile_range(data, 5.0, 95.0)
+        lo_v = plo if lo_v is None else lo_v
+        hi_v = phi if hi_v is None else hi_v
+
+    t = norm01(data, lo_v, hi_v, gamma=float(gamma))  # [M,H,W]
+    t = np.clip(t, 0.0, 1.0)
+    M, Hx, Wx = t.shape
+    rgba = np.stack([t, t, t, t], axis=-1)  # [M,H,W,4]
+
+    atlas_img = tiles_to_atlas(rgba, tile=int(tile))
     buf = io.BytesIO()
     atlas_img.save(buf, format="PNG")
     data_bytes = buf.getvalue()

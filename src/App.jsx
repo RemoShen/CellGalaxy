@@ -15,6 +15,7 @@ export default function App() {
         loading={dataLoader.loading}
         chunkUV={dataLoader.chunkUV}
         atlasURL={dataLoader.atlasURL}
+        atlasByChannel={dataLoader.atlasByChannel}
         channels={dataLoader.channels}
         weights={dataLoader.weights}
         alphas={dataLoader.alphas}
@@ -33,6 +34,8 @@ export default function App() {
         meta={dataLoader.meta}
         channels={dataLoader.channels}
         setChannels={dataLoader.setChannels}
+        colors={dataLoader.colors}
+        setColors={dataLoader.setColors}
         renderMode={dataLoader.renderMode}
         setRenderMode={dataLoader.setRenderMode}
         is3D={dataLoader.is3D}

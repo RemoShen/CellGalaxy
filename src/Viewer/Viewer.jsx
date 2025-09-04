@@ -28,6 +28,10 @@ const Viewer = ({
   loading = false,
   chunkUV,
   atlasURL,
+  atlasByChannel,
+  channels = [],
+  colors = {},
+  alphas = {},
   renderMode = "sprites",
   is3D = false,
   imageSize = 4,
@@ -166,15 +170,59 @@ const Viewer = ({
       }
 
       for (const [chunkId, arr] of byChunk.entries()) {
-        const atlas = atlasURL?.[chunkId];
         const mapping = iconMappingsByChunk?.[chunkId];
-        if (!atlas || !mapping) continue;
+        if (!mapping) continue;
 
+        // 新：按通道叠加（每个通道一个 IconLayer，使用灰度 atlas 并用颜色着色）
+        let addedGray = false;
+        for (const ch of channels) {
+          const atlasGray = atlasByChannel?.[chunkId]?.[ch];
+          if (!atlasGray) continue;
+          addedGray = true;
+
+          // 颜色与透明度（默认白色 + 100%）
+          const col = colors?.[ch] || [255, 255, 255];
+          const a = Math.round((alphas?.[ch] ?? 1) * 255);
+
+          all.push(
+            new IconLayer({
+              id: `icon-ch${ch}-${chunkId}`,
+              data: arr.map((d) => ({ ...d, icon: `t_${d.local_index}` })),
+              iconAtlas: String(atlasGray),
+              iconMapping: mapping,
+              getIcon: (d) => d.icon,
+              getPosition: (d) => [d.x, d.y, d.z ?? 0],
+              getSize: imageSize,
+              sizeScale: 1,
+              fovy: 45,
+              near: 0.1,
+              far: 1000,
+              sizeUnits: "pixels",
+              billboard: true,
+              pickable: true,
+              autoHighlight: true,
+              parameters: { depthTest: true },
+              transitions: {
+                getPosition: { duration: 600, easing: ease },
+                getSize: { duration: 300, easing: ease },
+              },
+              // 将灰度图按通道颜色着色；选中时高亮
+              getColor: (d) =>
+                selectedIds.has(d.id)
+                  ? [255, 140, 0, 255]
+                  : [col[0] ?? 255, col[1] ?? 255, col[2] ?? 255, a],
+            })
+          );
+        }
+
+        // 兼容旧：若当前 chunk 还没有灰度图层，则退回到服务端合成的 atlas（单层）
+        const atlasMerged = !addedGray ? atlasURL?.[chunkId] : null;
+        if (!atlasMerged) continue;
         all.push(
           new IconLayer({
-            id: `icon-${chunkId}`,
+            id: `icon-merged-${chunkId}`,
             data: arr.map((d) => ({ ...d, icon: `t_${d.local_index}` })),
-            iconAtlas: String(atlas),
+            iconAtlas: String(atlasMerged),
             iconMapping: mapping,
             getIcon: (d) => d.icon,
             getPosition: (d) => [d.x, d.y, d.z ?? 0],
@@ -225,11 +273,15 @@ const Viewer = ({
   }, [
     points,
     atlasURL,
+    atlasByChannel,
     iconMappingsByChunk,
     meta,
     renderMode,
     imageSize,
     selectedIds,
+    channels,
+    colors,
+    alphas,
   ]);
 
   if (loading) {

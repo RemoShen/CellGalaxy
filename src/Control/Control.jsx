@@ -11,6 +11,8 @@ export default function Control({
   meta,
   channels,
   setChannels,
+  colors,
+  setColors,
   renderMode,
   setRenderMode,
   is3D,
@@ -50,7 +52,12 @@ export default function Control({
       <ImageSizeControl imageSize={imageSize} setImageSize={setImageSize} />
 
       {/* 通道管理 */}
-      <ChannelManager selected={channels} setSelected={setChannels} />
+      <ChannelManager
+        selected={channels}
+        setSelected={setChannels}
+        colors={colors}
+        setColors={setColors}
+      />
     </div>
   );
 }

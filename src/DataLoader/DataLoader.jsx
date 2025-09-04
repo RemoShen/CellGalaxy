@@ -11,7 +11,7 @@ export default function useDataLoader() {
   const [loading, setLoading] = useState(true);
 
   // 渲染参数（可绑定到 UI）
-  const [channels, setChannels] = useState([0]);
+  const [channels, setChannels] = useState([]);
   const [weights, setWeights] = useState({});
   const [alphas, setAlphas] = useState({});
   const [colors, setColors] = useState({});
@@ -26,7 +26,8 @@ export default function useDataLoader() {
 
   // 每个 chunk 的 UV 映射与 atlas URL
   const [chunkUV, setChunkUV] = useState({});
-  const [atlasURL, setAtlasURL] = useState({});
+  const [atlasURL, setAtlasURL] = useState({}); // 旧：服务端合成后的单张 atlas（保留兼容）
+  const [atlasByChannel, setAtlasByChannel] = useState({}); // 新：每通道灰度 atlas
   const [fetchingChunks, setFetchingChunks] = useState(new Set());
 
   // 存储所有坐标数据（原始/UMAP2D/UMAP3D）
@@ -213,6 +214,34 @@ export default function useDataLoader() {
     setFetchingChunks((s) => { const t = new Set(s); t.delete(chunkId); return t; });
   };
 
+  // 请求某个 chunk 的“单通道灰度”atlas（前端自行叠加着色）
+  const fetchAtlasGray = async (chunkId, channel) => {
+    const existing = atlasByChannel[chunkId]?.[channel];
+    if (existing) return;
+    if (fetchingChunks.has(`g_${chunkId}_${channel}`)) return;
+    setFetchingChunks((s) => new Set([...s, `g_${chunkId}_${channel}`]));
+
+    try {
+      const t = meta?.atlas?.tile ?? 16;
+      const res = await fetch(`${API}/atlas_gray/${chunkId}?channel=${channel}&tile=${t}`);
+      if (!res.ok) {
+        console.error("atlas_gray request failed", await res.text());
+        setFetchingChunks((s) => { const t = new Set(s); t.delete(`g_${chunkId}_${channel}`); return t; });
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      setAtlasByChannel((prev) => ({
+        ...prev,
+        [chunkId]: { ...(prev[chunkId] || {}), [channel]: url },
+      }));
+    } catch (e) {
+      console.error("atlas_gray error", e);
+    } finally {
+      setFetchingChunks((s) => { const t = new Set(s); t.delete(`g_${chunkId}_${channel}`); return t; });
+    }
+  };
+
   // 计算视野内优先 chunk（这里只做最简单：按 chunk 分组，全部都拉）
   useEffect(() => {
     if (!meta || loading) return;
@@ -220,7 +249,12 @@ export default function useDataLoader() {
     (async () => {
       for (const c of chunks) {
         await ensureUV(c);
-        fetchAtlas(c);
+        // 新方案：前端叠加 -> 拉每个通道的灰度 atlas
+        for (const ch of (channels || [])) {
+          await fetchAtlasGray(c, ch);
+        }
+        // 兼容旧方案：也可保留后端合成（可逐步移除）
+        // fetchAtlas(c);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -233,6 +267,7 @@ export default function useDataLoader() {
     loading,
     chunkUV,
     atlasURL,
+    atlasByChannel,
     fetchingChunks,
     
     // 渲染参数
@@ -269,5 +304,6 @@ export default function useDataLoader() {
     // 数据获取函数
     ensureUV,
     fetchAtlas,
+    fetchAtlasGray,
   };
 }
