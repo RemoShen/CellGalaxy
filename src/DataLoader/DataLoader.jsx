@@ -214,7 +214,7 @@ export default function useDataLoader() {
     setFetchingChunks((s) => { const t = new Set(s); t.delete(chunkId); return t; });
   };
 
-  // 请求某个 chunk 的“单通道灰度”atlas（前端自行叠加着色）
+  // 请求某个 chunk 的“单通道灰度”atlas（前端自行叠加着色），统一走 /atlas
   const fetchAtlasGray = async (chunkId, channel) => {
     const existing = atlasByChannel[chunkId]?.[channel];
     if (existing) return;
@@ -223,9 +223,13 @@ export default function useDataLoader() {
 
     try {
       const t = meta?.atlas?.tile ?? 16;
-      const res = await fetch(`${API}/atlas_gray/${chunkId}?channel=${channel}&tile=${t}`);
+      const res = await fetch(`${API}/atlas/${chunkId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channels: [channel], tile: t })
+      });
       if (!res.ok) {
-        console.error("atlas_gray request failed", await res.text());
+        console.error("atlas(single) request failed", await res.text());
         setFetchingChunks((s) => { const t = new Set(s); t.delete(`g_${chunkId}_${channel}`); return t; });
         return;
       }
