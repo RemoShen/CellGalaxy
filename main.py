@@ -315,52 +315,41 @@ def atlas_uv(chunk_id: int, tile: int = Query(DEFAULT_TILE)):
 @app.post("/atlas/{chunk_id}")
 def atlas(chunk_id: int, req: AtlasRequest = Body(...)):
     """
-    输出 mask atlas (灰度+alpha)，前端用 getColor 染色
+    单通道灰度 atlas（灰度+alpha 同灰度），归一化固定 [0, 65535]。
+    前端负责通道叠加与着色。
     """
     img = open_zarr()
     C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
     chans = sorted(set(int(c) for c in req.channels))
-    for c in chans:
-        if not (0 <= c < C):
-            raise HTTPException(status_code=400, detail=f"channel {c} out of range [0,{C-1}]")
-    if len(chans) == 0:
-        raise HTTPException(status_code=400, detail="channels must be non-empty")
+    if len(chans) != 1:
+        raise HTTPException(status_code=400, detail="Only single-channel is supported. Use GET /atlas/{chunk_id}?channel=..")
+    ch = chans[0]
+    if not (0 <= ch < C):
+        raise HTTPException(status_code=400, detail=f"channel {ch} out of range [0,{C-1}]")
 
-    # 单通道：固定路径；多通道：保留哈希缓存
-    if len(chans) == 1:
-        cache_path = single_cache_path(chans[0], chunk_id, int(req.tile))
-        etag = f"ch{chans[0]}-chunk{chunk_id}-tile{int(req.tile)}"
-        if os.path.exists(cache_path):
-            headers = {"Cache-Control": "public, max-age=604800", "ETag": etag}
-            return FileResponse(cache_path, media_type="image/png", headers=headers)
-    else:
-        cache_payload = {"chunk_id": chunk_id, "channels": chans, "tile": req.tile, "mode": "mask"}
-        cache_key = hashlib.sha1(json.dumps(cache_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
-        cache_path = os.path.join(CACHE_DIR, f"{cache_key}.png")
-        if os.path.exists(cache_path):
-            headers = {"Cache-Control": "public, max-age=604800", "ETag": cache_key}
-            return FileResponse(cache_path, media_type="image/png", headers=headers)
+    # 单通道固定缓存路径
+    cache_path = single_cache_path(ch, chunk_id, int(req.tile))
+    etag = f"ch{ch}-chunk{chunk_id}-tile{int(req.tile)}"
+    if os.path.exists(cache_path):
+        headers = {"Cache-Control": "public, max-age=604800", "ETag": etag}
+        return FileResponse(cache_path, media_type="image/png", headers=headers)
 
     start = chunk_id * n_per_chunk
     end = min(start + n_per_chunk, N)
     slc = slice(start, end)
-    data = np.asarray(img[chans, slc, :, :], dtype=np.float32)
-    # 兼容单通道时可能返回 [M,H,W] 的情况，强制补齐通道维度
+    # 读取单通道
+    data = np.asarray(img[[ch], slc, :, :], dtype=np.float32)
     if data.ndim == 3:
         data = data[np.newaxis, ...]
     if data.ndim != 4:
         raise HTTPException(status_code=500, detail=f"Unexpected data ndim: {data.ndim}")
-    K, M, Hx, Wx = data.shape
 
-    # 归一化
-    t_list = []
-    for k in range(K):
-        t_list.append(norm01(data[k], data[k].min(), data[k].max(), 1.0))
-    t_stack = np.stack(t_list, axis=0)
+    # 固定区间归一化到 [0,1]
+    t = norm01(data[0], 0.0, 65535.0, 1.0)
 
-    # 灰度 + alpha = 平均
-    gray = np.mean(t_stack, axis=0)
-    alpha = np.mean(t_stack, axis=0)
+    # 灰度 + alpha = 同一张灰度
+    gray = t
+    alpha = t
     mask = np.stack([gray, gray, gray, np.clip(alpha, 0.0, 1.0)], axis=-1)
 
     atlas_img = tiles_to_atlas(mask, tile=int(req.tile))
@@ -375,10 +364,7 @@ def atlas(chunk_id: int, req: AtlasRequest = Body(...)):
         print(f"Saved atlas cache: {cache_path}")
     except Exception:
         pass
-    if len(chans) == 1:
-        headers = {"Cache-Control": "public, max-age=604800", "ETag": etag}
-    else:
-        headers = {"Cache-Control": "public, max-age=604800", "ETag": cache_key}
+    headers = {"Cache-Control": "public, max-age=604800", "ETag": etag}
     return StreamingResponse(io.BytesIO(data_bytes), media_type="image/png", headers=headers)
 
 @app.get("/atlas/{chunk_id}")
@@ -416,13 +402,10 @@ def atlas_get(chunk_id: int, channel: int = Query(...), tile: int = Query(DEFAUL
     if data.ndim != 4:
         raise HTTPException(status_code=500, detail=f"Unexpected data ndim: {data.ndim}")
 
-    # 归一化（按每通道 min/max）
-    t_list = []
-    for k in range(data.shape[0]):
-        t_list.append(norm01(data[k], data[k].min(), data[k].max(), 1.0))
-    t_stack = np.stack(t_list, axis=0)
-    gray = np.mean(t_stack, axis=0)
-    alpha = np.mean(t_stack, axis=0)
+    # 归一化（固定 [0,65535]）
+    t = norm01(data[0], 0.0, 65535.0, 1.0)
+    gray = t
+    alpha = t
     mask = np.stack([gray, gray, gray, np.clip(alpha, 0.0, 1.0)], axis=-1)
 
     atlas_img = tiles_to_atlas(mask, tile=int(tile))
