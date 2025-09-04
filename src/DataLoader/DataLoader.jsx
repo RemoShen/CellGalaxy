@@ -18,6 +18,8 @@ export default function useDataLoader() {
   const [weights, setWeights] = useState({});
   const [alphas, setAlphas] = useState({});
   const [colors, setColors] = useState({});
+  // 新增：每通道窗口（min/max，单位与后端一致：0..65535）
+  const [windows, setWindows] = useState({});
   const [imageSize, setImageSize] = useState(4);
 
   // 渲染模式设置
@@ -335,6 +337,7 @@ export default function useDataLoader() {
     weights,
     alphas,
     colors,
+    windows,
     imageSize,
     
     // 渲染模式
@@ -356,6 +359,7 @@ export default function useDataLoader() {
     setWeights,
     setAlphas,
     setColors,
+    setWindows,
     setRenderMode,
     setIs3D,
     setUseUMAP,

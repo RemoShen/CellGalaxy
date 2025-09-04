@@ -4,6 +4,7 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import DeckGL from "@deck.gl/react";
 import { ScatterplotLayer, IconLayer } from "@deck.gl/layers";
+import WindowedIconLayer from "../layers/WindowedIconLayer";
 import {
   OrthographicView,
   OrbitView,
@@ -32,6 +33,8 @@ const Viewer = ({
   channels = [],
   colors = {},
   alphas = {},
+  // 窗口（每个通道的 min/max，单位：原始值，比如 0..65535）
+  windows = {},
   renderMode = "sprites",
   is3D = false,
   imageSize = 4,
@@ -183,10 +186,18 @@ const Viewer = ({
 
           // 颜色与透明度（默认白色 + 100%）
           const col = colors?.[ch] || [255, 255, 255];
-          const a = Math.round((alphas?.[ch] ?? 1) * 255);
+          const alpha01 = Math.min(1, Math.max(0, alphas?.[ch] ?? 1));
+          const a = Math.round(alpha01 * 255);
+
+          // 归一化窗口到 [0,1]
+          const w = windows?.[ch];
+          const wMin = w && Number.isFinite(w.min) ? w.min : 0;
+          const wMax = w && Number.isFinite(w.max) ? w.max : 65535;
+          const winMin01 = Math.max(0, Math.min(1, wMin / 65535));
+          const winMax01 = Math.max(0, Math.min(1, wMax / 65535));
 
           all.push(
-            new IconLayer({
+            new WindowedIconLayer({
               id: `icon-ch${ch}-${chunkId}`,
               data: arr.map((d) => ({ ...d, icon: `t_${d.local_index}` })),
               iconAtlas: String(atlasGray),
@@ -206,10 +217,21 @@ const Viewer = ({
               pickable: i === channels.length - 1,
               autoHighlight: true,
               parameters: { depthTest: true },
+              // Additive color mixing (RGB adds up across layers)
+              parameters: {
+                depthTest: false,
+                blend: true,
+                blendFunc: [1, 1],          // gl.ONE, gl.ONE
+                blendEquation: 32774        // gl.FUNC_ADD
+              },
               transitions: {
                 getPosition: { duration: 600, easing: ease },
                 getSize: { duration: 300, easing: ease },
               },
+              // 窗口参数（归一化后传给 shader）
+              windowMin: winMin01,
+              windowMax: winMax01,
+              premultiply: true,
               // 将灰度图按通道颜色着色；选中时高亮
               getColor: (d) =>
                 selectedIds.has(d.id)
@@ -223,7 +245,7 @@ const Viewer = ({
         const atlasMerged = !addedGray ? atlasURL?.[chunkId] : null;
         if (!atlasMerged) continue;
         all.push(
-          new IconLayer({
+          new WindowedIconLayer({
             id: `icon-merged-${chunkId}`,
             data: arr.map((d) => ({ ...d, icon: `t_${d.local_index}` })),
             iconAtlas: String(atlasMerged),
@@ -241,10 +263,19 @@ const Viewer = ({
             pickable: true,
             autoHighlight: true,
             parameters: { depthTest: true },
+            parameters: {
+              depthTest: false,
+              blend: true,
+              blendFunc: [1, 1],
+              blendEquation: 32774
+            },
             transitions: {
               getPosition: { duration: 600, easing: ease },
               getSize: { duration: 300, easing: ease },
             },
+            windowMin: 0.0,
+            windowMax: 1.0,
+            premultiply: true,
             getColor: (d) => selectedIds.has(d.id)? [255, 140, 0, 255]: [255, 255, 255, 255],
           })
         );
@@ -287,6 +318,7 @@ const Viewer = ({
     channels,
     colors,
     alphas,
+    windows,
   ]);
 
   if (loading) {

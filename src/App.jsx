@@ -20,6 +20,7 @@ export default function App() {
         weights={dataLoader.weights}
         alphas={dataLoader.alphas}
         colors={dataLoader.colors}
+        windows={dataLoader.windows}
         renderMode={dataLoader.renderMode}
         is3D={dataLoader.is3D}
         useUMAP={dataLoader.useUMAP}
@@ -36,6 +37,8 @@ export default function App() {
         setChannels={dataLoader.setChannels}
         colors={dataLoader.colors}
         setColors={dataLoader.setColors}
+        windows={dataLoader.windows}
+        setWindows={dataLoader.setWindows}
         renderMode={dataLoader.renderMode}
         setRenderMode={dataLoader.setRenderMode}
         is3D={dataLoader.is3D}

@@ -13,6 +13,8 @@ export default function Control({
   setChannels,
   colors,
   setColors,
+  windows,
+  setWindows,
   renderMode,
   setRenderMode,
   is3D,
@@ -57,6 +59,8 @@ export default function Control({
         setSelected={setChannels}
         colors={colors}
         setColors={setColors}
+        windows={windows}
+        setWindows={setWindows}
       />
     </div>
   );

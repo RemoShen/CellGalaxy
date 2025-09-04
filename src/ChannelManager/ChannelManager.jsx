@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
 import "./ChannelManager.css";
 
-export default function ChannelManager({ selected, setSelected, colors = {}, setColors = () => {} }) {
+export default function ChannelManager({ selected, setSelected, colors = {}, setColors = () => {}, windows = {}, setWindows = () => {} }) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [channelInfo, setChannelInfo] = useState({});
-  const [sliderValues, setSliderValues] = useState({});
+  // 滑块读写直接使用全局 windows（每个通道的 min/max）
   const [tooltip, setTooltip] = useState({ show: false, value: '', x: 0, y: 0 });
 
   // 获取通道信息
@@ -65,6 +65,13 @@ export default function ChannelManager({ selected, setSelected, colors = {}, set
       const c = defaultColorFor(channel.id);
       setColors((prev) => ({ ...prev, [channel.id]: c }));
     }
+    // 若窗口未初始化，用通道默认范围初始化
+    const pv = channel.pixel_value_range || { min: 0, max: 65535 };
+    setWindows((prev) => (
+      prev[channel.id]
+        ? prev
+        : { ...prev, [channel.id]: { min: pv.min ?? 0, max: pv.max ?? 65535 } }
+    ));
   };
 
   // 删除通道
@@ -74,10 +81,17 @@ export default function ChannelManager({ selected, setSelected, colors = {}, set
 
   // 处理滑块值变化
   const handleSliderChange = (channelId, type, value) => {
-    setSliderValues(prev => ({
-      ...prev,
-      [`${channelId}-${type}`]: value
-    }));
+    const v = Number(value);
+    setWindows((prev) => {
+      const cur = prev[channelId] || { min: 0, max: 65535 };
+      const next = { ...cur, [type]: v };
+      // 保证 min <= max
+      if (next.min > next.max) {
+        if (type === 'min') next.max = next.min;
+        else next.min = next.max;
+      }
+      return { ...prev, [channelId]: next };
+    });
   };
 
   // 显示tooltip
@@ -97,7 +111,8 @@ export default function ChannelManager({ selected, setSelected, colors = {}, set
 
   // 渲染滑块（目前仅 UI；可扩展为归一化 lo/hi 控制）
   const renderSlider = (channelId, type, defaultValue, min, max) => {
-    const currentValue = sliderValues[`${channelId}-${type}`] ?? defaultValue;
+    const current = windows?.[channelId] || { min: defaultValue, max: defaultValue };
+    const currentValue = (type === 'min' ? current.min : current.max) ?? defaultValue;
     
     return (
       <input
@@ -105,7 +120,7 @@ export default function ChannelManager({ selected, setSelected, colors = {}, set
         className={`range-slider range-slider-${type}`}
         min={min}
         max={max}
-        defaultValue={defaultValue}
+        value={currentValue}
         onChange={(e) => handleSliderChange(channelId, type, e.target.value)}
         onInput={(e) => handleSliderChange(channelId, type, e.target.value)}
         onMouseEnter={(e) => showTooltip(currentValue, e)}
