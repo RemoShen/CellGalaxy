@@ -1,0 +1,83 @@
+.selection-panel {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #ffffff;
+}
+
+.selection-panel-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+.selection-mode-buttons {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.selection-mode-btn {
+  padding: 8px;
+  border: 2px solid #ffffff;
+  border-radius: 6px;
+  background: transparent;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.selection-mode-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.selection-mode-btn.active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+.selection-mode-btn img {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  filter: brightness(0) invert(1);
+}
+
+.selection-mode-btn.active img {
+  filter: brightness(0) invert(1);
+}
+
+.selection-count {
+  font-size: 13px;
+  margin: 8px 0 10px;
+  color: #ffae00;
+  font-size: 18px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+.clear-selection-btn {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.clear-selection-btn:hover:not(:disabled) {
+  background: #f0f0f0;
+}
+
+.clear-selection-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
