@@ -4,3 +4,4 @@ public/output.zarr
 public/data.csv
 public/coords.json
 public/.DS_Store
+.cache
