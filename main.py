@@ -20,7 +20,9 @@ import zarr
 # 配置
 # =========================
 DATA_DIR = "public"
-CACHE_DIR = os.path.join(DATA_DIR, "cache")
+# 将缓存目录移出 public，避免前端开发服务器监测到文件变更导致页面不断刷新
+# 例如 Vite/CRA 会 watch public 目录下的文件并触发 HMR/full reload
+CACHE_DIR = os.path.join(".cache", "atlas")
 ZARR_DIR = os.path.join(DATA_DIR, "output.zarr")
 DEFAULT_TILE = 16
 
