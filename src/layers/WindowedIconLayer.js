@@ -15,7 +15,6 @@ export default class WindowedIconLayer extends IconLayer {
         'fs:#decl': `
 uniform float windowMin;
 uniform float windowMax;
-uniform float premultiplyU;
 `,
         // Adjust final color just before output
         'fs:DECKGL_FILTER_COLOR': `
@@ -28,12 +27,10 @@ if (a < windowMin) {
 } else if (a > windowMax) {
   t = 1.0;
 }
-// Optionally keep premultiplied relation between RGB and alpha
-if (premultiplyU > 0.5) {
-  float scale = t / max(a, 1e-6);
-  color.rgb *= scale;
-}
-color.a = t;
+// Pure RGB additive contribution scaled by windowed intensity
+color.rgb *= t;
+// Alpha not used in additive blend, set to 1.0 to avoid side effects
+color.a = 1.0;
 `,
       }
     };
@@ -41,14 +38,13 @@ color.a = t;
 
   draw(opts) {
     const { uniforms = {} } = opts;
-    const { windowMin = DEFAULT_MIN, windowMax = DEFAULT_MAX, premultiply = true } = this.props;
+    const { windowMin = DEFAULT_MIN, windowMax = DEFAULT_MAX } = this.props;
     super.draw({
       ...opts,
       uniforms: {
         ...uniforms,
         windowMin,
         windowMax,
-        premultiplyU: premultiply ? 1.0 : 0.0,
       }
     });
   }

@@ -216,14 +216,8 @@ const Viewer = ({
               // 仅最上层通道参与拾取，减少多层拾取开销
               pickable: i === channels.length - 1,
               autoHighlight: true,
-              parameters: { depthTest: true },
-              // Additive color mixing (RGB adds up across layers)
-              parameters: {
-                depthTest: false,
-                blend: true,
-                blendFunc: [1, 1],          // gl.ONE, gl.ONE
-                blendEquation: 32774        // gl.FUNC_ADD
-              },
+              // Pure additive color mixing across all layers
+              parameters: { depthTest: false, blend: true, blendFunc: [1, 1], blendEquation: 32774 },
               transitions: {
                 getPosition: { duration: 600, easing: ease },
                 getSize: { duration: 300, easing: ease },
@@ -262,20 +256,14 @@ const Viewer = ({
             billboard: true,
             pickable: true,
             autoHighlight: true,
-            parameters: { depthTest: true },
-            parameters: {
-              depthTest: false,
-              blend: true,
-              blendFunc: [1, 1],
-              blendEquation: 32774
-            },
+            // Pure additive color mixing
+            parameters: { depthTest: false, blend: true, blendFunc: [1, 1], blendEquation: 32774 },
             transitions: {
               getPosition: { duration: 600, easing: ease },
               getSize: { duration: 300, easing: ease },
             },
             windowMin: 0.0,
             windowMax: 1.0,
-            premultiply: true,
             getColor: (d) => selectedIds.has(d.id)? [255, 140, 0, 255]: [255, 255, 255, 255],
           })
         );
