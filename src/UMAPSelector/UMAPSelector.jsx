@@ -4,7 +4,7 @@ import "./UMAPSelector.css";
 export default function UMAPSelector({ useUMAP, setUseUMAP }) {
   return (
     <div className="umap-section">
-      <div className="umap-title">UMAP</div>
+      <div className="umap-title">Projection</div>
       <div className="umap-options">
         <button
           className={`umap-btn ${!useUMAP ? 'active' : ''}`}

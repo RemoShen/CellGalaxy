@@ -10,7 +10,7 @@ export default function SelectionPanel({
 
   return (
     <div className="selection-panel">
-      <div className="selection-panel-title">Selection Mode</div>
+      <div className="selection-panel-title">Selection</div>
       
               <div className="selection-mode-buttons">
           <button
