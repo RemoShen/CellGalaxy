@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Body
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Body, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
@@ -20,9 +20,8 @@ import zarr
 # 配置
 # =========================
 DATA_DIR = "public"
-# 将缓存目录移出 public，避免前端开发服务器监测到文件变更导致页面不断刷新
-# 例如 Vite/CRA 会 watch public 目录下的文件并触发 HMR/full reload
-CACHE_DIR = os.path.join(".cache", "atlas")
+# 将缓存目录放回 public，便于直接通过静态路径访问（/public 或 /cache）
+CACHE_DIR = os.path.join(DATA_DIR, "cache")
 ZARR_DIR = os.path.join(DATA_DIR, "output.zarr")
 DEFAULT_TILE = 16
 
@@ -71,6 +70,14 @@ def grid_for_count(n_items: int):
     cols = int(math.ceil(math.sqrt(n_items))) if n_items > 0 else 1
     rows = int(math.ceil(n_items / cols)) if n_items > 0 else 1
     return rows, cols
+
+# =========================
+# 缓存路径助手（单通道：固定路径）
+# =========================
+def single_cache_path(channel: int, chunk_id: int, tile: int) -> str:
+    ch_dir = os.path.join(CACHE_DIR, f"ch{int(channel)}", f"tile_{int(tile)}")
+    os.makedirs(ch_dir, exist_ok=True)
+    return os.path.join(ch_dir, f"chunk_{int(chunk_id)}.png")
 
 # =========================
 # 数据模型
@@ -319,17 +326,30 @@ def atlas(chunk_id: int, req: AtlasRequest = Body(...)):
     if len(chans) == 0:
         raise HTTPException(status_code=400, detail="channels must be non-empty")
 
-    cache_payload = {"chunk_id": chunk_id, "channels": chans, "tile": req.tile, "mode": "mask"}
-    cache_key = hashlib.sha1(json.dumps(cache_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
-    cache_path = os.path.join(CACHE_DIR, f"{cache_key}.png")
-    if os.path.exists(cache_path):
-        headers = {"Cache-Control": "public, max-age=86400", "ETag": cache_key}
-        return FileResponse(cache_path, media_type="image/png", headers=headers)
+    # 单通道：固定路径；多通道：保留哈希缓存
+    if len(chans) == 1:
+        cache_path = single_cache_path(chans[0], chunk_id, int(req.tile))
+        etag = f"ch{chans[0]}-chunk{chunk_id}-tile{int(req.tile)}"
+        if os.path.exists(cache_path):
+            headers = {"Cache-Control": "public, max-age=604800", "ETag": etag}
+            return FileResponse(cache_path, media_type="image/png", headers=headers)
+    else:
+        cache_payload = {"chunk_id": chunk_id, "channels": chans, "tile": req.tile, "mode": "mask"}
+        cache_key = hashlib.sha1(json.dumps(cache_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+        cache_path = os.path.join(CACHE_DIR, f"{cache_key}.png")
+        if os.path.exists(cache_path):
+            headers = {"Cache-Control": "public, max-age=604800", "ETag": cache_key}
+            return FileResponse(cache_path, media_type="image/png", headers=headers)
 
     start = chunk_id * n_per_chunk
     end = min(start + n_per_chunk, N)
     slc = slice(start, end)
     data = np.asarray(img[chans, slc, :, :], dtype=np.float32)
+    # 兼容单通道时可能返回 [M,H,W] 的情况，强制补齐通道维度
+    if data.ndim == 3:
+        data = data[np.newaxis, ...]
+    if data.ndim != 4:
+        raise HTTPException(status_code=500, detail=f"Unexpected data ndim: {data.ndim}")
     K, M, Hx, Wx = data.shape
 
     # 归一化
@@ -346,11 +366,76 @@ def atlas(chunk_id: int, req: AtlasRequest = Body(...)):
     atlas_img = tiles_to_atlas(mask, tile=int(req.tile))
 
     buf = io.BytesIO()
-    atlas_img.save(buf, format="PNG")
+    # 更快的 PNG 编码（轻压缩）
+    atlas_img.save(buf, format="PNG", compress_level=1)
     data_bytes = buf.getvalue()
     with open(cache_path, "wb") as f:
         f.write(data_bytes)
-    headers = {"Cache-Control": "public, max-age=86400", "ETag": cache_key}
+    try:
+        print(f"Saved atlas cache: {cache_path}")
+    except Exception:
+        pass
+    if len(chans) == 1:
+        headers = {"Cache-Control": "public, max-age=604800", "ETag": etag}
+    else:
+        headers = {"Cache-Control": "public, max-age=604800", "ETag": cache_key}
+    return StreamingResponse(io.BytesIO(data_bytes), media_type="image/png", headers=headers)
+
+@app.get("/atlas/{chunk_id}")
+def atlas_get(chunk_id: int, channel: int = Query(...), tile: int = Query(DEFAULT_TILE), request: Request = None):
+    """
+    单通道灰度 atlas 的 GET 版本，便于浏览器/代理缓存。
+    等价于 POST /atlas/{chunk_id}，body {channels:[channel], tile}。
+    """
+    img = open_zarr()
+    C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
+    if not (0 <= channel < C):
+        raise HTTPException(status_code=400, detail=f"channel {channel} out of range [0,{C-1}]")
+    if not (0 <= chunk_id < n_chunks):
+        raise HTTPException(status_code=404, detail="chunk_id out of range")
+
+    chans = [int(channel)]
+    cache_path = single_cache_path(chans[0], chunk_id, int(tile))
+    etag = f"ch{chans[0]}-chunk{chunk_id}-tile{int(tile)}"
+
+    # 条件请求：仅当磁盘上已有文件且 ETag 匹配时返回 304
+    if os.path.exists(cache_path):
+        if request is not None:
+            inm = request.headers.get("if-none-match")
+            if inm and inm.strip('"') == etag:
+                return Response(status_code=304)
+        headers = {"Cache-Control": "public, max-age=604800", "ETag": etag}
+        return FileResponse(cache_path, media_type="image/png", headers=headers)
+
+    start = chunk_id * n_per_chunk
+    end = min(start + n_per_chunk, N)
+    slc = slice(start, end)
+    data = np.asarray(img[chans, slc, :, :], dtype=np.float32)
+    if data.ndim == 3:
+        data = data[np.newaxis, ...]
+    if data.ndim != 4:
+        raise HTTPException(status_code=500, detail=f"Unexpected data ndim: {data.ndim}")
+
+    # 归一化（按每通道 min/max）
+    t_list = []
+    for k in range(data.shape[0]):
+        t_list.append(norm01(data[k], data[k].min(), data[k].max(), 1.0))
+    t_stack = np.stack(t_list, axis=0)
+    gray = np.mean(t_stack, axis=0)
+    alpha = np.mean(t_stack, axis=0)
+    mask = np.stack([gray, gray, gray, np.clip(alpha, 0.0, 1.0)], axis=-1)
+
+    atlas_img = tiles_to_atlas(mask, tile=int(tile))
+    buf = io.BytesIO()
+    atlas_img.save(buf, format="PNG", compress_level=1)
+    data_bytes = buf.getvalue()
+    with open(cache_path, "wb") as f:
+        f.write(data_bytes)
+    try:
+        print(f"Saved atlas cache: {cache_path}")
+    except Exception:
+        pass
+    headers = {"Cache-Control": "public, max-age=604800", "ETag": etag}
     return StreamingResponse(io.BytesIO(data_bytes), media_type="image/png", headers=headers)
 
 # =========================

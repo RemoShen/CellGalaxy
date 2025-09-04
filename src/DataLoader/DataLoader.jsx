@@ -1,9 +1,12 @@
 // =============================
 // useDataLoader.js  (with selection states)
 // =============================
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
-const API = '';
+// 开发环境（3000端口）默认转到后端 8000；生产同源可留空
+const API = (typeof window !== 'undefined' && window.location && window.location.port === '3000')
+  ? 'http://localhost:8000'
+  : '';
 
 export default function useDataLoader() {
   const [meta, setMeta] = useState(null);
@@ -29,6 +32,24 @@ export default function useDataLoader() {
   const [atlasURL, setAtlasURL] = useState({}); // 旧：服务端合成后的单张 atlas（保留兼容）
   const [atlasByChannel, setAtlasByChannel] = useState({}); // 新：每通道灰度 atlas
   const [fetchingChunks, setFetchingChunks] = useState(new Set());
+
+  // 简单并发限流器（默认最多 6 个并发请求）
+  const limiterRef = useRef({ max: 6, inFlight: 0, queue: [] });
+  const runWithLimit = (task) => new Promise((resolve) => {
+    const run = async () => {
+      limiterRef.current.inFlight++;
+      try {
+        const result = await task();
+        resolve(result);
+      } finally {
+        limiterRef.current.inFlight--;
+        const next = limiterRef.current.queue.shift();
+        if (next) next();
+      }
+    };
+    if (limiterRef.current.inFlight < limiterRef.current.max) run();
+    else limiterRef.current.queue.push(run);
+  });
 
   // 存储所有坐标数据（原始/UMAP2D/UMAP3D）
   const [allCoords, setAllCoords] = useState([]);
@@ -222,25 +243,47 @@ export default function useDataLoader() {
     setFetchingChunks((s) => new Set([...s, `g_${chunkId}_${channel}`]));
 
     try {
-      const t = meta?.atlas?.tile ?? 16;
-      const res = await fetch(`${API}/atlas/${chunkId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channels: [channel], tile: t })
+      await runWithLimit(async () => {
+        const t = meta?.atlas?.tile ?? 16;
+        const staticURL = `${API}/public/cache/ch${channel}/tile_${t}/chunk_${chunkId}.png`;
+
+        // 1) 先尝试直接访问固定路径的静态缓存
+        let head = await fetch(staticURL, { method: 'GET' });
+        if (head.ok || head.status === 304) {
+          setAtlasByChannel((prev) => ({
+            ...prev,
+            [chunkId]: { ...(prev[chunkId] || {}), [channel]: staticURL },
+          }));
+          return;
+        }
+
+        // 2) 不存在则触发生成（GET 别名 → 失败再 POST 回退）
+        let gen = await fetch(`${API}/atlas/${chunkId}?channel=${channel}&tile=${t}`, { method: 'GET' });
+        if (!gen.ok && gen.status !== 304) {
+          if (gen.status === 405 || gen.status === 404) {
+            gen = await fetch(`${API}/atlas/${chunkId}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ channels: [channel], tile: t })
+            });
+            if (!gen.ok) {
+              console.error("atlas generate POST failed", gen.status, await gen.text());
+              return;
+            }
+          } else {
+            console.error("atlas generate GET failed", gen.status, await gen.text());
+            return;
+          }
+        }
+
+        // 3) 生成后直接使用静态 URL（让 deck.gl 自己加载并走浏览器缓存）
+        setAtlasByChannel((prev) => ({
+          ...prev,
+          [chunkId]: { ...(prev[chunkId] || {}), [channel]: staticURL },
+        }));
       });
-      if (!res.ok) {
-        console.error("atlas(single) request failed", await res.text());
-        setFetchingChunks((s) => { const t = new Set(s); t.delete(`g_${chunkId}_${channel}`); return t; });
-        return;
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      setAtlasByChannel((prev) => ({
-        ...prev,
-        [chunkId]: { ...(prev[chunkId] || {}), [channel]: url },
-      }));
     } catch (e) {
-      console.error("atlas_gray error", e);
+      console.error("atlas(single) GET error", e);
     } finally {
       setFetchingChunks((s) => { const t = new Set(s); t.delete(`g_${chunkId}_${channel}`); return t; });
     }
