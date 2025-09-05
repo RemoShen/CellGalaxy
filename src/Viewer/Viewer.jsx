@@ -213,8 +213,8 @@ const Viewer = ({
               far: 1000,
               sizeUnits: "pixels",
               billboard: true,
-              // 仅最上层通道参与拾取，减少多层拾取开销
-              pickable: i === channels.length - 1,
+              // 允许所有通道参与拾取；仅最上层显示 hover 高亮，避免重复叠加太亮
+              pickable: true,
               autoHighlight: true,
               // Pure additive color mixing across all layers
               parameters: { depthTest: false, blend: true, blendFunc: [1, 1], blendEquation: 32774 },
