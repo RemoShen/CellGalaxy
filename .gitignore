@@ -4,4 +4,5 @@ public/output.zarr
 public/data.csv
 public/coords.json
 public/.DS_Store
+public/channel_info.json
 .cache/
