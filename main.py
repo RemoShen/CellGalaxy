@@ -31,7 +31,7 @@ DATA_DIR = "public"
 # 将缓存目录移出 public，避免前端开发服务器监听导致的整页刷新
 CACHE_DIR = os.path.join(os.getcwd(), ".cache")
 ZARR_DIR = os.path.join(DATA_DIR, "output.zarr")
-DEFAULT_TILE = 16
+DEFAULT_TILE = 64
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -220,8 +220,8 @@ def get_channel_info(df: pd.DataFrame, img=None):
         channel_data = img[i, :, :, :]
         sorted_pixels = np.sort(channel_data.flatten())
         total_pixels = len(sorted_pixels)
-        min_idx = int(0.05 * total_pixels)
-        max_idx = int(0.95 * total_pixels)
+        min_idx = int(0 * total_pixels)
+        max_idx = int(1 * total_pixels) - 1
         min_value = float(sorted_pixels[min_idx])
         max_value = float(sorted_pixels[max_idx])
         channels.append({
