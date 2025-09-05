@@ -228,7 +228,7 @@ def get_channel_info(df: pd.DataFrame, img=None):
             'id': i,
             'name': col_name,
             'column_index': i + 9,
-            'pixel_value_range': {'min': 0, 'max': 63353}
+            'pixel_value_range': {'min': min_value, 'max': max_value}
         })
     return channels
 
