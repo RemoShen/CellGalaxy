@@ -144,15 +144,6 @@ def tiles_to_atlas(rgba_tiles: np.ndarray, tile: int) -> Image.Image:
     atlas = (atlas * 255.0 + 0.5).astype(np.uint8)
     return Image.fromarray(atlas, mode="RGBA")
 
-def percentile_range(x: np.ndarray, p_lo: float = 5.0, p_hi: float = 95.0) -> (float, float):
-    flat = x.astype(np.float32).ravel()
-    if flat.size == 0:
-        return 0.0, 1.0
-    lo = float(np.percentile(flat, p_lo))
-    hi = float(np.percentile(flat, p_hi))
-    if hi <= lo:
-        hi = lo + 1.0
-    return lo, hi
 
 # =========================
 # 生成与预热辅助
