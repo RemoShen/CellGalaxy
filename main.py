@@ -1,3 +1,4 @@
+import shutil
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Body, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -222,7 +223,7 @@ def _prewarm_channel_async(ch: int, tile: int):
 # =========================
 def get_channel_info(df: pd.DataFrame, img=None):
     columns = list(df.columns)
-    channel_columns = columns[9:-7]
+    channel_columns = columns[9:] #9到最后一个column
     channels = []
     for i, col_name in enumerate(channel_columns):
         channel_data = img[i, :, :, :]
@@ -315,56 +316,67 @@ async def upload_files(file_type: str, file: UploadFile = File(...)):
 async def get_channels():
     csv_path = os.path.join(DATA_DIR, "data.csv")
     if not os.path.exists(csv_path):
-        raise HTTPException(status_code=404, detail="data.csv 文件不存在")
-    df = pd.read_csv(csv_path)
-    channels = get_channel_info(df)
-    return {"channels": channels, "total_channels": len(channels)}
+        return {"channels": [], "total_channels": 0}
+    try:
+        df = pd.read_csv(csv_path)
+        channels = get_channel_info(df)
+        return {"channels": channels, "total_channels": len(channels)}
+    except Exception as e:
+        return {"channels": [], "total_channels": 0}
 
 @app.get("/meta")
 def meta():
-    img = open_zarr()
-    C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
-    rows, cols = grid_for_count(n_per_chunk)
-    atlas_w = cols * DEFAULT_TILE
-    atlas_h = rows * DEFAULT_TILE
-    return {
-        "C": int(C), "N": int(N), "H": int(H), "W": int(W),
-        "dtype": str(img.dtype),
-        "chunks": tuple(int(x) for x in img.chunks),
-        "n_chunks": int(n_chunks), "n_per_chunk": int(n_per_chunk),
-        "atlas": {"tile": DEFAULT_TILE, "cols": int(cols), "rows": int(rows), "width": int(atlas_w), "height": int(atlas_h)}
-    }
+    if not os.path.isdir(ZARR_DIR):
+        return {"error": "No data loaded", "message": "Please upload zarr data first"}
+    try:
+        img = open_zarr()
+        C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
+        rows, cols = grid_for_count(n_per_chunk)
+        atlas_w = cols * DEFAULT_TILE
+        atlas_h = rows * DEFAULT_TILE
+        return {
+            "C": int(C), "N": int(N), "H": int(H), "W": int(W),
+            "dtype": str(img.dtype),
+            "chunks": tuple(int(x) for x in img.chunks),
+            "n_chunks": int(n_chunks), "n_per_chunk": int(n_per_chunk),
+            "atlas": {"tile": DEFAULT_TILE, "cols": int(cols), "rows": int(rows), "width": int(atlas_w), "height": int(atlas_h)}
+        }
+    except Exception as e:
+        return {"error": "Failed to load data", "message": str(e)}
 
 @app.get("/coords")
 def coords(limit: Optional[int] = Query(None)):
     if not os.path.exists(os.path.join(DATA_DIR, "data.csv")):
-        raise HTTPException(status_code=404, detail="data.csv 文件不存在")
-    df = pd.read_csv(os.path.join(DATA_DIR, "data.csv"))
-    img = open_zarr()
-    C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
-    N = min(len(df), N)
-    out = []
-    total = N if limit is None else min(N, int(limit))
-    for idx in range(total):
-        x_raw = float(df.iloc[idx].get('X_centroid', 0))
-        y_raw = float(df.iloc[idx].get('Y_centroid', 0))
-        x_umap2d = float(df.iloc[idx].get('umap2_x', x_raw))
-        y_umap2d = float(df.iloc[idx].get('umap2_y', y_raw))
-        x_umap3d = float(df.iloc[idx].get('umap3_x', x_raw))
-        y_umap3d = float(df.iloc[idx].get('umap3_y', y_raw))
-        z_umap3d = float(df.iloc[idx].get('umap3_z', 0))
-        chunk_id = idx // n_per_chunk
-        local_index = idx % n_per_chunk
-        out.append({
-            "id": idx, 
-            "chunk_id": int(chunk_id), 
-            "local_index": int(local_index),
-            "raw": {"x": x_raw, "y": y_raw, "z": 0},
-            "umap2d": {"x": x_umap2d, "y": y_umap2d, "z": 0},
-            "umap3d": {"x": x_umap3d, "y": y_umap3d, "z": z_umap3d},
-            "label": int(df.iloc[idx].get('label', stable_label(idx)))
-        })
-    return JSONResponse(out)
+        return JSONResponse([])
+    try:
+        df = pd.read_csv(os.path.join(DATA_DIR, "data.csv"))
+        img = open_zarr()
+        C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
+        N = min(len(df), N)
+        out = []
+        total = N if limit is None else min(N, int(limit))
+        for idx in range(total):
+            x_raw = float(df.iloc[idx].get('X_centroid', 0))
+            y_raw = float(df.iloc[idx].get('Y_centroid', 0))
+            x_umap2d = float(df.iloc[idx].get('umap2_x', x_raw))
+            y_umap2d = float(df.iloc[idx].get('umap2_y', y_raw))
+            x_umap3d = float(df.iloc[idx].get('umap3_x', x_raw))
+            y_umap3d = float(df.iloc[idx].get('umap3_y', y_raw))
+            z_umap3d = float(df.iloc[idx].get('umap3_z', 0))
+            chunk_id = idx // n_per_chunk
+            local_index = idx % n_per_chunk
+            out.append({
+                "id": idx, 
+                "chunk_id": int(chunk_id), 
+                "local_index": int(local_index),
+                "raw": {"x": x_raw, "y": y_raw, "z": 0},
+                "umap2d": {"x": x_umap2d, "y": y_umap2d, "z": 0},
+                "umap3d": {"x": x_umap3d, "y": y_umap3d, "z": z_umap3d},
+                "label": int(df.iloc[idx].get('label', stable_label(idx)))
+            })
+        return JSONResponse(out)
+    except Exception as e:
+        return JSONResponse([])
 
 @app.get("/atlas_uv/{chunk_id}")
 def atlas_uv(chunk_id: int, tile: int = Query(DEFAULT_TILE)):
@@ -482,4 +494,20 @@ def prewarm(channel: int = Query(...), tile: int = Query(DEFAULT_TILE)):
 # 启动
 # =========================
 if __name__ == "__main__":
+    #每次启动服务器先把.cache目录删除
+    if os.path.exists(CACHE_DIR):
+        shutil.rmtree(CACHE_DIR)
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    #每次启动服务器先把data.csv文件删除
+    if os.path.exists(os.path.join(DATA_DIR, "data.csv")):
+        os.remove(os.path.join(DATA_DIR, "data.csv"))
+    #每次启动服务器先把coords.json文件删除
+    if os.path.exists(os.path.join(DATA_DIR, "coords.json")):
+        os.remove(os.path.join(DATA_DIR, "coords.json"))
+    #每次启动服务器先把channel_info.json文件删除
+    if os.path.exists(os.path.join(DATA_DIR, "channel_info.json")):
+        os.remove(os.path.join(DATA_DIR, "channel_info.json"))
+    #每次启动服务器先把output.zarr目录删除
+    if os.path.exists(os.path.join(DATA_DIR, "output.zarr")):
+        shutil.rmtree(os.path.join(DATA_DIR, "output.zarr"))    
     uvicorn.run(app, host="0.0.0.0", port=8000)
