@@ -83,7 +83,8 @@ export function buildIconMappingsByChunk(meta, chunkUV) {
         y,
         width: tile,
         height: tile,
-        mask: true,
+        // Use atlas RGB directly (grayscale), not alpha-mask mode
+        mask: false,
         anchorY: tile / 2,
         anchorX: tile / 2,
       };

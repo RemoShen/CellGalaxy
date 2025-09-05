@@ -2,166 +2,391 @@
   "channels": [
     {
       "id": 0,
-      "name": "CD4",
+      "name": "Hoechst0",
       "column_index": 9,
       "pixel_value_range": {
-        "min": 0.0,
-        "max": 0.0
+        "min": 0,
+        "max": 63353
       }
     },
     {
       "id": 1,
-      "name": "CD117",
+      "name": "AF488",
       "column_index": 10,
       "pixel_value_range": {
-        "min": 0.0,
-        "max": 0.0
+        "min": 0,
+        "max": 63353
       }
     },
     {
       "id": 2,
-      "name": "FoxP3",
+      "name": "AF555",
       "column_index": 11,
       "pixel_value_range": {
-        "min": 0.0,
-        "max": 9180.0
+        "min": 0,
+        "max": 63353
       }
     },
     {
       "id": 3,
-      "name": "DNA1",
+      "name": "AF647",
       "column_index": 12,
       "pixel_value_range": {
-        "min": 0.0,
-        "max": 0.0
+        "min": 0,
+        "max": 63353
       }
     },
     {
       "id": 4,
-      "name": "MPO",
+      "name": "Hoechst1",
       "column_index": 13,
       "pixel_value_range": {
-        "min": 0.0,
-        "max": 0.0
+        "min": 0,
+        "max": 63353
       }
     },
     {
       "id": 5,
-      "name": "CD3",
+      "name": "AF488.1",
       "column_index": 14,
       "pixel_value_range": {
-        "min": 0.0,
-        "max": 0.0
+        "min": 0,
+        "max": 63353
       }
     },
     {
       "id": 6,
-      "name": "CD8a",
+      "name": "A555",
       "column_index": 15,
       "pixel_value_range": {
-        "min": 0.0,
-        "max": 0.0
+        "min": 0,
+        "max": 63353
       }
     },
     {
       "id": 7,
-      "name": "HLA-DR",
+      "name": "A647",
       "column_index": 16,
       "pixel_value_range": {
-        "min": 0.0,
-        "max": 14025.0
+        "min": 0,
+        "max": 63353
       }
     },
     {
       "id": 8,
-      "name": "CD94",
+      "name": "Hoechst2",
       "column_index": 17,
       "pixel_value_range": {
-        "min": 0.0,
-        "max": 20655.0
+        "min": 0,
+        "max": 63353
       }
     },
     {
       "id": 9,
-      "name": "CD14",
+      "name": "anti_CD3",
       "column_index": 18,
       "pixel_value_range": {
-        "min": 0.0,
-        "max": 20655.0
+        "min": 0,
+        "max": 63353
       }
     },
     {
       "id": 10,
-      "name": "CD11c",
+      "name": "anti_NaKATPase",
       "column_index": 19,
       "pixel_value_range": {
-        "min": 0.0,
-        "max": 0.0
+        "min": 0,
+        "max": 63353
       }
     },
     {
       "id": 11,
-      "name": "CD16",
+      "name": "anti_CD45RO",
       "column_index": 20,
       "pixel_value_range": {
-        "min": 0.0,
-        "max": 0.0
+        "min": 0,
+        "max": 63353
       }
     },
     {
       "id": 12,
-      "name": "Pancytokeratin",
+      "name": "Hoechst3",
       "column_index": 21,
       "pixel_value_range": {
-        "min": 0.0,
-        "max": 41310.0
+        "min": 0,
+        "max": 63353
       }
     },
     {
       "id": 13,
-      "name": "CD163",
+      "name": "Ki67_488",
       "column_index": 22,
       "pixel_value_range": {
-        "min": 0.0,
-        "max": 0.0
+        "min": 0,
+        "max": 63353
       }
     },
     {
       "id": 14,
-      "name": "TTF1",
+      "name": "Keratin_570",
       "column_index": 23,
       "pixel_value_range": {
-        "min": 0.0,
-        "max": 16065.0
+        "min": 0,
+        "max": 63353
       }
     },
     {
       "id": 15,
-      "name": "CD20",
+      "name": "aSMA_660",
       "column_index": 24,
       "pixel_value_range": {
-        "min": 0.0,
-        "max": 0.0
+        "min": 0,
+        "max": 63353
       }
     },
     {
       "id": 16,
-      "name": "CD68",
+      "name": "Hoechst4",
       "column_index": 25,
       "pixel_value_range": {
-        "min": 0.0,
-        "max": 36210.0
+        "min": 0,
+        "max": 63353
       }
     },
     {
       "id": 17,
-      "name": "CD31",
+      "name": "CD4_488",
       "column_index": 26,
       "pixel_value_range": {
-        "min": 0.0,
-        "max": 23460.0
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 18,
+      "name": "CD45_PE",
+      "column_index": 27,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 19,
+      "name": "PD1_647",
+      "column_index": 28,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 20,
+      "name": "Hoechst5",
+      "column_index": 29,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 21,
+      "name": "CD20_488",
+      "column_index": 30,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 22,
+      "name": "CD68_555",
+      "column_index": 31,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 23,
+      "name": "CD8a_660",
+      "column_index": 32,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 24,
+      "name": "Hoechst6",
+      "column_index": 33,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 25,
+      "name": "CD163_488",
+      "column_index": 34,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 26,
+      "name": "FOXP3_570",
+      "column_index": 35,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 27,
+      "name": "PDL1_647",
+      "column_index": 36,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 28,
+      "name": "Hoechst7",
+      "column_index": 37,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 29,
+      "name": "Ecad_488",
+      "column_index": 38,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 30,
+      "name": "Vimentin_555",
+      "column_index": 39,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 31,
+      "name": "CDX2_647",
+      "column_index": 40,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 32,
+      "name": "Hoechst8",
+      "column_index": 41,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 33,
+      "name": "LaminABC_488",
+      "column_index": 42,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 34,
+      "name": "Desmin_555",
+      "column_index": 43,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 35,
+      "name": "CD31_647",
+      "column_index": 44,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 36,
+      "name": "Hoechst9",
+      "column_index": 45,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 37,
+      "name": "PCNA_488",
+      "column_index": 46,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 38,
+      "name": "Ki67_570",
+      "column_index": 47,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 39,
+      "name": "CollagenIV_647",
+      "column_index": 48,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 40,
+      "name": "HE_r",
+      "column_index": 49,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 41,
+      "name": "HE_g",
+      "column_index": 50,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
+      }
+    },
+    {
+      "id": 42,
+      "name": "HE_b",
+      "column_index": 51,
+      "pixel_value_range": {
+        "min": 0,
+        "max": 63353
       }
     }
   ],
-  "total_channels": 18
+  "total_channels": 43
 }

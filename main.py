@@ -31,7 +31,7 @@ DATA_DIR = "public"
 # 将缓存目录移出 public，避免前端开发服务器监听导致的整页刷新
 CACHE_DIR = os.path.join(os.getcwd(), ".cache")
 ZARR_DIR = os.path.join(DATA_DIR, "output.zarr")
-DEFAULT_TILE = 64
+DEFAULT_TILE = 16
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -228,7 +228,7 @@ def get_channel_info(df: pd.DataFrame, img=None):
             'id': i,
             'name': col_name,
             'column_index': i + 9,
-            'pixel_value_range': {'min': min_value, 'max': max_value}
+            'pixel_value_range': {'min': 0, 'max': 63353}
         })
     return channels
 
