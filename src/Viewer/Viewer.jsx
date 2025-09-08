@@ -212,6 +212,8 @@ const Viewer = ({
               fovy: 45,
               near: 0.1,
               far: 1000,
+              // 仅在 3D 模式下启用距离渐隐，让远处图像变淡
+              distanceFadeEnabled: is3D,
               sizeUnits: "pixels",
               billboard: true,
               // 允许所有通道参与拾取；仅最上层显示 hover 高亮，避免重复叠加太亮
@@ -253,12 +255,13 @@ const Viewer = ({
             fovy: 45,
             near: 0.1,
             far: 1000,
+            distanceFadeEnabled: is3D,
             sizeUnits: "pixels",
             billboard: true,
             pickable: true,
             autoHighlight: true,
             // Pure additive color mixing
-            parameters: { depthTest: false, blend: true, blendFunc: [1, 1], blendEquation: 32774 },
+            parameters: { depthTest: true, blend: true, blendFunc: [1, 1], blendEquation: 32774 },
             transitions: {
               getPosition: { duration: 600, easing: ease },
               getSize: { duration: 300, easing: ease },
