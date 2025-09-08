@@ -31,7 +31,7 @@ DATA_DIR = "public"
 # 将缓存目录移出 public，避免前端开发服务器监听导致的整页刷新
 CACHE_DIR = os.path.join(os.getcwd(), ".cache")
 ZARR_DIR = os.path.join(DATA_DIR, "output.zarr")
-DEFAULT_TILE = 16
+DEFAULT_TILE = 64
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(CACHE_DIR, exist_ok=True)

@@ -195,6 +195,7 @@ const Viewer = ({
           const wMax = w && Number.isFinite(w.max) ? w.max : 65535;
           const winMin01 = Math.max(0, Math.min(1, wMin / 65535));
           const winMax01 = Math.max(0, Math.min(1, wMax / 65535));
+          
 
           all.push(
             new WindowedIconLayer({
@@ -231,6 +232,10 @@ const Viewer = ({
                 selectedIds.has(d.id)
                   ? [255, 140, 0, 255]
                   : [col[0] ?? 255, col[1] ?? 255, col[2] ?? 255, a],
+              updateTriggers: {
+                windowMin: winMin01,
+                windowMax: winMax01,
+              },
             })
           );
         }
@@ -265,6 +270,10 @@ const Viewer = ({
             windowMin: 0.0,
             windowMax: 1.0,
             getColor: (d) => selectedIds.has(d.id)? [255, 140, 0, 255]: [255, 255, 255, 255],
+            updateTriggers: {
+              windowMin: 0.0,
+              windowMax: 1.0,
+            },
           })
         );
       }
