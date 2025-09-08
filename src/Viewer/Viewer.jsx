@@ -232,10 +232,6 @@ const Viewer = ({
                 selectedIds.has(d.id)
                   ? [255, 140, 0, 255]
                   : [col[0] ?? 255, col[1] ?? 255, col[2] ?? 255, a],
-              updateTriggers: {
-                windowMin: winMin01,
-                windowMax: winMax01,
-              },
             })
           );
         }
@@ -270,10 +266,6 @@ const Viewer = ({
             windowMin: 0.0,
             windowMax: 1.0,
             getColor: (d) => selectedIds.has(d.id)? [255, 140, 0, 255]: [255, 255, 255, 255],
-            updateTriggers: {
-              windowMin: 0.0,
-              windowMax: 1.0,
-            },
           })
         );
       }
