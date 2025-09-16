@@ -5,16 +5,25 @@ export default function FileUpload() {
   const handleFileUpload = async (fileType, file) => {
     if (!file) return;
     
-    const formData = new FormData();
-    formData.append('file', file);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
 
-    const response = await fetch(`/upload/${fileType}`, {
-      method: 'POST',
-      body: formData,
-    });
+      const response = await fetch(`/upload/${fileType}`, {
+        method: 'POST',
+        body: formData,
+      });
 
-    if (response.ok) {
-      console.log(`${fileType} 文件上传成功`);
+      if (response.ok) {
+        console.log(`${fileType} 文件上传成功`);
+        // 可以添加成功提示
+      } else {
+        console.error(`${fileType} 文件上传失败:`, response.statusText);
+        // 可以添加错误提示
+      }
+    } catch (error) {
+      console.error(`${fileType} 文件上传出错:`, error);
+      // 可以添加错误提示
     }
   };
 

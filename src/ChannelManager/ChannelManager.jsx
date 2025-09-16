@@ -46,16 +46,17 @@ export default function ChannelManager({ selected, setSelected, colors = {}, set
     [255, 0, 0], [0, 255, 0], [0, 128, 255], [255, 255, 0], [255, 0, 255],
     [0, 255, 255], [255, 128, 0], [128, 0, 255], [0, 255, 128], [255, 0, 128]
   ];
+  
   const toHex = (rgb) => {
     const [r, g, b] = rgb || [255, 255, 255];
-    const h = (v) => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0');
-    return `#${h(r)}${h(g)}${h(b)}`;
+    return `#${[r, g, b].map(v => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join('')}`;
   };
+  
   const fromHex = (hex) => {
-    const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex || '#ffffff');
-    if (!m) return [255, 255, 255];
-    return [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)];
+    const match = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex || '#ffffff');
+    return match ? [parseInt(match[1], 16), parseInt(match[2], 16), parseInt(match[3], 16)] : [255, 255, 255];
   };
+  
   const defaultColorFor = (id) => palette[id % palette.length];
 
   // 添加通道

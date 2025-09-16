@@ -252,26 +252,7 @@ async def generate_json_files():
             N = len(df)
             n_per_chunk = 1
             n_chunks = N
-        coords = []
-        for idx in range(N):
-            x_raw = float(df.iloc[idx].get('X_centroid', 0))
-            y_raw = float(df.iloc[idx].get('Y_centroid', 0))
-            x_umap2d = float(df.iloc[idx].get('umap2_x', x_raw))
-            y_umap2d = float(df.iloc[idx].get('umap2_y', y_raw))
-            x_umap3d = float(df.iloc[idx].get('umap3_x', x_raw))
-            y_umap3d = float(df.iloc[idx].get('umap3_y', y_raw))
-            z_umap3d = float(df.iloc[idx].get('umap3_z', 0))
-            chunk_id = idx // n_per_chunk if 'n_per_chunk' in locals() else 0
-            local_index = idx % n_per_chunk if 'n_per_chunk' in locals() else idx
-            coords.append({
-                "id": idx, 
-                "chunk_id": int(chunk_id), 
-                "local_index": int(local_index),
-                "raw": {"x": x_raw, "y": y_raw, "z": 0},
-                "umap2d": {"x": x_umap2d, "y": y_umap2d, "z": 0},
-                "umap3d": {"x": x_umap3d, "y": y_umap3d, "z": z_umap3d},
-                "label": int(df.iloc[idx].get('label', stable_label(idx)))
-            })
+        coords = [process_coord_row(df.iloc[idx], idx, n_per_chunk) for idx in range(N)]
         channels = get_channel_info(df, img)
         with open(os.path.join(DATA_DIR, "coords.json"), 'w', encoding='utf-8') as f:
             json.dump(coords, f, ensure_ascii=False, indent=2)
@@ -336,6 +317,20 @@ def meta():
     except Exception as e:
         return {"error": "Failed to load data", "message": str(e)}
 
+def process_coord_row(row, idx, n_per_chunk):
+    """处理单行坐标数据"""
+    x_raw = float(row.get('X_centroid', 0))
+    y_raw = float(row.get('Y_centroid', 0))
+    return {
+        "id": idx, 
+        "chunk_id": int(idx // n_per_chunk), 
+        "local_index": int(idx % n_per_chunk),
+        "raw": {"x": x_raw, "y": y_raw, "z": 0},
+        "umap2d": {"x": float(row.get('umap2_x', x_raw)), "y": float(row.get('umap2_y', y_raw)), "z": 0},
+        "umap3d": {"x": float(row.get('umap3_x', x_raw)), "y": float(row.get('umap3_y', y_raw)), "z": float(row.get('umap3_z', 0))},
+        "label": int(row.get('label', stable_label(idx)))
+    }
+
 @app.get("/coords")
 def coords(limit: Optional[int] = Query(None)):
     if not os.path.exists(os.path.join(DATA_DIR, "data.csv")):
@@ -345,27 +340,9 @@ def coords(limit: Optional[int] = Query(None)):
         img = open_zarr()
         C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
         N = min(len(df), N)
-        out = []
         total = N if limit is None else min(N, int(limit))
-        for idx in range(total):
-            x_raw = float(df.iloc[idx].get('X_centroid', 0))
-            y_raw = float(df.iloc[idx].get('Y_centroid', 0))
-            x_umap2d = float(df.iloc[idx].get('umap2_x', x_raw))
-            y_umap2d = float(df.iloc[idx].get('umap2_y', y_raw))
-            x_umap3d = float(df.iloc[idx].get('umap3_x', x_raw))
-            y_umap3d = float(df.iloc[idx].get('umap3_y', y_raw))
-            z_umap3d = float(df.iloc[idx].get('umap3_z', 0))
-            chunk_id = idx // n_per_chunk
-            local_index = idx % n_per_chunk
-            out.append({
-                "id": idx, 
-                "chunk_id": int(chunk_id), 
-                "local_index": int(local_index),
-                "raw": {"x": x_raw, "y": y_raw, "z": 0},
-                "umap2d": {"x": x_umap2d, "y": y_umap2d, "z": 0},
-                "umap3d": {"x": x_umap3d, "y": y_umap3d, "z": z_umap3d},
-                "label": int(df.iloc[idx].get('label', stable_label(idx)))
-            })
+        
+        out = [process_coord_row(df.iloc[idx], idx, n_per_chunk) for idx in range(total)]
         return JSONResponse(out)
     except Exception as e:
         return JSONResponse([])

@@ -176,10 +176,32 @@ const Viewer = ({
     if (!info?.object) clearSelection();
   };
 
+  // 创建基础图层配置
+  const createBaseLayerConfig = (chunkId, arr, mapping) => ({
+    data: arr.map((d) => ({ ...d, icon: `t_${d.local_index}` })),
+    iconMapping: mapping,
+    getIcon: (d) => d.icon,
+    getPosition: (d) => [d.x, d.y, d.z ?? 0],
+    getSize: imageSize,
+    sizeScale: 1,
+    fovy: 45,
+    near: 0.1,
+    far: 1000,
+    distanceFadeEnabled: is3D,
+    sizeUnits: "pixels",
+    billboard: true,
+    pickable: true,
+    autoHighlight: true,
+    loadOptions: { image: { type: 'imagebitmap' } },
+    transitions: {
+      getPosition: { duration: 600, easing: ease },
+      getSize: { duration: 300, easing: ease },
+    },
+  });
+
   // 图层
   const layers = useMemo(() => {
     if (!meta) return [];
-    const all = [];
 
     if (renderMode === "sprites") {
       const byChunk = new Map();
@@ -190,64 +212,39 @@ const Viewer = ({
         byChunk.set(cid, arr);
       }
 
+      const all = [];
       for (const [chunkId, arr] of byChunk.entries()) {
         const mapping = iconMappingsByChunk?.[chunkId];
         if (!mapping) continue;
 
-        // 新：按通道叠加（每个通道一个 IconLayer，使用灰度 atlas 并用颜色着色）
+        const baseConfig = createBaseLayerConfig(chunkId, arr, mapping);
         let addedGray = false;
-        for (let i = 0; i < channels.length; i++) {
-          const ch = channels[i];
+
+        // 按通道叠加
+        for (const ch of channels) {
           const atlasGray = atlasByChannel?.[chunkId]?.[ch];
           if (!atlasGray) continue;
           addedGray = true;
 
-          // 颜色与透明度（默认白色 + 100%）
           const col = colors?.[ch] || [255, 255, 255];
           const alpha01 = Math.min(1, Math.max(0, alphas?.[ch] ?? 1));
           const a = Math.round(alpha01 * 255);
 
-          // 归一化窗口到 [0,1]
           const w = windows?.[ch];
           const wMin = w && Number.isFinite(w.min) ? w.min : 0;
           const wMax = w && Number.isFinite(w.max) ? w.max : 65535;
           const winMin01 = Math.max(0, Math.min(1, wMin / 65535));
           const winMax01 = Math.max(0, Math.min(1, wMax / 65535));
-          
 
           all.push(
             new WindowedIconLayer({
+              ...baseConfig,
               id: `icon-ch${ch}-${chunkId}`,
-              data: arr.map((d) => ({ ...d, icon: `t_${d.local_index}` })),
               iconAtlas: String(atlasGray),
-              // 尝试使用 ImageBitmap 提升解码与纹理上传性能
-              loadOptions: { image: { type: 'imagebitmap' } },
-              iconMapping: mapping,
-              getIcon: (d) => d.icon,
-              getPosition: (d) => [d.x, d.y, d.z ?? 0],
-              getSize: imageSize,
-              sizeScale: 1,
-              fovy: 45,
-              near: 0.1,
-              far: 1000,
-              // 仅在 3D 模式下启用距离渐隐，让远处图像变淡
-              distanceFadeEnabled: is3D,
-              sizeUnits: "pixels",
-              billboard: true,
-              // 允许所有通道参与拾取；仅最上层显示 hover 高亮，避免重复叠加太亮
-              pickable: true,
-              autoHighlight: true,
-              // Pure additive color mixing across all layers
               parameters: { depthTest: false, blend: true, blendFunc: [1, 1], blendEquation: 32774 },
-              transitions: {
-                getPosition: { duration: 600, easing: ease },
-                getSize: { duration: 300, easing: ease },
-              },
-              // 窗口参数（归一化后传给 shader）
               windowMin: winMin01,
               windowMax: winMax01,
               premultiply: true,
-              // 将灰度图按通道颜色着色；选中时高亮
               getColor: (d) =>
                 selectedIds.has(d.id)
                   ? [255, 140, 0, 255]
@@ -256,42 +253,25 @@ const Viewer = ({
           );
         }
 
-        // 兼容旧：若当前 chunk 还没有灰度图层，则退回到服务端合成的 atlas（单层）
+        // 兼容旧方案
         const atlasMerged = !addedGray ? atlasURL?.[chunkId] : null;
-        if (!atlasMerged) continue;
-        all.push(
-          new WindowedIconLayer({
-            id: `icon-merged-${chunkId}`,
-            data: arr.map((d) => ({ ...d, icon: `t_${d.local_index}` })),
-            iconAtlas: String(atlasMerged),
-            loadOptions: { image: { type: 'imagebitmap' } },
-            iconMapping: mapping,
-            getIcon: (d) => d.icon,
-            getPosition: (d) => [d.x, d.y, d.z ?? 0],
-            getSize: imageSize,
-            sizeScale: 1,
-            fovy: 45,
-            near: 0.1,
-            far: 1000,
-            distanceFadeEnabled: is3D,
-            sizeUnits: "pixels",
-            billboard: true,
-            pickable: true,
-            autoHighlight: true,
-            // Pure additive color mixing
-            parameters: { depthTest: true, blend: true, blendFunc: [1, 1], blendEquation: 32774 },
-            transitions: {
-              getPosition: { duration: 600, easing: ease },
-              getSize: { duration: 300, easing: ease },
-            },
-            windowMin: 0.0,
-            windowMax: 1.0,
-            getColor: (d) => selectedIds.has(d.id)? [255, 140, 0, 255]: [255, 255, 255, 255],
-          })
-        );
+        if (atlasMerged) {
+          all.push(
+            new WindowedIconLayer({
+              ...baseConfig,
+              id: `icon-merged-${chunkId}`,
+              iconAtlas: String(atlasMerged),
+              parameters: { depthTest: true, blend: true, blendFunc: [1, 1], blendEquation: 32774 },
+              windowMin: 0.0,
+              windowMax: 1.0,
+              getColor: (d) => selectedIds.has(d.id)? [255, 140, 0, 255]: [255, 255, 255, 255],
+            })
+          );
+        }
       }
+      return all;
     } else {
-      all.push(
+      return [
         new ScatterplotLayer({
           id: "scatter",
           data: points ?? [],
@@ -312,10 +292,8 @@ const Viewer = ({
             getFillColor: [selectedIds],
           },
         })
-      );
+      ];
     }
-
-    return all;
   }, [
     points,
     atlasURL,
@@ -329,6 +307,7 @@ const Viewer = ({
     colors,
     alphas,
     windows,
+    is3D,
   ]);
 
   if (loading) {
