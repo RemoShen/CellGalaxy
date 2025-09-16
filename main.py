@@ -1,8 +1,7 @@
-import shutil
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Body, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse
 import uvicorn
 import os
 import zipfile
@@ -16,13 +15,15 @@ from typing import Optional, List, Dict
 from pydantic import BaseModel, Field
 from PIL import Image
 import zarr
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+
+# 优化 numcodecs 设置
 try:
     from numcodecs import blosc as _blosc
     _blosc.set_nthreads(max(1, os.cpu_count() or 1))
 except Exception:
     pass
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import threading
 
 # =========================
 # 配置

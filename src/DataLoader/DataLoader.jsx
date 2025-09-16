@@ -68,56 +68,38 @@ export default function useDataLoader() {
     return 2 * (v - minV) / span - 1;
   }
 
-  // 应用坐标投影（不重新加载数据）
+  // 统一的坐标投影处理函数
   const applyCoordinateProjection = () => {
     if (!allCoords || allCoords.length === 0) return;
-    let projectedCoords;
-    if (useUMAP) {
-      if (is3D) {
-        projectedCoords = allCoords.map(p => {
-          if (!p.umap3d || p.umap3d.x === undefined || p.umap3d.y === undefined) {
-            console.warn('Missing umap3d data for point:', p);
-            return { ...p, x: p.raw?.x || 0, y: p.raw?.y || 0, z: 0 };
-          }
-          return { ...p, x: p.umap3d.x, y: p.umap3d.y, z: p.umap3d.z ?? 0 };
-        });
-      } else {
-        projectedCoords = allCoords.map(p => {
-          if (!p.umap2d || p.umap2d.x === undefined || p.umap2d.y === undefined) {
-            console.warn('Missing umap2d data for point:', p);
-            return { ...p, x: p.raw?.x || 0, y: p.raw?.y || 0, z: 0 };
-          }
-          return { ...p, x: p.umap2d.x, y: p.umap2d.y, z: 0 };
-        });
+    
+    // 根据模式选择坐标源
+    const getCoords = (p) => {
+      if (useUMAP) {
+        if (is3D && p.umap3d) return { x: p.umap3d.x, y: p.umap3d.y, z: p.umap3d.z ?? 0 };
+        if (!is3D && p.umap2d) return { x: p.umap2d.x, y: p.umap2d.y, z: 0 };
       }
-    } else {
-      projectedCoords = allCoords.map(p => {
-        if (!p.raw || p.raw.x === undefined || p.raw.y === undefined) {
-          console.warn('Missing raw data for point:', p);
-          return { ...p, x: 0, y: 0, z: 0 };
-        }
-        return { ...p, x: p.raw.x, y: p.raw.y, z: 0 };
-      });
-    }
+      if (p.raw) return { x: p.raw.x, y: p.raw.y, z: 0 };
+      return { x: 0, y: 0, z: 0 };
+    };
+    
+    const projectedCoords = allCoords.map(p => ({ ...p, ...getCoords(p) }));
     
     // 标准化坐标到 [-1, 1] 范围
     const xs = projectedCoords.map(p => p.x);
     const ys = projectedCoords.map(p => p.y);
     const zs = projectedCoords.map(p => p.z || 0);
-    const minX = Math.min(...xs), maxX = Math.max(...xs);
-    const minY = Math.min(...ys), maxY = Math.max(...ys);
-    const minZ = Math.min(...zs), maxZ = Math.max(...zs);
+    const [minX, maxX] = [Math.min(...xs), Math.max(...xs)];
+    const [minY, maxY] = [Math.min(...ys), Math.max(...ys)];
+    const [minZ, maxZ] = [Math.min(...zs), Math.max(...zs)];
     
     const scaled = projectedCoords.map(p => ({
       ...p,
-      // 确保每个点都有稳定的 label（后端没给时用 id%11 兜底）
       label: p.label ?? (p.id % 11),
       x: safeScale(p.x, minX, maxX),
       y: -safeScale(p.y, minY, maxY),
       z: safeScale(p.z || 0, minZ, maxZ),
     }));
     
-    // 重要：保持数组顺序不变，以便 deck.gl 按索引做 attribute transition
     setPoints(scaled);
   };
 
@@ -133,51 +115,7 @@ export default function useDataLoader() {
 
       // 首次也应用一次投影
       if (coords.length > 0) {
-        let projectedCoords;
-        if (useUMAP) {
-          if (is3D) {
-            projectedCoords = coords.map(p => {
-              if (!p.umap3d || p.umap3d.x === undefined || p.umap3d.y === undefined) {
-                console.warn('Missing umap3d data for point:', p);
-                return { ...p, x: p.raw?.x || 0, y: p.raw?.y || 0, z: 0 };
-              }
-              return { ...p, x: p.umap3d.x, y: p.umap3d.y, z: p.umap3d.z ?? 0 };
-            });
-          } else {
-            projectedCoords = coords.map(p => {
-              if (!p.umap2d || p.umap2d.x === undefined || p.umap2d.y === undefined) {
-                console.warn('Missing umap2d data for point:', p);
-                return { ...p, x: p.raw?.x || 0, y: p.raw?.y || 0, z: 0 };
-              }
-              return { ...p, x: p.umap2d.x, y: p.umap2d.y, z: 0 };
-            });
-          }
-        } else {
-          projectedCoords = coords.map(p => {
-            if (!p.raw || p.raw.x === undefined || p.raw.y === undefined) {
-              console.warn('Missing raw data for point:', p);
-              return { ...p, x: 0, y: 0, z: 0 };
-            }
-            return { ...p, x: p.raw.x, y: p.raw.y, z: 0 };
-          });
-        }
-        
-        const xs = projectedCoords.map(p => p.x);
-        const ys = projectedCoords.map(p => p.y);
-        const zs = projectedCoords.map(p => p.z || 0);
-        const minX = Math.min(...xs), maxX = Math.max(...xs);
-        const minY = Math.min(...ys), maxY = Math.max(...ys);
-        const minZ = Math.min(...zs), maxZ = Math.max(...zs);
-        
-        const scaled = projectedCoords.map(p => ({
-          ...p,
-          label: p.label ?? (p.id % 11),
-          x: safeScale(p.x, minX, maxX),
-          y: -safeScale(p.y, minY, maxY),
-          z: safeScale(p.z || 0, minZ, maxZ),
-        }));
-        
-        setPoints(scaled);
+        applyCoordinateProjection();
       }
       
       setLoading(false);

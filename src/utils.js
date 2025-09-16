@@ -27,26 +27,16 @@ export function pointInPolygon([px, py], polygon) {
  */
 export function computeCenter(points) {
   if (!points?.length) return [0, 0, 0];
-  let minX = Infinity,
-    minY = Infinity,
-    minZ = Infinity;
-  let maxX = -Infinity,
-    maxY = -Infinity,
-    maxZ = -Infinity;
   
-  for (const p of points) {
-    const x = p.x,
-      y = p.y,
-      z = p.z ?? 0;
-    if (x < minX) minX = x;
-    if (x > maxX) maxX = x;
-    if (y < minY) minY = y;
-    if (y > maxY) maxY = y;
-    if (z < minZ) minZ = z;
-    if (z > maxZ) maxZ = z;
-  }
+  const xs = points.map(p => p.x);
+  const ys = points.map(p => p.y);
+  const zs = points.map(p => p.z ?? 0);
   
-  return [(minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2];
+  return [
+    (Math.min(...xs) + Math.max(...xs)) / 2,
+    (Math.min(...ys) + Math.max(...ys)) / 2,
+    (Math.min(...zs) + Math.max(...zs)) / 2
+  ];
 }
 
 
@@ -193,102 +183,3 @@ export function performLassoSelection(points, viewport, lassoPoints) {
 }
 
 
-/**
- * 计算两点之间的距离
- * @param {Array} p1 - 点1坐标 [x1, y1, z1]
- * @param {Array} p2 - 点2坐标 [x2, y2, z2]
- * @returns {number} 距离
- */
-export function distance(p1, p2) {
-  const [x1, y1, z1 = 0] = p1;
-  const [x2, y2, z2 = 0] = p2;
-  return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2);
-}
-
-/**
- * 限制数值在指定范围内
- * @param {number} value - 输入值
- * @param {number} min - 最小值
- * @param {number} max - 最大值
- * @returns {number} 限制后的值
- */
-export function clamp(value, min, max) {
-  return Math.min(Math.max(value, min), max);
-}
-
-/**
- * 线性插值
- * @param {number} a - 起始值
- * @param {number} b - 结束值
- * @param {number} t - 插值参数 [0, 1]
- * @returns {number} 插值结果
- */
-export function lerp(a, b, t) {
-  return a + (b - a) * t;
-}
-
-/**
- * 将角度转换为弧度
- * @param {number} degrees - 角度
- * @returns {number} 弧度
- */
-export function toRadians(degrees) {
-  return degrees * (Math.PI / 180);
-}
-
-/**
- * 将弧度转换为角度
- * @param {number} radians - 弧度
- * @returns {number} 角度
- */
-export function toDegrees(radians) {
-  return radians * (180 / Math.PI);
-}
-
-/**
- * 格式化数字，添加千位分隔符
- * @param {number} num - 数字
- * @param {number} decimals - 小数位数
- * @returns {string} 格式化后的字符串
- */
-export function formatNumber(num, decimals = 0) {
-  return Number(num).toLocaleString('zh-CN', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals
-  });
-}
-
-/**
- * 防抖函数
- * @param {Function} func - 要防抖的函数
- * @param {number} wait - 等待时间（毫秒）
- * @returns {Function} 防抖后的函数
- */
-export function debounce(func, wait) {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-}
-
-/**
- * 节流函数
- * @param {Function} func - 要节流的函数
- * @param {number} limit - 限制时间（毫秒）
- * @returns {Function} 节流后的函数
- */
-export function throttle(func, limit) {
-  let inThrottle;
-  return function executedFunction(...args) {
-    if (!inThrottle) {
-      func.apply(this, args);
-      inThrottle = true;
-      setTimeout(() => inThrottle = false, limit);
-    }
-  };
-}
