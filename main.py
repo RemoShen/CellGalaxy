@@ -485,20 +485,4 @@ def prewarm(channel: int = Query(...), tile: int = Query(DEFAULT_TILE)):
 # 启动
 # =========================
 if __name__ == "__main__":
-    # #每次启动服务器先把.cache目录删除
-    # if os.path.exists(CACHE_DIR):
-    #     shutil.rmtree(CACHE_DIR)
-    # os.makedirs(CACHE_DIR, exist_ok=True)
-    # #每次启动服务器先把data.csv文件删除
-    # if os.path.exists(os.path.join(DATA_DIR, "data.csv")):
-    #     os.remove(os.path.join(DATA_DIR, "data.csv"))
-    # #每次启动服务器先把coords.json文件删除
-    # if os.path.exists(os.path.join(DATA_DIR, "coords.json")):
-    #     os.remove(os.path.join(DATA_DIR, "coords.json"))
-    # #每次启动服务器先把channel_info.json文件删除
-    # if os.path.exists(os.path.join(DATA_DIR, "channel_info.json")):
-    #     os.remove(os.path.join(DATA_DIR, "channel_info.json"))
-    # #每次启动服务器先把output.zarr目录删除
-    # if os.path.exists(os.path.join(DATA_DIR, "output.zarr")):
-    #     shutil.rmtree(os.path.join(DATA_DIR, "output.zarr"))    
     uvicorn.run(app, host="0.0.0.0", port=8000)

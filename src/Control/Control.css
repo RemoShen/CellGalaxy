@@ -31,7 +31,6 @@
 .control-label {
   width: 60px;
 }
-
 .control-input {
   flex: 1;
 }
@@ -41,5 +40,6 @@
 .control-section-title {
   margin-bottom: 6px;
 }
+
 
 
