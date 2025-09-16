@@ -15,7 +15,7 @@ export default function ImageSizeControl({ imageSize, setImageSize }) {
           value={imageSize}
           onChange={(e) => setImageSize(Number(e.target.value))}
         />
-        <span className="control-value">{imageSize}</span>
+        <span className="control-value">{imageSize.toFixed(2)}</span>
       </div>
     </div>
   );

@@ -25,6 +25,7 @@ export default function App() {
         is3D={dataLoader.is3D}
         useUMAP={dataLoader.useUMAP}
         imageSize={dataLoader.imageSize}
+        setImageSize={dataLoader.setImageSize}
         /* 选择（传递给 Viewer，用于绘制与更新） */
         selectionMode={dataLoader.selectionMode}
         selectedIds={dataLoader.selectedIds}

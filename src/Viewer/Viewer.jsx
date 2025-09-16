@@ -38,6 +38,7 @@ const Viewer = ({
   renderMode = "sprites",
   is3D = false,
   imageSize = 4,
+  setImageSize = () => {},
 
   // 选择
   selectionMode = "none",
@@ -80,7 +81,24 @@ const Viewer = ({
     }));
   }, [is3D]);
 
-  const handleViewStateChange = ({ viewState: next }) => setViewState(next);
+  // 缩放灵敏度控制 - 鼠标滚轮缩放时同步调整imageSize
+  const zoomSensitivity = 1.8; // 缩放灵敏度，值越大缩放效果越明显
+  const minImageSize = 1;
+  const maxImageSize = 40;
+  
+  const handleViewStateChange = ({ viewState: next }) => {
+    setViewState(next);
+    
+    // 当zoom发生变化时，同步更新imageSize
+    if (next.zoom !== viewState.zoom) {
+      const zoomDelta = next.zoom - viewState.zoom;
+      const newImageSize = Math.max(
+        minImageSize,
+        Math.min(maxImageSize, imageSize + zoomDelta * zoomSensitivity)
+      );
+      setImageSize(newImageSize);
+    }
+  };
 
   const iconMappingsByChunk = useMemo(
     () => buildIconMappingsByChunk(meta, chunkUV),
