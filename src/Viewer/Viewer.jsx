@@ -66,6 +66,15 @@ const Viewer = ({
     }
   }, [center, points.length]);
 
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (zoomTimeoutRef.current) {
+        clearTimeout(zoomTimeoutRef.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     setViewState((prev) => ({
       ...prev,
@@ -81,10 +90,13 @@ const Viewer = ({
     }));
   }, [is3D]);
 
-  // 缩放灵敏度控制 - 鼠标滚轮缩放时同步调整imageSize
-  const zoomSensitivity = 1.8; // 缩放灵敏度，值越大缩放效果越明显
+  // 缩放灵敏度控制 - 改进触控板支持
+  const zoomSensitivity = 0.8; // 降低缩放灵敏度，使触控板更平滑
   const minImageSize = 1;
   const maxImageSize = 40;
+  
+  // 使用防抖来避免频繁更新
+  const zoomTimeoutRef = useRef(null);
   
   const handleViewStateChange = ({ viewState: next }) => {
     setViewState(next);
@@ -96,7 +108,16 @@ const Viewer = ({
         minImageSize,
         Math.min(maxImageSize, imageSize + zoomDelta * zoomSensitivity)
       );
-      setImageSize(newImageSize);
+      
+      // 清除之前的定时器
+      if (zoomTimeoutRef.current) {
+        clearTimeout(zoomTimeoutRef.current);
+      }
+      
+      // 使用防抖来平滑更新
+      zoomTimeoutRef.current = setTimeout(() => {
+        setImageSize(newImageSize);
+      }, 16); // 约60fps的更新频率
     }
   };
 
@@ -321,8 +342,34 @@ const Viewer = ({
   const controller =
     selectionMode === "none"
       ? is3D
-        ? { type: OrbitController }
-        : { type: OrthographicController }
+        ? { 
+            type: OrbitController,
+            // 改进触控板支持
+            scrollZoom: true,
+            doubleClickZoom: true,
+            inertia: true,
+            inertiaFriction: 0.95,
+            inertiaDeceleration: 0.95,
+            // 触控板缩放灵敏度
+            scrollZoomSpeed: 0.8,
+            // 平滑缩放
+            smoothZoom: true,
+            smoothZoomDuration: 200
+          }
+        : { 
+            type: OrthographicController,
+            // 改进触控板支持
+            scrollZoom: true,
+            doubleClickZoom: true,
+            inertia: true,
+            inertiaFriction: 0.95,
+            inertiaDeceleration: 0.95,
+            // 触控板缩放灵敏度
+            scrollZoomSpeed: 0.8,
+            // 平滑缩放
+            smoothZoom: true,
+            smoothZoomDuration: 200
+          }
       : false;
 
   // 把 lasso 的可视化放在屏幕空间的 SVG 里，确保所见即所得
