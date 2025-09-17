@@ -9,8 +9,8 @@ export default function ImageSizeControl({ imageSize, setImageSize }) {
         <input
           className="control-slider"
           type="range"
-          min="1"
-          max="40"
+          min="0"
+          max="60"
           step="0.5"
           value={imageSize}
           onChange={(e) => setImageSize(Number(e.target.value))}

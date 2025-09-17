@@ -20,7 +20,7 @@ export default function useDataLoader() {
   const [colors, setColors] = useState({});
   // 新增：每通道窗口（min/max，单位与后端一致：0..65535）
   const [windows, setWindows] = useState({});
-  const [imageSize, setImageSize] = useState(4);
+  const [imageSize, setImageSize] = useState(3);
 
   // 渲染模式设置
   const [renderMode, setRenderMode] = useState('sprites'); // 'sprites' | 'points'
