@@ -1,0 +1,33 @@
+name: multiscale
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  # Python version
+  - python=3.12
+  
+  # Core data processing
+  - numpy=1.26.4
+  - pandas=2.2.2
+  - pillow=10.3.0
+  
+  # Zarr and compression
+  - zarr=2.16.1
+  - numcodecs=0.12.1
+  - blosc=1.21.5
+  
+  # Web framework
+  - fastapi=0.110.0
+  - uvicorn=0.29.0
+  
+  # Data validation
+  - pydantic=2.7.1
+  
+  # Additional utilities
+  - pip=23.3.1
+  
+  # Pip dependencies (not available in conda)
+  - pip:
+    - python-multipart==0.0.9
+    - python-jose[cryptography]==3.3.0
+    - passlib[bcrypt]==1.7.4
