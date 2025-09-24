@@ -12,12 +12,14 @@
 }
 
 .upload-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  width: 100%;
 }
 
 .upload-btn {
+  width: 100%;
   padding: 8px 14px;
   border: none;
   border-radius: 6px;
@@ -47,14 +49,15 @@
 }
 
 .clear-upload-btn {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
+  width: 40px;
+  height: 36px;
+  padding: 0;
+  border-radius: 6px;
   border: none;
-  background-color: transparent;
+  background-color: rgba(255, 255, 255, 0.03);
   color: #cbd5f5;
   cursor: pointer;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
   transition: background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
@@ -63,12 +66,13 @@
 
 .clear-upload-btn::before {
   content: "\00d7";
-  font-size: 16px;
+  font-size: 18px;
   line-height: 1;
 }
 
 .clear-upload-btn.has-file {
   opacity: 1;
+  background-color: rgba(255, 255, 255, 0.04);
 }
 
 .clear-upload-btn:hover:not(:disabled) {
