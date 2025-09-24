@@ -19,18 +19,15 @@ import zarr
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
-# 优化 numcodecs 设置
+# import blosc
 try:
     from numcodecs import blosc as _blosc
     _blosc.set_nthreads(max(1, os.cpu_count() or 1))
 except Exception:
     pass
 
-# =========================
-# 配置
-# =========================
 DATA_DIR = "public"
-# 将缓存目录移出 public，避免前端开发服务器监听导致的整页刷新
+# remove cache directory
 CACHE_DIR = os.path.join(os.getcwd(), ".cache")
 ZARR_DIR = os.path.join(DATA_DIR, "output.zarr")
 DEFAULT_TILE = 64
@@ -39,7 +36,7 @@ os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 # =========================
-# FastAPI 应用
+# FastAPI application
 # =========================
 app = FastAPI()
 app.add_middleware(
@@ -51,18 +48,17 @@ app.add_middleware(
 )
 
 app.mount("/output.zarr", StaticFiles(directory=ZARR_DIR, check_dir=False), name="zarr_data")
-# 单独挂载缓存路径到 /public/cache，但物理目录不在 public 下，避免触发前端 HMR 刷新
 app.mount("/public/cache", StaticFiles(directory=CACHE_DIR, check_dir=False), name="cache_files")
 app.mount("/public", StaticFiles(directory=DATA_DIR, check_dir=False), name="public_files")
 
 # =========================
-# 核心工具函数
+# core tool functions
 # =========================
-# 进程级 Zarr 句柄缓存与线程池
+# process level Zarr handle cache and thread pool
 _IMG = None
 _IMG_LOCK = threading.Lock()
 _EXECUTOR = ThreadPoolExecutor(max_workers=max(2, (os.cpu_count() or 4)))
-_PREWARM_SET = set()  # {(channel, tile)} 标记正在预热，避免重复
+_PREWARM_SET = set()
 
 
 def reset_zarr_handle():
@@ -120,7 +116,7 @@ def grid_for_count(n_items: int):
     return rows, cols
 
 # =========================
-# 缓存路径助手（单通道：固定路径）
+# cache path helper (single channel: fixed path)
 # =========================
 def single_cache_path(channel: int, chunk_id: int, tile: int) -> str:
     ch_dir = os.path.join(CACHE_DIR, f"ch{int(channel)}", f"tile_{int(tile)}")
@@ -128,7 +124,7 @@ def single_cache_path(channel: int, chunk_id: int, tile: int) -> str:
     return os.path.join(ch_dir, f"chunk_{int(chunk_id)}.png")
 
 # =========================
-# 数据模型
+# data model
 # =========================
 class CompositeSpec(BaseModel):
     method: str = Field("weighted_mean", description='"mean"|"max"|"weighted_mean"')
@@ -142,7 +138,7 @@ class AtlasRequest(BaseModel):
     tile: int = DEFAULT_TILE
 
 # =========================
-# 图像处理函数
+# image processing functions
 # =========================
 def norm01(x: np.ndarray, lo: float, hi: float, gamma: float = 1.0) -> np.ndarray:
     den = max(hi - lo, 1e-8)
@@ -172,7 +168,7 @@ def tiles_to_atlas(rgba_tiles: np.ndarray, tile: int) -> Image.Image:
 
 
 # =========================
-# 生成与预热辅助
+# generate and prewarm helper
 # =========================
 def _generate_single_channel_mask(img, ch: int, slc: slice) -> np.ndarray:
     data = np.asarray(img[[ch], slc, :, :], dtype=np.float32)
@@ -208,7 +204,6 @@ def _render_and_cache_atlas(img, ch: int, chunk_id: int, tile: int) -> str:
     return cache_path
 
 def _prewarm_channel_async(ch: int, tile: int):
-    """后台预热指定通道/瓦片大小的所有 chunk（若未存在缓存则生成）。"""
     key = (int(ch), int(tile))
     if key in _PREWARM_SET:
         return
@@ -236,11 +231,11 @@ def _prewarm_channel_async(ch: int, tile: int):
     _EXECUTOR.submit(_task)
 
 # =========================
-# 数据生成函数
+# data generation functions
 # =========================
 def get_channel_info(df: pd.DataFrame, img=None):
     columns = list(df.columns)
-    channel_columns = columns[9:] #9到最后一个column
+    channel_columns = columns[9:] #9 to the last column
     channels = []
     for i, col_name in enumerate(channel_columns):
         channel_data = img[i, :, :, :]
@@ -269,7 +264,7 @@ async def generate_json_files():
             try:
                 img = open_zarr()
             except Exception as e:
-                print(f"Zarr读取失败: {str(e)}")
+                print(f"Zarr read failed: {str(e)}")
         if img is not None:
             C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
             N = min(len(df), N)
@@ -283,12 +278,12 @@ async def generate_json_files():
             json.dump(coords, f, ensure_ascii=False, indent=2)
         with open(os.path.join(DATA_DIR, "channel_info.json"), 'w', encoding='utf-8') as f:
             json.dump({"channels": channels, "total_channels": len(channels)}, f, ensure_ascii=False, indent=2)
-        print(f"已生成JSON文件: coords.json ({len(coords)} 个点), channel_info.json ({len(channels)} 个channel)")
+        print(f"Generated JSON files: coords.json ({len(coords)} points), channel_info.json ({len(channels)} channels)")
     except Exception as e:
-        print(f"生成JSON文件失败: {str(e)}")
+        print(f"Generated JSON files failed: {str(e)}")
 
 # =========================
-# API 端点
+# API endpoints
 # =========================
 @app.get("/")
 async def root():
@@ -297,22 +292,22 @@ async def root():
 @app.api_route("/upload/{file_type}", methods=["POST", "DELETE"])
 async def upload_or_delete(file_type: str, request: Request, file: UploadFile | None = File(None)):
     if file_type not in ["zarr", "csv"]:
-        raise HTTPException(status_code=400, detail="不支持的文件类型")
+        raise HTTPException(status_code=400, detail="Unsupported file type")
 
     if request.method == "DELETE":
         if file_type == "zarr":
             remove_path(ZARR_DIR)
             reset_zarr_handle()
             clear_cache_dir()
-            return {"message": "Zarr 数据已清除"}
+            return {"message": "Zarr data cleared"}
 
         remove_path(os.path.join(DATA_DIR, "data.csv"))
         remove_path(os.path.join(DATA_DIR, "coords.json"))
         remove_path(os.path.join(DATA_DIR, "channel_info.json"))
-        return {"message": "CSV 数据已清除"}
+        return {"message": "CSV data cleared"}
 
     if file is None:
-        raise HTTPException(status_code=400, detail="未提供文件")
+        raise HTTPException(status_code=400, detail="No file provided")
 
     file_path = os.path.join(DATA_DIR, file.filename if file_type == "zarr" else "data.csv")
     with open(file_path, "wb") as f:
@@ -327,7 +322,7 @@ async def upload_or_delete(file_type: str, request: Request, file: UploadFile | 
         clear_cache_dir()
     elif file_type == "csv":
         await generate_json_files()
-    return {"message": f"{file.filename} 上传成功"}
+    return {"message": f"{file.filename} uploaded successfully"}
 
 
 @app.get("/upload/status")
@@ -377,7 +372,7 @@ def meta():
         return {"error": "Failed to load data", "message": str(e)}
 
 def process_coord_row(row, idx, n_per_chunk):
-    """处理单行坐标数据"""
+    """process single row of coordinate data"""
     x_raw = float(row.get('X_centroid', 0))
     y_raw = float(row.get('Y_centroid', 0))
     return {
@@ -439,10 +434,6 @@ def atlas_uv(chunk_id: int, tile: int = Query(DEFAULT_TILE)):
 
 @app.post("/atlas/{chunk_id}")
 def atlas(chunk_id: int, req: AtlasRequest = Body(...)):
-    """
-    单通道灰度 atlas（灰度+alpha 同灰度），归一化固定 [0, 65535]。
-    前端负责通道叠加与着色。
-    """
     img = open_zarr()
     C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
     chans = sorted(set(int(c) for c in req.channels))
@@ -452,31 +443,27 @@ def atlas(chunk_id: int, req: AtlasRequest = Body(...)):
     if not (0 <= ch < C):
         raise HTTPException(status_code=400, detail=f"channel {ch} out of range [0,{C-1}]")
 
-    # 单通道固定缓存路径
+    # single channel fixed cache path
     cache_path = single_cache_path(ch, chunk_id, int(req.tile))
     etag = f"ch{ch}-chunk{chunk_id}-tile{int(req.tile)}"
     if os.path.exists(cache_path):
         headers = {"Cache-Control": "public, max-age=604800", "ETag": etag}
         return FileResponse(cache_path, media_type="image/png", headers=headers)
 
-    # 渲染并缓存（可命中则直接返回文件）
+    # render and cache (if hit, return file directly)
     _render_and_cache_atlas(img, ch, chunk_id, int(req.tile))
     try:
         print(f"Saved atlas cache: {cache_path}")
     except Exception:
         pass
-    # 后台预热同通道的其它 chunk
+    # prewarm other chunks of the same channel
     _prewarm_channel_async(ch, int(req.tile))
     headers = {"Cache-Control": "public, max-age=604800", "ETag": etag}
-    # 以 FileResponse 返还磁盘缓存（便于浏览器缓存与传输）
+    # return disk cache by FileResponse (for browser cache and transmission)
     return FileResponse(cache_path, media_type="image/png", headers=headers)
 
 @app.get("/atlas/{chunk_id}")
 def atlas_get(chunk_id: int, channel: int = Query(...), tile: int = Query(DEFAULT_TILE), request: Request = None):
-    """
-    单通道灰度 atlas 的 GET 版本，便于浏览器/代理缓存。
-    等价于 POST /atlas/{chunk_id}，body {channels:[channel], tile}。
-    """
     img = open_zarr()
     C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
     if not (0 <= channel < C):
@@ -488,7 +475,6 @@ def atlas_get(chunk_id: int, channel: int = Query(...), tile: int = Query(DEFAUL
     cache_path = single_cache_path(chans[0], chunk_id, int(tile))
     etag = f"ch{chans[0]}-chunk{chunk_id}-tile{int(tile)}"
 
-    # 条件请求：仅当磁盘上已有文件且 ETag 匹配时返回 304
     if os.path.exists(cache_path):
         if request is not None:
             inm = request.headers.get("if-none-match")
@@ -497,20 +483,17 @@ def atlas_get(chunk_id: int, channel: int = Query(...), tile: int = Query(DEFAUL
         headers = {"Cache-Control": "public, max-age=604800", "ETag": etag}
         return FileResponse(cache_path, media_type="image/png", headers=headers)
 
-    # 渲染并缓存（若缓存命中则跳过）
     _render_and_cache_atlas(img, chans[0], chunk_id, int(tile))
     try:
         print(f"Saved atlas cache: {cache_path}")
     except Exception:
         pass
-    # 后台预热同通道的其它 chunk
     _prewarm_channel_async(chans[0], int(tile))
     headers = {"Cache-Control": "public, max-age=604800", "ETag": etag}
     return FileResponse(cache_path, media_type="image/png", headers=headers)
 
 @app.post("/prewarm")
 def prewarm(channel: int = Query(...), tile: int = Query(DEFAULT_TILE)):
-    """触发后台预热：为指定通道与瓦片大小生成所有 chunk 的缓存。"""
     img = open_zarr()
     C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
     if not (0 <= channel < C):
@@ -518,8 +501,5 @@ def prewarm(channel: int = Query(...), tile: int = Query(DEFAULT_TILE)):
     _prewarm_channel_async(int(channel), int(tile))
     return {"status": "ok", "message": "prewarm started", "channel": int(channel), "tile": int(tile)}
 
-# =========================
-# 启动
-# =========================
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
