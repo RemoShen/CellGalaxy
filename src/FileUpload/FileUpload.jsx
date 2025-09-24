@@ -1,10 +1,35 @@
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import "./FileUpload.css";
 
-export default function FileUpload() {
+export default function FileUpload({ onRefresh = async () => {} }) {
+  const [status, setStatus] = useState({ zarr: false, csv: false });
+  const [busy, setBusy] = useState(false);
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`/upload/status?ts=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) {
+        setStatus({ zarr: false, csv: false });
+        return;
+      }
+      const data = await res.json();
+      setStatus({
+        zarr: Boolean(data?.zarr),
+        csv: Boolean(data?.csv),
+      });
+    } catch (err) {
+      console.error("status fetch failed", err);
+      setStatus({ zarr: false, csv: false });
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStatus();
+  }, [fetchStatus]);
+
   const handleFileUpload = async (fileType, file) => {
     if (!file) return;
-    
+    setBusy(true);
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -16,14 +41,15 @@ export default function FileUpload() {
 
       if (response.ok) {
         console.log(`${fileType} 文件上传成功`);
-        // 可以添加成功提示
+        await fetchStatus();
+        await onRefresh();
       } else {
         console.error(`${fileType} 文件上传失败:`, response.statusText);
-        // 可以添加错误提示
       }
     } catch (error) {
       console.error(`${fileType} 文件上传出错:`, error);
-      // 可以添加错误提示
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -40,21 +66,63 @@ export default function FileUpload() {
     input.click();
   };
 
+  const handleClear = async (fileType) => {
+    setBusy(true);
+    try {
+      const response = await fetch(`/upload/${fileType}`, { method: 'DELETE' });
+      if (response.ok) {
+        console.log(`${fileType} 文件已清除`);
+        await fetchStatus();
+        await onRefresh();
+      } else {
+        console.error(`${fileType} 文件清除失败:`, response.statusText);
+      }
+    } catch (error) {
+      console.error(`${fileType} 文件清除出错:`, error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="file-upload-section">
       <div className="upload-buttons">
-        <button
-          className="upload-btn upload-zarr"
-          onClick={() => handleFileSelect('zarr')}
-        >
-          Upload Zarr
-        </button>
-        <button
-          className="upload-btn upload-csv"
-          onClick={() => handleFileSelect('csv')}
-        >
-          Upload CSV
-        </button>
+        <div className="upload-row">
+          <button
+            type="button"
+            className="upload-btn upload-zarr"
+            onClick={() => handleFileSelect('zarr')}
+            disabled={busy}
+          >
+            Upload Zarr
+          </button>
+          <button
+            type="button"
+            className={`clear-upload-btn${status.zarr ? ' has-file' : ''}`}
+            onClick={() => handleClear('zarr')}
+            disabled={busy}
+            title="Clear uploaded Zarr"
+            aria-label="Clear uploaded Zarr"
+          />
+        </div>
+        <div className="upload-row">
+          <button
+            type="button"
+            className="upload-btn upload-csv"
+            onClick={() => handleFileSelect('csv')}
+            disabled={busy}
+          >
+            Upload CSV
+          </button>
+          <button
+            type="button"
+            className={`clear-upload-btn${status.csv ? ' has-file' : ''}`}
+            onClick={() => handleClear('csv')}
+            disabled={busy}
+            title="Clear uploaded CSV"
+            aria-label="Clear uploaded CSV"
+          />
+        </div>
       </div>
     </div>
   );

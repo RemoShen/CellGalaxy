@@ -1,7 +1,7 @@
 // =============================
 // useDataLoader.js  (with selection states)
 // =============================
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 
 // 开发环境（3000端口）默认转到后端 8000；生产同源可留空
 const API = (typeof window !== 'undefined' && window.location && window.location.port === '3000')
@@ -34,6 +34,7 @@ export default function useDataLoader() {
   const [atlasURL, setAtlasURL] = useState({}); // 旧：服务端合成后的单张 atlas（保留兼容）
   const [atlasByChannel, setAtlasByChannel] = useState({}); // 新：每通道灰度 atlas
   const [fetchingChunks, setFetchingChunks] = useState(new Set());
+  const [dataVersion, setDataVersion] = useState(0);
 
   // 简单并发限流器（默认最多 6 个并发请求）
   const limiterRef = useRef({ max: 6, inFlight: 0, queue: [] });
@@ -103,29 +104,84 @@ export default function useDataLoader() {
     setPoints(scaled);
   };
 
+  const refreshData = useCallback(async () => {
+    setLoading(true);
+    try {
+      let metaJson = null;
+      try {
+        const metaRes = await fetch(`${API}/meta`, { cache: 'no-store' });
+        if (metaRes.ok) {
+          metaJson = await metaRes.json();
+        } else {
+          try {
+            metaJson = await metaRes.json();
+          } catch {
+            metaJson = { error: "Failed to fetch meta" };
+          }
+        }
+      } catch (err) {
+        console.error("meta fetch failed", err);
+        metaJson = { error: "Failed to fetch meta" };
+      }
+      setMeta(metaJson);
+
+      let coords = [];
+      try {
+        const coordsRes = await fetch(`${API}/public/coords.json?ts=${Date.now()}`, { cache: 'no-store' });
+        if (coordsRes.ok) {
+          coords = await coordsRes.json();
+        }
+      } catch (err) {
+        console.warn("coords fetch failed", err);
+      }
+      if (!Array.isArray(coords)) coords = [];
+      setAllCoords(coords);
+      if (coords.length === 0) {
+        setPoints([]);
+        setChunkUV({});
+        setAtlasURL({});
+        setAtlasByChannel({});
+        setFetchingChunks(new Set());
+      }
+
+      if (!metaJson || metaJson.error || coords.length === 0) {
+        setChannels([]);
+        setWeights({});
+        setAlphas({});
+        setColors({});
+        setWindows({});
+      }
+
+      setDataVersion((v) => v + 1);
+    } catch (error) {
+      console.error("刷新数据失败", error);
+      setMeta({ error: "Failed to refresh data" });
+      setAllCoords([]);
+      setPoints([]);
+      setChunkUV({});
+      setAtlasURL({});
+      setAtlasByChannel({});
+      setFetchingChunks(new Set());
+      setChannels([]);
+      setWeights({});
+      setAlphas({});
+      setColors({});
+      setWindows({});
+      setDataVersion((v) => v + 1);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   // 初始拉 meta + coords
   useEffect(() => {
-    (async () => {
-      const m = await fetch(`${API}/meta`).then((r) => r.json());
-      setMeta(m);
-      
-      // 直接从JSON文件读取坐标数据
-      const coords = await fetch(`${API}/public/coords.json`).then((r) => r.json());
-      setAllCoords(coords);
-
-      // 首次也应用一次投影
-      if (coords.length > 0) {
-        applyCoordinateProjection();
-      }
-      
-      setLoading(false);
-    })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    refreshData();
+  }, [refreshData]);
 
   // 当allCoords数据加载完成后，确保应用坐标投影
   useEffect(() => {
     if (allCoords.length > 0) applyCoordinateProjection();
+    else setPoints([]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allCoords]);
 
@@ -302,6 +358,8 @@ export default function useDataLoader() {
     setIs3D,
     setUseUMAP,
     setImageSize,
+    refreshData,
+    dataVersion,
     
     // 数据获取函数
     ensureUV,

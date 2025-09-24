@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse, FileResponse
 import uvicorn
 import os
 import zipfile
+import shutil
 import pandas as pd
 import numpy as np
 import io
@@ -62,6 +63,30 @@ _IMG = None
 _IMG_LOCK = threading.Lock()
 _EXECUTOR = ThreadPoolExecutor(max_workers=max(2, (os.cpu_count() or 4)))
 _PREWARM_SET = set()  # {(channel, tile)} 标记正在预热，避免重复
+
+
+def reset_zarr_handle():
+    global _IMG
+    with _IMG_LOCK:
+        _IMG = None
+
+
+def remove_path(path: str):
+    try:
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+        elif os.path.exists(path):
+            os.remove(path)
+    except FileNotFoundError:
+        pass
+    except Exception as exc:
+        print(f"failed to remove {path}: {exc}")
+
+
+def clear_cache_dir():
+    if os.path.isdir(CACHE_DIR):
+        shutil.rmtree(CACHE_DIR)
+    os.makedirs(CACHE_DIR, exist_ok=True)
 
 def open_zarr():
     global _IMG
@@ -269,21 +294,55 @@ async def generate_json_files():
 async def root():
     return {"message": "API is running"}
 
-@app.post("/upload/{file_type}")
-async def upload_files(file_type: str, file: UploadFile = File(...)):
+@app.api_route("/upload/{file_type}", methods=["POST", "DELETE"])
+async def upload_or_delete(file_type: str, request: Request, file: UploadFile | None = File(None)):
     if file_type not in ["zarr", "csv"]:
         raise HTTPException(status_code=400, detail="不支持的文件类型")
+
+    if request.method == "DELETE":
+        if file_type == "zarr":
+            remove_path(ZARR_DIR)
+            reset_zarr_handle()
+            clear_cache_dir()
+            return {"message": "Zarr 数据已清除"}
+
+        remove_path(os.path.join(DATA_DIR, "data.csv"))
+        remove_path(os.path.join(DATA_DIR, "coords.json"))
+        remove_path(os.path.join(DATA_DIR, "channel_info.json"))
+        return {"message": "CSV 数据已清除"}
+
+    if file is None:
+        raise HTTPException(status_code=400, detail="未提供文件")
+
     file_path = os.path.join(DATA_DIR, file.filename if file_type == "zarr" else "data.csv")
     with open(file_path, "wb") as f:
         content = await file.read()
         f.write(content)
     if file_type == "zarr":
+        remove_path(ZARR_DIR)
         with zipfile.ZipFile(file_path, 'r') as zip_ref:
             zip_ref.extractall(DATA_DIR)
         os.remove(file_path)
+        reset_zarr_handle()
+        clear_cache_dir()
     elif file_type == "csv":
         await generate_json_files()
     return {"message": f"{file.filename} 上传成功"}
+
+
+@app.get("/upload/status")
+async def upload_status():
+    has_zarr = False
+    if os.path.isdir(ZARR_DIR):
+        try:
+            has_zarr = any(os.scandir(ZARR_DIR))
+        except Exception:
+            has_zarr = True
+    csv_path = os.path.join(DATA_DIR, "data.csv")
+    return {
+        "zarr": has_zarr,
+        "csv": os.path.exists(csv_path),
+    }
 
 @app.get("/channels")
 async def get_channels():

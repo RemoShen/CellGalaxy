@@ -23,6 +23,8 @@ export default function Control({
   setUseUMAP,
   imageSize,
   setImageSize,
+  refreshData,
+  dataVersion,
 
   // —— 新增：选择状态与操作 ——
   selectionMode = "none",
@@ -31,7 +33,7 @@ export default function Control({
 }) {
   return (
     <div className="control-panel">
-      <FileUpload />
+      <FileUpload onRefresh={refreshData} />
       {/* 选择面板 */}
       <SelectionPanel
         selectionMode={selectionMode}
@@ -61,6 +63,7 @@ export default function Control({
         setColors={setColors}
         windows={windows}
         setWindows={setWindows}
+        dataVersion={dataVersion}
       />
     </div>
   );

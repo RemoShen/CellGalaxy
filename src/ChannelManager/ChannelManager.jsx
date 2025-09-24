@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from "react";
 import "./ChannelManager.css";
 
-export default function ChannelManager({ selected, setSelected, colors = {}, setColors = () => {}, windows = {}, setWindows = () => {} }) {
+export default function ChannelManager({
+  selected,
+  setSelected,
+  colors = {},
+  setColors = () => {},
+  windows = {},
+  setWindows = () => {},
+  dataVersion = 0,
+}) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [channelInfo, setChannelInfo] = useState({});
   // 滑块读写直接使用全局 windows（每个通道的 min/max）
@@ -10,15 +18,34 @@ export default function ChannelManager({ selected, setSelected, colors = {}, set
   // 获取通道信息
   useEffect(() => {
     const fetchChannelInfo = async () => {
-      const response = await fetch("/public/channel_info.json");
-      if (response.ok) {
+      try {
+        const response = await fetch(`/public/channel_info.json?ts=${Date.now()}`, { cache: 'no-store' });
+        if (!response.ok) {
+          setChannelInfo({});
+          return;
+        }
         const data = await response.json();
         setChannelInfo(data);
+      } catch (err) {
+        console.error("channel_info fetch failed", err);
+        setChannelInfo({});
       }
     };
 
     fetchChannelInfo();
-  }, []);
+  }, [dataVersion]);
+
+  useEffect(() => {
+    const validIds = new Set(channelInfo.channels?.map((ch) => ch.id) || []);
+    if (validIds.size === 0) {
+      if (selected.length > 0) setSelected([]);
+      return;
+    }
+    const filtered = selected.filter((id) => validIds.has(id));
+    if (filtered.length !== selected.length) {
+      setSelected(filtered);
+    }
+  }, [channelInfo, selected, setSelected]);
 
   // 监听点击事件，点击外部时关闭下拉菜单
   useEffect(() => {

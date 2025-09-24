@@ -11,6 +11,12 @@
   gap: 8px;
 }
 
+.upload-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .upload-btn {
   padding: 8px 14px;
   border: none;
@@ -38,4 +44,39 @@
 
 .upload-csv:hover {
   background-color: #222223;
+}
+
+.clear-upload-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background-color: transparent;
+  color: #cbd5f5;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+  opacity: 0.35;
+}
+
+.clear-upload-btn::before {
+  content: "\00d7";
+  font-size: 16px;
+  line-height: 1;
+}
+
+.clear-upload-btn.has-file {
+  opacity: 1;
+}
+
+.clear-upload-btn:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.clear-upload-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
 }
