@@ -3,7 +3,7 @@
 // =============================
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import DeckGL from "@deck.gl/react";
-import { ScatterplotLayer, IconLayer } from "@deck.gl/layers";
+import { ScatterplotLayer } from "@deck.gl/layers";
 import WindowedIconLayer from "../layers/WindowedIconLayer";
 import {
   OrthographicView,
