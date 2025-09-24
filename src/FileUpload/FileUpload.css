@@ -35,8 +35,15 @@
   color: #e2e8f0;
 }
 
-.upload-zarr:hover {
+.upload-zarr:hover:not(:disabled) {
   background-color: #222223;
+}
+
+.upload-zarr:disabled {
+  background-color: #3a3a3a;
+  color: #888;
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .upload-csv {
@@ -44,8 +51,15 @@
   color: #e2e8f0;
 }
 
-.upload-csv:hover {
+.upload-csv:hover:not(:disabled) {
   background-color: #222223;
+}
+
+.upload-csv:disabled {
+  background-color: #3a3a3a;
+  color: #888;
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .clear-upload-btn {

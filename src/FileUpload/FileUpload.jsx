@@ -92,7 +92,7 @@ export default function FileUpload({ onRefresh = async () => {} }) {
             type="button"
             className="upload-btn upload-zarr"
             onClick={() => handleFileSelect('zarr')}
-            disabled={busy}
+            disabled={busy || status.zarr}
           >
             Upload Zarr
           </button>
@@ -110,7 +110,7 @@ export default function FileUpload({ onRefresh = async () => {} }) {
             type="button"
             className="upload-btn upload-csv"
             onClick={() => handleFileSelect('csv')}
-            disabled={busy}
+            disabled={busy || status.csv}
           >
             Upload CSV
           </button>
