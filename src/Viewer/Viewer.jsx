@@ -26,7 +26,6 @@ import "./Viewer.css";
 const Viewer = ({
   meta,
   points,
-  loading = false,
   chunkUV,
   atlasURL,
   atlasByChannel,
@@ -331,13 +330,6 @@ const Viewer = ({
     is3D,
   ]);
 
-  if (loading) {
-    return (
-      <div className="viewer-loading">
-        <div>加载中...</div>
-      </div>
-    );
-  }
 
   const controller =
     selectionMode === "none"

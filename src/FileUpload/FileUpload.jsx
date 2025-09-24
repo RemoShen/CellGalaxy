@@ -101,8 +101,8 @@ export default function FileUpload({ onRefresh = async () => {} }) {
         <div className="fullscreen-processing-overlay">
           <div className="processing-content">
             <div className="processing-spinner"></div>
-            {processing.csv && <div className="processing-text">正在处理CSV数据，生成坐标和通道信息...</div>}
-            {processing.zarr && <div className="processing-text">正在处理Zarr数据...</div>}
+            {processing.csv && <div className="processing-text">uploading CSV...</div>}
+            {processing.zarr && <div className="processing-text">uploading Zarr...</div>}
           </div>
         </div>
       )}
