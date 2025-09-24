@@ -26,7 +26,7 @@ export default function Control({
   refreshData,
   dataVersion,
 
-  // —— 新增：选择状态与操作 ——
+  // —— New: selection state and operations ——
   selectionMode = "none",
   setSelectionMode = () => {},
   selectedIds = new Set(),
@@ -34,17 +34,17 @@ export default function Control({
   return (
     <div className="control-panel">
       <FileUpload onRefresh={refreshData} />
-      {/* 选择面板 */}
+      {/* Selection panel */}
       <SelectionPanel
         selectionMode={selectionMode}
         setSelectionMode={setSelectionMode}
         selectedIds={selectedIds}
       />
 
-      {/* UMAP模式选择 */}
+      {/* UMAP mode selection */}
       <UMAPSelector useUMAP={useUMAP} setUseUMAP={setUseUMAP} />
 
-      {/* 渲染模式选择 */}
+      {/* Rendering mode selection */}
       <RenderModeSelector
         renderMode={renderMode}
         setRenderMode={setRenderMode}
@@ -52,10 +52,10 @@ export default function Control({
         setIs3D={setIs3D}
       />
 
-      {/* 图像大小控制 */}
+      {/* Image size control */}
       <ImageSizeControl imageSize={imageSize} setImageSize={setImageSize} />
 
-      {/* 通道管理 */}
+      {/* Channel management */}
       <ChannelManager
         selected={channels}
         setSelected={setChannels}

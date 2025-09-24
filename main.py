@@ -91,7 +91,7 @@ def open_zarr():
     with _IMG_LOCK:
         if _IMG is None:
             if not os.path.isdir(ZARR_DIR):
-                raise RuntimeError(f"Zarr 目录不存在: {ZARR_DIR}")
+                raise RuntimeError(f"Zarr directory does not exist: {ZARR_DIR}")
             _IMG = zarr.open_array(ZARR_DIR, mode="r")
     return _IMG
 
@@ -101,11 +101,11 @@ def stable_label(idx: int, num_classes: int = 11) -> int:
 
 def meta_from_img(img):
     if img.ndim != 4:
-        raise RuntimeError(f"期望 Zarr 形状 [C,N,H,W]，实际 {img.shape}")
+        raise RuntimeError(f"Expected Zarr shape [C,N,H,W], actual {img.shape}")
     C, N, H, W = img.shape
     chunks = img.chunks
     if chunks is None:
-        raise RuntimeError("Zarr 数组必须是分块的")
+        raise RuntimeError("Zarr array must be chunked")
     n_per_chunk = chunks[1]
     n_chunks = math.ceil(N / n_per_chunk)
     return C, N, H, W, chunks, n_chunks, n_per_chunk

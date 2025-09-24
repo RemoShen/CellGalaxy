@@ -22,18 +22,18 @@ export default class WindowedIconLayer extends IconLayer {
 uniform float windowMin;
 uniform float windowMax;
 `,
-        // 在最终输出前应用颜色和强度
+        // Apply color and intensity before final output
         'fs:DECKGL_FILTER_COLOR': `
-// 使用存储的窗口强度
+// Use stored window intensity
 float t = color.a;
-// 将颜色乘以窗口强度，实现灰度到彩色的映射
+// Multiply color by window intensity to achieve grayscale to color mapping
 if (t < windowMin) {
   t = 0.0;
 } else if (t > windowMax) {
   t = 1.0;
 }
 color.rgb *= t;
-// Alpha 设为 1.0 用于加法混合
+// Set Alpha to 1.0 for additive blending
 color.a = 1.0;
 `,
       }

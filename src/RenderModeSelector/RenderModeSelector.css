@@ -1,4 +1,4 @@
-/* 渲染模式选择样式 */
+/* Rendering mode selection styles */
 .render-mode-section {
   margin-bottom: 16px;
   padding-bottom: 16px;
@@ -58,7 +58,7 @@
   border-radius: 50%;
 }
 
-/* 3D 切换开关样式 */
+/* 3D toggle switch styles */
 .toggle-option {
   justify-content: space-between;
 }
@@ -109,7 +109,7 @@
   transform: translateX(20px);
 }
 
-/* 3D 模式激活时的额外样式 */
+/* Additional styles when 3D mode is active */
 .toggle-switch input:checked + .toggle-slider::after {
   content: "3D";
   position: absolute;

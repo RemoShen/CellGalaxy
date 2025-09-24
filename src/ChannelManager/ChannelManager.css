@@ -14,7 +14,7 @@
   justify-content: space-between;
 }
 
-/* 添加通道区域 */
+/* Add channel area */
 .add-channel-section {
   display: flex;
   flex-direction: row;
@@ -49,7 +49,7 @@
   color: #ccc;
 }
 
-/* 下拉列表 */
+/* Dropdown list */
 .channel-dropdown {
   position: absolute;
   top: 100%;
@@ -87,7 +87,7 @@
   cursor: not-allowed;
 }
 
-/* 已选择的通道列表 */
+/* Selected channels list */
 .selected-channels {
   display: flex;
   flex-direction: column;
@@ -103,7 +103,7 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* 颜色选择器 */
+/* Color picker */
 .color-picker {
   width: 20px;
   height: 20px;
@@ -122,7 +122,7 @@
   border-radius: 3px;
 }
 
-/* 通道名称 */
+/* Channel name */
 .channel-name {
   font-size: 10px;
   color: #fff;
@@ -130,7 +130,7 @@
   min-width: 50px;
 }
 
-/* 范围滑块容器 */
+/* Range slider container */
 .range-slider-container {
   flex: 1;
   display: flex;
@@ -139,7 +139,7 @@
   margin-right: 10px;
 }
 
-/* 双端滑块容器 */
+/* Dual-end slider container */
 .dual-range-slider {
   position: relative;
   width: 100%;
@@ -148,7 +148,7 @@
   align-items: center;
 }
 
-/* 双端滑块 */
+/* Dual-end slider */
 .range-slider {
   position: absolute;
   width: 100%;
@@ -183,7 +183,7 @@
   pointer-events: auto;
 }
 
-/* 滑块轨道样式 */
+/* Slider track styles */
 .dual-range-slider::before {
   content: '';
   position: absolute;
@@ -200,7 +200,7 @@
 
 
 
-/* 删除按钮 */
+/* Delete button */
 .delete-button {
   background: none;
   border: none;
@@ -220,7 +220,7 @@
   background: rgba(255, 68, 68, 0.2);
 }
 
-/* 自定义Tooltip */
+/* Custom Tooltip */
 .custom-tooltip {
   background: rgba(0, 0, 0, 0.8);
   color: white;
@@ -232,7 +232,7 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-/* Material Icons 删除按钮 */
+/* Material Icons delete button */
 .delete-channel.material-icons {
   font-size: 18px;
   color: #ff4444;

@@ -43,21 +43,21 @@ export default function FileUpload({ onRefresh = async () => {} }) {
       });
 
       if (response.ok) {
-        console.log(`${fileType} 文件上传成功`);
+        console.log(`${fileType} file uploaded successfully`);
         
-        // 如果是CSV文件，显示处理中的状态
+        // If it's a CSV file, show processing status
         if (fileType === 'csv') {
-          // 等待一段时间让用户看到处理状态
+          // Wait for a while to let user see processing status
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
         
         await fetchStatus();
         await onRefresh();
       } else {
-        console.error(`${fileType} 文件上传失败:`, response.statusText);
+        console.error(`${fileType} file upload failed:`, response.statusText);
       }
     } catch (error) {
-      console.error(`${fileType} 文件上传出错:`, error);
+      console.error(`${fileType} file upload error:`, error);
     } finally {
       setBusy(false);
       setProcessing(prev => ({ ...prev, [fileType]: false }));
@@ -82,14 +82,14 @@ export default function FileUpload({ onRefresh = async () => {} }) {
     try {
       const response = await fetch(`/upload/${fileType}`, { method: 'DELETE' });
       if (response.ok) {
-        console.log(`${fileType} 文件已清除`);
+        console.log(`${fileType} file cleared`);
         await fetchStatus();
         await onRefresh();
       } else {
-        console.error(`${fileType} 文件清除失败:`, response.statusText);
+        console.error(`${fileType} file clear failed:`, response.statusText);
       }
     } catch (error) {
-      console.error(`${fileType} 文件清除出错:`, error);
+      console.error(`${fileType} file clear error:`, error);
     } finally {
       setBusy(false);
     }
@@ -115,7 +115,7 @@ export default function FileUpload({ onRefresh = async () => {} }) {
             onClick={() => handleFileSelect('zarr')}
             disabled={busy || status.zarr}
           >
-            {processing.zarr ? '处理中...' : 'Upload Zarr'}
+            {processing.zarr ? 'Processing...' : 'Upload Zarr'}
           </button>
           <button
             type="button"
@@ -133,7 +133,7 @@ export default function FileUpload({ onRefresh = async () => {} }) {
             onClick={() => handleFileSelect('csv')}
             disabled={busy || status.csv}
           >
-            {processing.csv ? '计算中...' : 'Upload CSV'}
+            {processing.csv ? 'Computing...' : 'Upload CSV'}
           </button>
           <button
             type="button"

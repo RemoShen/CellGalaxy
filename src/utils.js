@@ -1,12 +1,12 @@
 // =============================
-// utils.js - 工具函数集合
+// utils.js - utility function collection
 // =============================
 
 /**
- * 判断屏幕空间点是否在多边形内（射线法）
- * @param {Array} point - [px, py] 待判断的点坐标
- * @param {Array} polygon - [[x1,y1], [x2,y2], ...] 多边形顶点数组
- * @returns {boolean} 点是否在多边形内
+ * Determine if a screen space point is inside a polygon (ray casting method)
+ * @param {Array} point - [px, py] point coordinates to be determined
+ * @param {Array} polygon - [[x1,y1], [x2,y2], ...] polygon vertex array
+ * @returns {boolean} whether the point is inside the polygon
  */
 export function pointInPolygon([px, py], polygon) {
     let inside = false;
@@ -21,8 +21,8 @@ export function pointInPolygon([px, py], polygon) {
     return inside;
   }
 /**
- * 计算点集的几何中心
- * @param {Array} points - 点数组，每个点包含 x, y, z 属性
+ * Calculate the geometric center of a point set
+ * @param {Array} points - point array, each point contains x, y, z properties
  * @returns {Array} [centerX, centerY, centerZ]
  */
 export function computeCenter(points) {
@@ -42,19 +42,19 @@ export function computeCenter(points) {
 
 
 /**
- * 平滑插值函数 (smoothstep)
- * @param {number} t - 插值参数 [0, 1]
- * @returns {number} 平滑后的值
+ * Smooth interpolation function (smoothstep)
+ * @param {number} t - interpolation parameter [0, 1]
+ * @returns {number} smoothed value
  */
 export function ease(t) {
   return t * t * (3 - 2 * t);
 }
 
 /**
- * 构建每个chunk的图标映射，用于IconLayer
- * @param {Object} meta - 元数据
- * @param {Object} chunkUV - chunk的UV坐标信息
- * @returns {Object} 图标映射对象
+ * Build icon mapping for each chunk, used by IconLayer
+ * @param {Object} meta - metadata
+ * @param {Object} chunkUV - UV coordinate information for chunk
+ * @returns {Object} icon mapping object
  */
 export function buildIconMappingsByChunk(meta, chunkUV) {
   if (!meta || !chunkUV) return {};
@@ -86,9 +86,9 @@ export function buildIconMappingsByChunk(meta, chunkUV) {
 }
 
 /**
- * 获取canvas的设备像素比
- * @param {Object} deckRef - deck.gl的ref引用
- * @returns {number} 设备像素比
+ * Get canvas device pixel ratio
+ * @param {Object} deckRef - deck.gl ref reference
+ * @returns {number} device pixel ratio
  */
 export function getCanvasDPR(deckRef) {
   const deck = deckRef?.current?.deck;
@@ -101,10 +101,10 @@ export function getCanvasDPR(deckRef) {
 }
 
 /**
- * 统一获取鼠标事件的屏幕坐标（相对于canvas左上角）
- * @param {Object} info - 事件信息对象
- * @param {HTMLElement} containerRef - 容器元素的ref
- * @returns {Object} {x, y} 坐标对象
+ * Unified get mouse event screen coordinates (relative to canvas top-left)
+ * @param {Object} info - event information object
+ * @param {HTMLElement} containerRef - container element ref
+ * @returns {Object} {x, y} coordinate object
  */
 export function getEventCoordinates(info, containerRef) {
   if (info?.offsetCenter && Number.isFinite(info.offsetCenter.x)) {
@@ -128,10 +128,10 @@ export function getEventCoordinates(info, containerRef) {
 }
 
 /**
- * 计算选择框的边界
- * @param {Object} dragStart - 拖拽开始点 {x, y}
- * @param {Object} dragEnd - 拖拽结束点 {x, y}
- * @returns {Object} {x0, y0, width, height} 选择框边界
+ * Calculate selection box boundaries
+ * @param {Object} dragStart - drag start point {x, y}
+ * @param {Object} dragEnd - drag end point {x, y}
+ * @returns {Object} {x0, y0, width, height} selection box boundaries
  */
 export function computeSelectionBounds(dragStart, dragEnd) {
   const x0 = Math.min(dragStart.x, dragEnd.x);
@@ -143,10 +143,10 @@ export function computeSelectionBounds(dragStart, dragEnd) {
 }
 
 /**
- * 执行框选操作
- * @param {Object} deck - deck.gl实例
- * @param {Object} bounds - 选择框边界 {x0, y0, width, height}
- * @returns {Array} 选中的对象数组
+ * Perform box selection operation
+ * @param {Object} deck - deck.gl instance
+ * @param {Object} bounds - selection box boundaries {x0, y0, width, height}
+ * @returns {Array} array of selected objects
  */
 export function performBoxSelection(deck, bounds) {
   const { x0, y0, width, height } = bounds;
@@ -162,11 +162,11 @@ export function performBoxSelection(deck, bounds) {
 }
 
 /**
- * 执行套索选择操作
- * @param {Array} points - 所有数据点
- * @param {Object} viewport - 视口对象
- * @param {Array} lassoPoints - 套索路径点 [[x,y], ...]
- * @returns {Set} 选中的ID集合
+ * Perform lasso selection operation
+ * @param {Array} points - all data points
+ * @param {Object} viewport - viewport object
+ * @param {Array} lassoPoints - lasso path points [[x,y], ...]
+ * @returns {Set} set of selected IDs
  */
 export function performLassoSelection(points, viewport, lassoPoints) {
   if (lassoPoints.length < 3) return new Set();

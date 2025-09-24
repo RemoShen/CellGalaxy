@@ -1,7 +1,7 @@
-/* App 组件样式 */
+/* App component styles */
 .app-container {
   height: 100vh;
   width: 100vw;
 }
 
-/* 保留基本容器样式，删除未使用的样式 */ 
+/* Keep basic container styles, remove unused styles */ 

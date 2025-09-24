@@ -32,14 +32,14 @@ const Viewer = ({
   channels = [],
   colors = {},
   alphas = {},
-  // 窗口（每个通道的 min/max，单位：原始值，比如 0..65535）
+  // Window (min/max for each channel, unit: raw values, e.g. 0..65535)
   windows = {},
   renderMode = "sprites",
   is3D = false,
   imageSize = 4,
   setImageSize = () => {},
 
-  // 选择
+  // Selection
   selectionMode = "none",
   selectedIds = new Set(),
   setSelectedIds = () => {},
@@ -65,7 +65,7 @@ const Viewer = ({
     }
   }, [center, points.length]);
 
-  // 清理定时器
+  // Clean up timer
   useEffect(() => {
     return () => {
       if (zoomTimeoutRef.current) {
@@ -89,18 +89,18 @@ const Viewer = ({
     }));
   }, [is3D]);
 
-  // 缩放灵敏度控制 - 改进触控板支持
-  const zoomSensitivity = 0.8; // 降低缩放灵敏度，使触控板更平滑
+  // Zoom sensitivity control - improved trackpad support
+  const zoomSensitivity = 0.8; // Reduce zoom sensitivity for smoother trackpad
   const minImageSize = 1;
   const maxImageSize = 40;
   
-  // 使用防抖来避免频繁更新
+  // Use debouncing to avoid frequent updates
   const zoomTimeoutRef = useRef(null);
   
   const handleViewStateChange = ({ viewState: next }) => {
     setViewState(next);
     
-    // 当zoom发生变化时，同步更新imageSize
+    // When zoom changes, synchronously update imageSize
     if (next.zoom !== viewState.zoom) {
       const zoomDelta = next.zoom - viewState.zoom;
       const newImageSize = Math.max(
@@ -108,15 +108,15 @@ const Viewer = ({
         Math.min(maxImageSize, imageSize + zoomDelta * zoomSensitivity)
       );
       
-      // 清除之前的定时器
+      // Clear previous timer
       if (zoomTimeoutRef.current) {
         clearTimeout(zoomTimeoutRef.current);
       }
       
-      // 使用防抖来平滑更新
+      // Use debouncing for smooth updates
       zoomTimeoutRef.current = setTimeout(() => {
         setImageSize(newImageSize);
-      }, 16); // 约60fps的更新频率
+      }, 16); // ~60fps update frequency
     }
   };
 
@@ -125,7 +125,7 @@ const Viewer = ({
     [meta, chunkUV]
   );
 
-  // —— 选择（用屏幕坐标）——
+  // —— Selection (using screen coordinates) ——
   const deckRef = useRef(null);
   const containerRef = useRef(null);
   const [isSelecting, setIsSelecting] = useState(false);
@@ -133,7 +133,7 @@ const Viewer = ({
   const [dragEnd, setDragEnd] = useState(null); // {x,y} screen
   const [lassoPts, setLassoPts] = useState([]); // [[x,y],...] screen
 
-  // 统一取得屏幕（相对 canvas 左上）的坐标
+  // Get unified screen coordinates (relative to canvas top-left)
   const getXY = (info) => getEventCoordinates(info, containerRef);
 
   const onDragStart = (info) => {
@@ -168,9 +168,9 @@ const Viewer = ({
     const ids = new Set();
 
     if (selectionMode === "box" && dragStart && dragEnd) {
-      // 使用utils函数计算选择框边界
+      // Use utils function to calculate selection bounds
       const bounds = computeSelectionBounds(dragStart, dragEnd);
-      // 使用utils函数执行框选
+      // Use utils function to perform box selection
       const picked = performBoxSelection(deck, bounds);
       
       for (const p of picked) {
@@ -180,7 +180,7 @@ const Viewer = ({
     }
 
     if (selectionMode === "lasso" && lassoPts.length >= 3 && viewport) {
-      // 使用utils函数执行套索选择
+      // Use utils function to perform lasso selection
       const lassoIds = performLassoSelection(points, viewport, lassoPts);
       lassoIds.forEach(id => ids.add(id));
     }
@@ -196,7 +196,7 @@ const Viewer = ({
     if (!info?.object) clearSelection();
   };
 
-  // 创建基础图层配置
+  // Create base layer configuration
   const createBaseLayerConfig = (chunkId, arr, mapping) => ({
     data: arr.map((d) => ({ ...d, icon: `t_${d.local_index}` })),
     iconMapping: mapping,
@@ -219,7 +219,6 @@ const Viewer = ({
     },
   });
 
-  // 图层
   const layers = useMemo(() => {
     if (!meta) return [];
 
@@ -240,7 +239,7 @@ const Viewer = ({
         const baseConfig = createBaseLayerConfig(chunkId, arr, mapping);
         let addedGray = false;
 
-        // 按通道叠加
+        // Overlay by channel
         for (const ch of channels) {
           const atlasGray = atlasByChannel?.[chunkId]?.[ch];
           if (!atlasGray) continue;
@@ -273,7 +272,7 @@ const Viewer = ({
           );
         }
 
-        // 兼容旧方案
+        // Compatible with old approach
         const atlasMerged = !addedGray ? atlasURL?.[chunkId] : null;
         if (atlasMerged) {
           all.push(
@@ -336,35 +335,35 @@ const Viewer = ({
       ? is3D
         ? { 
             type: OrbitController,
-            // 改进触控板支持
+            // Improved trackpad support
             scrollZoom: true,
             doubleClickZoom: true,
             inertia: true,
             inertiaFriction: 0.95,
             inertiaDeceleration: 0.95,
-            // 触控板缩放灵敏度
+            // Trackpad zoom sensitivity
             scrollZoomSpeed: 0.8,
-            // 平滑缩放
+            // Smooth zoom
             smoothZoom: true,
             smoothZoomDuration: 200
           }
         : { 
             type: OrthographicController,
-            // 改进触控板支持
+            // Improved trackpad support
             scrollZoom: true,
             doubleClickZoom: true,
             inertia: true,
             inertiaFriction: 0.95,
             inertiaDeceleration: 0.95,
-            // 触控板缩放灵敏度
+            // Trackpad zoom sensitivity
             scrollZoomSpeed: 0.8,
-            // 平滑缩放
+            // Smooth zoom
             smoothZoom: true,
             smoothZoomDuration: 200
           }
       : false;
 
-  // 把 lasso 的可视化放在屏幕空间的 SVG 里，确保所见即所得
+  // Place lasso visualization in screen-space SVG for WYSIWYG
   const lassoPath = lassoPts.length
     ? lassoPts.map(([x, y]) => `${x},${y}`).join(" ")
     : "";
@@ -395,7 +394,7 @@ const Viewer = ({
         pickingRadius={6}
       />
 
-      {/* 框选矩形（屏幕空间） */}
+      {/* Box selection rectangle (screen space) */}
       {isSelecting && selectionMode === "box" && dragStart && dragEnd && (
         <div
           className="selection-rect"
@@ -408,11 +407,11 @@ const Viewer = ({
         />
       )}
 
-      {/* 套索可视化（屏幕空间 SVG） */}
+      {/* Lasso visualization (screen space SVG) */}
       {isSelecting && selectionMode === "lasso" && lassoPts.length > 1 && (
         <svg className="lasso-svg">
           <polyline className="lasso-polyline" points={lassoPath} />
-          {/* 可选：闭合区域淡填充 */}
+          {/* Optional: light fill for closed area */}
           <polygon className="lasso-fill" points={lassoPath} />
         </svg>
       )}

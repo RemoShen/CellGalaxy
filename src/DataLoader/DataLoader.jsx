@@ -3,7 +3,7 @@
 // =============================
 import { useEffect, useState, useRef, useCallback } from "react";
 
-// 开发环境（3000端口）默认转到后端 8000；生产同源可留空
+// Development environment (port 3000) defaults to backend 8000; production same-origin can be empty
 const API = (typeof window !== 'undefined' && window.location && window.location.port === '3000')
   ? 'http://localhost:8000'
   : '';
@@ -13,30 +13,30 @@ export default function useDataLoader() {
   const [points, setPoints] = useState([]); // [{id,x,y,z,chunk_id,local_index,label}]
   const [loading, setLoading] = useState(true);
 
-  // 渲染参数（可绑定到 UI）
+  // Rendering parameters (can be bound to UI)
   const [channels, setChannels] = useState([]);
   const [weights, setWeights] = useState({});
   const [alphas, setAlphas] = useState({});
   const [colors, setColors] = useState({});
-  // 新增：每通道窗口（min/max，单位与后端一致：0..65535）
+  // New: per-channel window (min/max, unit consistent with backend: 0..65535)
   const [windows, setWindows] = useState({});
   const [imageSize, setImageSize] = useState(3);
 
-  // 渲染模式设置
+  // Rendering mode settings
   const [renderMode, setRenderMode] = useState('sprites'); // 'sprites' | 'points'
-  const [is3D, setIs3D] = useState(false); // 2D/3D 切换
+  const [is3D, setIs3D] = useState(false); // 2D/3D toggle
   
-  // UMAP模式设置
+  // UMAP mode settings
   const [useUMAP, setUseUMAP] = useState(false); // false: raw, true: umap
 
-  // 每个 chunk 的 UV 映射与 atlas URL
+  // UV mapping and atlas URL for each chunk
   const [chunkUV, setChunkUV] = useState({});
-  const [atlasURL, setAtlasURL] = useState({}); // 旧：服务端合成后的单张 atlas（保留兼容）
-  const [atlasByChannel, setAtlasByChannel] = useState({}); // 新：每通道灰度 atlas
+  const [atlasURL, setAtlasURL] = useState({}); // Old: single atlas synthesized by server (kept for compatibility)
+  const [atlasByChannel, setAtlasByChannel] = useState({}); // New: grayscale atlas per channel
   const [fetchingChunks, setFetchingChunks] = useState(new Set());
   const [dataVersion, setDataVersion] = useState(0);
 
-  // 简单并发限流器（默认最多 6 个并发请求）
+  // Simple concurrency limiter (default max 6 concurrent requests)
   const limiterRef = useRef({ max: 6, inFlight: 0, queue: [] });
   const runWithLimit = (task) => new Promise((resolve) => {
     const run = async () => {
@@ -54,26 +54,26 @@ export default function useDataLoader() {
     else limiterRef.current.queue.push(run);
   });
 
-  // 存储所有坐标数据（原始/UMAP2D/UMAP3D）
+  // Store all coordinate data (raw/UMAP2D/UMAP3D)
   const [allCoords, setAllCoords] = useState([]);
 
-  // —— 选择相关（新增）——
+  // —— Selection related (new) ——
   const [selectionMode, setSelectionMode] = useState('none'); // 'none' | 'box' | 'lasso'
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const clearSelection = () => setSelectedIds(new Set());
 
-  // —— 工具：安全归一化，避免除以 0 ——
+  // —— Utility: safe normalization, avoid division by 0 ——
   function safeScale(v, minV, maxV) {
     const span = maxV - minV;
     if (!isFinite(span) || span === 0) return 0;
     return 2 * (v - minV) / span - 1;
   }
 
-  // 统一的坐标投影处理函数
+  // Unified coordinate projection processing function
   const applyCoordinateProjection = () => {
     if (!allCoords || allCoords.length === 0) return;
     
-    // 根据模式选择坐标源
+    // Select coordinate source based on mode
     const getCoords = (p) => {
       if (useUMAP) {
         if (is3D && p.umap3d) return { x: p.umap3d.x, y: p.umap3d.y, z: p.umap3d.z ?? 0 };
@@ -85,7 +85,7 @@ export default function useDataLoader() {
     
     const projectedCoords = allCoords.map(p => ({ ...p, ...getCoords(p) }));
     
-    // 标准化坐标到 [-1, 1] 范围
+    // Normalize coordinates to [-1, 1] range
     const xs = projectedCoords.map(p => p.x);
     const ys = projectedCoords.map(p => p.y);
     const zs = projectedCoords.map(p => p.z || 0);
@@ -154,7 +154,7 @@ export default function useDataLoader() {
 
       setDataVersion((v) => v + 1);
     } catch (error) {
-      console.error("刷新数据失败", error);
+      console.error("Failed to refresh data", error);
       setMeta({ error: "Failed to refresh data" });
       setAllCoords([]);
       setPoints([]);
@@ -173,25 +173,25 @@ export default function useDataLoader() {
     }
   }, []);
 
-  // 初始拉 meta + coords
+  // Initial fetch meta + coords
   useEffect(() => {
     refreshData();
   }, [refreshData]);
 
-  // 当allCoords数据加载完成后，确保应用坐标投影
+  // When allCoords data is loaded, ensure coordinate projection is applied
   useEffect(() => {
     if (allCoords.length > 0) applyCoordinateProjection();
     else setPoints([]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allCoords]);
 
-  // 当UMAP模式或2D/3D模式改变时，重新应用坐标投影（保持数组顺序，便于过渡）
+  // When UMAP mode or 2D/3D mode changes, reapply coordinate projection (maintain array order for smooth transitions)
   useEffect(() => {
     if (allCoords.length > 0) applyCoordinateProjection();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [useUMAP, is3D]);
 
-  // 拉某个 chunk 的 UV（只拉一次）
+  // Fetch UV for a chunk (only once)
   const ensureUV = async (chunkId) => {
     if (!meta) return;
     if (chunkUV[chunkId]) return;
@@ -199,7 +199,7 @@ export default function useDataLoader() {
     setChunkUV((prev) => ({ ...prev, [chunkId]: uv }));
   };
 
-  // 请求某个 chunk 的 atlas（服务器端合成 RGBA）
+  // Request atlas for a chunk (server-side RGBA synthesis)
   const fetchAtlas = async (chunkId) => {
     if (atlasURL[chunkId]) return;
     if (fetchingChunks.has(chunkId)) return;
@@ -224,14 +224,14 @@ export default function useDataLoader() {
       return;
     }
 
-    // 把图片响应转成 blob URL
+    // Convert image response to blob URL
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     setAtlasURL((prev) => ({ ...prev, [chunkId]: url }));
     setFetchingChunks((s) => { const t = new Set(s); t.delete(chunkId); return t; });
   };
 
-  // 请求某个 chunk 的“单通道灰度”atlas（前端自行叠加着色），统一走 /atlas
+  // Request "single-channel grayscale" atlas for a chunk (frontend overlays coloring), unified via /atlas
   const fetchAtlasGray = async (chunkId, channel) => {
     const existing = atlasByChannel[chunkId]?.[channel];
     if (existing) return;
@@ -243,7 +243,7 @@ export default function useDataLoader() {
         const t = meta?.atlas?.tile ?? 16;
         const staticURL = `${API}/public/cache/ch${channel}/tile_${t}/chunk_${chunkId}.png`;
 
-        // 1) 先尝试用 HEAD 探测固定路径的静态缓存（避免重复下载图片）
+        // 1) First try HEAD to probe static cache at fixed path (avoid duplicate image downloads)
         let head = await fetch(staticURL, { method: 'HEAD' });
         if (head.ok || head.status === 304) {
           setAtlasByChannel((prev) => ({
@@ -253,7 +253,7 @@ export default function useDataLoader() {
           return;
         }
 
-        // 2) 不存在则触发生成（GET 别名 → 失败再 POST 回退）
+        // 2) If not exists, trigger generation (GET alias → fallback to POST on failure)
         let gen = await fetch(`${API}/atlas/${chunkId}?channel=${channel}&tile=${t}`, { method: 'GET' });
         if (!gen.ok && gen.status !== 304) {
           if (gen.status === 405 || gen.status === 404) {
@@ -272,7 +272,7 @@ export default function useDataLoader() {
           }
         }
 
-        // 3) 生成后直接使用静态 URL（让 deck.gl 自己加载并走浏览器缓存）
+        // 3) After generation, use static URL directly (let deck.gl load and use browser cache)
         setAtlasByChannel((prev) => ({
           ...prev,
           [chunkId]: { ...(prev[chunkId] || {}), [channel]: staticURL },
@@ -285,25 +285,25 @@ export default function useDataLoader() {
     }
   };
 
-  // 计算视野内优先 chunk（这里只做最简单：按 chunk 分组，全部都拉）
+  // Calculate priority chunks in view (here only simplest: group by chunk, fetch all)
   useEffect(() => {
     if (!meta || loading) return;
     const chunks = new Set(points.map((p) => p.chunk_id));
     (async () => {
       for (const c of chunks) {
         await ensureUV(c);
-        // 新方案：前端叠加 -> 拉每个通道的灰度 atlas
+        // New approach: frontend overlay -> fetch grayscale atlas for each channel
         for (const ch of (channels || [])) {
           await fetchAtlasGray(c, ch);
         }
-        // 兼容旧方案：也可保留后端合成（可逐步移除）
+        // Compatible with old approach: can also keep backend synthesis (can be gradually removed)
         // fetchAtlas(c);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta, loading, channels, renderMode, is3D, useUMAP, points]);
 
-  // 当选择通道变化时，通知后端进行异步预热，减少后续首包延迟
+  // When selected channels change, notify backend for async prewarming to reduce subsequent first-packet latency
   useEffect(() => {
     if (!meta || !channels || channels.length === 0) return;
     const t = meta?.atlas?.tile ?? 16;
@@ -317,7 +317,7 @@ export default function useDataLoader() {
   }, [channels, meta]);
 
   return {
-    // 数据状态
+    // Data state
     meta,
     points,
     loading,
@@ -326,7 +326,7 @@ export default function useDataLoader() {
     atlasByChannel,
     fetchingChunks,
     
-    // 渲染参数
+    // Rendering parameters
     channels,
     weights,
     alphas,
@@ -334,21 +334,21 @@ export default function useDataLoader() {
     windows,
     imageSize,
     
-    // 渲染模式
+    // Rendering mode
     renderMode,
     is3D,
     
-    // UMAP模式
+    // UMAP mode
     useUMAP,
 
-    // —— 选择（导出给 App/Viewer/Control 使用）——
+    // —— Selection (exported for App/Viewer/Control use) ——
     selectionMode,
     setSelectionMode,
     selectedIds,
     setSelectedIds,
     clearSelection,
     
-    // 设置函数
+    // Setter functions
     setChannels,
     setWeights,
     setAlphas,
@@ -361,7 +361,7 @@ export default function useDataLoader() {
     refreshData,
     dataVersion,
     
-    // 数据获取函数
+    // Data fetching functions
     ensureUV,
     fetchAtlas,
     fetchAtlasGray,
