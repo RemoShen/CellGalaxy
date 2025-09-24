@@ -4,6 +4,7 @@ import "./FileUpload.css";
 export default function FileUpload({ onRefresh = async () => {} }) {
   const [status, setStatus] = useState({ zarr: false, csv: false });
   const [busy, setBusy] = useState(false);
+  const [processing, setProcessing] = useState({ zarr: false, csv: false });
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -30,6 +31,8 @@ export default function FileUpload({ onRefresh = async () => {} }) {
   const handleFileUpload = async (fileType, file) => {
     if (!file) return;
     setBusy(true);
+    setProcessing(prev => ({ ...prev, [fileType]: true }));
+    
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -41,6 +44,13 @@ export default function FileUpload({ onRefresh = async () => {} }) {
 
       if (response.ok) {
         console.log(`${fileType} 文件上传成功`);
+        
+        // 如果是CSV文件，显示处理中的状态
+        if (fileType === 'csv') {
+          // 等待一段时间让用户看到处理状态
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
         await fetchStatus();
         await onRefresh();
       } else {
@@ -50,6 +60,7 @@ export default function FileUpload({ onRefresh = async () => {} }) {
       console.error(`${fileType} 文件上传出错:`, error);
     } finally {
       setBusy(false);
+      setProcessing(prev => ({ ...prev, [fileType]: false }));
     }
   };
 
@@ -85,8 +96,18 @@ export default function FileUpload({ onRefresh = async () => {} }) {
   };
 
   return (
-    <div className="file-upload-section">
-      <div className="upload-buttons">
+    <>
+      {(processing.csv || processing.zarr) && (
+        <div className="fullscreen-processing-overlay">
+          <div className="processing-content">
+            <div className="processing-spinner"></div>
+            {processing.csv && <div className="processing-text">正在处理CSV数据，生成坐标和通道信息...</div>}
+            {processing.zarr && <div className="processing-text">正在处理Zarr数据...</div>}
+          </div>
+        </div>
+      )}
+      <div className="file-upload-section">
+        <div className="upload-buttons">
         <div className="upload-row">
           <button
             type="button"
@@ -94,7 +115,7 @@ export default function FileUpload({ onRefresh = async () => {} }) {
             onClick={() => handleFileSelect('zarr')}
             disabled={busy || status.zarr}
           >
-            Upload Zarr
+            {processing.zarr ? '处理中...' : 'Upload Zarr'}
           </button>
           <button
             type="button"
@@ -112,7 +133,7 @@ export default function FileUpload({ onRefresh = async () => {} }) {
             onClick={() => handleFileSelect('csv')}
             disabled={busy || status.csv}
           >
-            Upload CSV
+            {processing.csv ? '计算中...' : 'Upload CSV'}
           </button>
           <button
             type="button"
@@ -125,5 +146,6 @@ export default function FileUpload({ onRefresh = async () => {} }) {
         </div>
       </div>
     </div>
+    </>
   );
 }
