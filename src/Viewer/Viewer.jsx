@@ -44,12 +44,15 @@ const Viewer = ({
   selectedIds = new Set(),
   setSelectedIds = () => {},
   clearSelection = () => {},
+  // Shared zoom (optional): when provided, viewers sync zoom level
+  sharedZoom,
+  setSharedZoom,
 }) => {
   const center = useMemo(() => computeCenter(points), [points]);
 
   const [viewState, setViewState] = useState(() => ({
     target: [0, 0, 0],
-    zoom: 8,
+    zoom: typeof sharedZoom === 'number' ? sharedZoom : 8,
     rotationX: 0,
     rotationOrbit: 0,
     transitionDuration: 0,
@@ -64,6 +67,14 @@ const Viewer = ({
       initialized.current = true;
     }
   }, [center, points.length]);
+
+  // If parent provides sharedZoom, keep local viewState.zoom in sync
+  useEffect(() => {
+    if (typeof sharedZoom === 'number' && sharedZoom !== viewState.zoom) {
+      setViewState((prev) => ({ ...prev, zoom: sharedZoom }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sharedZoom]);
 
   // Clean up timer
   useEffect(() => {
@@ -117,6 +128,11 @@ const Viewer = ({
       zoomTimeoutRef.current = setTimeout(() => {
         setImageSize(newImageSize);
       }, 16); // ~60fps update frequency
+
+      // Propagate zoom to shared state if provided
+      if (typeof sharedZoom === 'number' && typeof setSharedZoom === 'function') {
+        if (next.zoom !== sharedZoom) setSharedZoom(next.zoom);
+      }
     }
   };
 
@@ -378,7 +394,7 @@ const Viewer = ({
             : [new OrthographicView({ id: "2d", flipY: false })]
         }
         controller={controller}
-        viewState={viewState}
+        viewState={{ ...viewState, zoom: typeof sharedZoom === 'number' ? sharedZoom : viewState.zoom }}
         onViewStateChange={handleViewStateChange}
         layers={layers}
         onClick={onClick}
