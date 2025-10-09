@@ -102,37 +102,17 @@ const Viewer = ({
 
   // Zoom sensitivity control - improved trackpad support
   const zoomSensitivity = 0.8; // Reduce zoom sensitivity for smoother trackpad
-  const minImageSize = 1;
-  const maxImageSize = 40;
-  
-  // Use debouncing to avoid frequent updates
+  // Note: keep sprite size independent from camera zoom to avoid double scaling
   const zoomTimeoutRef = useRef(null);
   
   const handleViewStateChange = ({ viewState: next }) => {
     setViewState(next);
     
-    // When zoom changes, synchronously update imageSize
-    if (next.zoom !== viewState.zoom) {
-      const zoomDelta = next.zoom - viewState.zoom;
-      const newImageSize = Math.max(
-        minImageSize,
-        Math.min(maxImageSize, imageSize + zoomDelta * zoomSensitivity)
-      );
-      
-      // Clear previous timer
-      if (zoomTimeoutRef.current) {
-        clearTimeout(zoomTimeoutRef.current);
-      }
-      
-      // Use debouncing for smooth updates
-      zoomTimeoutRef.current = setTimeout(() => {
-        setImageSize(newImageSize);
-      }, 16); // ~60fps update frequency
-
-      // Propagate zoom to shared state if provided
-      if (typeof sharedZoom === 'number' && typeof setSharedZoom === 'function') {
-        if (next.zoom !== sharedZoom) setSharedZoom(next.zoom);
-      }
+    // When zoom changes, only propagate to shared state if provided.
+    // Do NOT adjust imageSize here; with sizeUnits="pixels" this would cause
+    // double-scaling (icon size + camera zoom) and lead to overlaps/gaps.
+    if (typeof sharedZoom === 'number' && typeof setSharedZoom === 'function') {
+      if (next.zoom !== sharedZoom) setSharedZoom(next.zoom);
     }
   };
 
@@ -212,13 +192,20 @@ const Viewer = ({
     if (!info?.object) clearSelection();
   };
 
+  // Establish a baseline zoom the first time we render. We map size by 2^(zoom-delta)
+  const baseZoomRef = useRef(null);
+  if (baseZoomRef.current == null) baseZoomRef.current = viewState.zoom;
+  const zoomScale = Math.pow(2, (viewState.zoom ?? 0) - (baseZoomRef.current ?? 0));
+  const computedImageSize = Math.max(1, Math.min(2048, imageSize * zoomScale));
+
   // Create base layer configuration
   const createBaseLayerConfig = (chunkId, arr, mapping) => ({
     data: arr.map((d) => ({ ...d, icon: `t_${d.local_index}` })),
     iconMapping: mapping,
     getIcon: (d) => d.icon,
     getPosition: (d) => [d.x, d.y, d.z ?? 0],
-    getSize: imageSize,
+    // Keep sprite size synchronized with camera zoom
+    getSize: computedImageSize,
     sizeScale: 1,
     fovy: 45,
     near: 0.1,
@@ -233,6 +220,9 @@ const Viewer = ({
       getPosition: { duration: 600, easing: ease },
       getSize: { duration: 300, easing: ease },
     },
+    updateTriggers: {
+      getSize: [computedImageSize]
+    }
   });
 
   const layers = useMemo(() => {
@@ -313,7 +303,8 @@ const Viewer = ({
           getPosition: (d) => [d.x, d.y, d.z ?? 0],
           getFillColor: (d) => selectedIds.has(d.id)? [255, 140, 0, 255]: [255, 255, 255, 255],
           stroked: false,
-          getRadius: imageSize*0.75,
+          // Sync point radius with zoom the same way
+          getRadius: computedImageSize*0.75,
           radiusScale: 1,
           radiusUnits: "pixels",
           pickable: true,
@@ -325,6 +316,7 @@ const Viewer = ({
           },
           updateTriggers: {
             getFillColor: [selectedIds],
+            getRadius: [computedImageSize]
           },
         })
       ];
@@ -337,6 +329,7 @@ const Viewer = ({
     meta,
     renderMode,
     imageSize,
+    viewState.zoom,
     selectedIds,
     channels,
     colors,

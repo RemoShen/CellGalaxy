@@ -22,7 +22,7 @@ export default function useDataLoader() {
   const [colors, setColors] = useState({});
   // New: per-channel window (min/max, unit consistent with backend: 0..65535)
   const [windows, setWindows] = useState({});
-  const [imageSize, setImageSize] = useState(3);
+  const [imageSize, setImageSize] = useState(1.5);
 
   // Rendering mode settings
   const [renderMode, setRenderMode] = useState('sprites'); // 'sprites' | 'points'
