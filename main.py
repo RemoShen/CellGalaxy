@@ -30,7 +30,7 @@ DATA_DIR = "public"
 # remove cache directory
 CACHE_DIR = os.path.join(os.getcwd(), ".cache")
 ZARR_DIR = os.path.join(DATA_DIR, "output.zarr")
-DEFAULT_TILE = 64
+DEFAULT_TILE = 8
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -171,7 +171,8 @@ def tiles_to_atlas(rgba_tiles: np.ndarray, tile: int) -> Image.Image:
 # generate and prewarm helper
 # =========================
 def _generate_single_channel_mask(img, ch: int, slc: slice) -> np.ndarray:
-    data = np.asarray(img[[ch], slc, :, :], dtype=np.float32)
+    # Zarr basic indexing does not support list indexing for axes; use integers/slices
+    data = np.asarray(img[ch, slc, :, :], dtype=np.float32)
     if data.ndim == 3:
         data = data[np.newaxis, ...]
     if data.ndim != 4:

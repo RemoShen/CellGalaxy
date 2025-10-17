@@ -2,166 +2,418 @@
   "channels": [
     {
       "id": 0,
-      "name": "CD117",
+      "name": "DAPI",
       "column_index": 9,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65025.0
+        "max": 49386.0
       }
     },
     {
       "id": 1,
-      "name": "CD11c",
+      "name": "CD8 ",
       "column_index": 10,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65025.0
+        "max": 14021.0
       }
     },
     {
       "id": 2,
-      "name": "CD14",
+      "name": "CD20",
       "column_index": 11,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65025.0
+        "max": 6827.0
       }
     },
     {
       "id": 3,
-      "name": "CD163",
+      "name": "HLA-DR",
       "column_index": 12,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65025.0
+        "max": 64784.0
       }
     },
     {
       "id": 4,
-      "name": "CD16",
+      "name": "Podoplanin",
       "column_index": 13,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65025.0
+        "max": 31626.0
       }
     },
     {
       "id": 5,
-      "name": "CD20",
+      "name": "SMA",
       "column_index": 14,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65025.0
+        "max": 43606.0
       }
     },
     {
       "id": 6,
-      "name": "CD31",
+      "name": "CD4",
       "column_index": 15,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65025.0
+        "max": 64726.0
       }
     },
     {
       "id": 7,
-      "name": "CD3",
+      "name": "Ki67",
       "column_index": 16,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65025.0
+        "max": 62076.0
       }
     },
     {
       "id": 8,
-      "name": "CD4",
+      "name": "AQP1",
       "column_index": 17,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65025.0
+        "max": 42842.0
       }
     },
     {
       "id": 9,
-      "name": "CD68",
+      "name": "ICOS",
       "column_index": 18,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65025.0
+        "max": 64603.0
       }
     },
     {
       "id": 10,
-      "name": "CD8a",
+      "name": "Mac2/Galectin-3",
       "column_index": 19,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65025.0
+        "max": 63642.0
       }
     },
     {
       "id": 11,
-      "name": "CD94",
+      "name": "CD31",
       "column_index": 20,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65025.0
+        "max": 63456.0
       }
     },
     {
       "id": 12,
-      "name": "DNA1",
+      "name": "CD68",
       "column_index": 21,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65025.0
+        "max": 64594.0
       }
     },
     {
       "id": 13,
-      "name": "FoxP3",
+      "name": "b-Catenin1",
       "column_index": 22,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65025.0
+        "max": 62832.0
       }
     },
     {
       "id": 14,
-      "name": "HLA-DR",
+      "name": "CD3e",
       "column_index": 23,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65025.0
+        "max": 62979.0
       }
     },
     {
       "id": 15,
-      "name": "MPO",
+      "name": "CD103",
       "column_index": 24,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65025.0
+        "max": 56719.0
       }
     },
     {
       "id": 16,
-      "name": "Pancytokeratin",
+      "name": "Pan-Cytokeratin",
       "column_index": 25,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65025.0
+        "max": 65233.0
       }
     },
     {
       "id": 17,
-      "name": "TTF1",
+      "name": "FOXP3",
       "column_index": 26,
       "pixel_value_range": {
         "min": 0.0,
-        "max": 65025.0
+        "max": 61517.0
+      }
+    },
+    {
+      "id": 18,
+      "name": "CD45RO",
+      "column_index": 27,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 39893.0
+      }
+    },
+    {
+      "id": 19,
+      "name": "SOX10",
+      "column_index": 28,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 26064.0
+      }
+    },
+    {
+      "id": 20,
+      "name": "TCF-1",
+      "column_index": 29,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 28828.0
+      }
+    },
+    {
+      "id": 21,
+      "name": "CD14",
+      "column_index": 30,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 38465.0
+      }
+    },
+    {
+      "id": 22,
+      "name": "IL-33",
+      "column_index": 31,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 12407.0
+      }
+    },
+    {
+      "id": 23,
+      "name": "PD-1",
+      "column_index": 32,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 26337.0
+      }
+    },
+    {
+      "id": 24,
+      "name": "Granzyme B",
+      "column_index": 33,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 61917.0
+      }
+    },
+    {
+      "id": 25,
+      "name": "S100b",
+      "column_index": 34,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 22806.0
+      }
+    },
+    {
+      "id": 26,
+      "name": "PD-L1",
+      "column_index": 35,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 53287.0
+      }
+    },
+    {
+      "id": 27,
+      "name": "CD57 ",
+      "column_index": 36,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 61798.0
+      }
+    },
+    {
+      "id": 28,
+      "name": "CSPG4",
+      "column_index": 37,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 20115.0
+      }
+    },
+    {
+      "id": 29,
+      "name": "Collagen IV",
+      "column_index": 38,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 61207.0
+      }
+    },
+    {
+      "id": 30,
+      "name": "IFNG",
+      "column_index": 39,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 57250.0
+      }
+    },
+    {
+      "id": 31,
+      "name": "IDO1",
+      "column_index": 40,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 63383.0
+      }
+    },
+    {
+      "id": 32,
+      "name": "CD21",
+      "column_index": 41,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 53337.0
+      }
+    },
+    {
+      "id": 33,
+      "name": "CD11c",
+      "column_index": 42,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 63235.0
+      }
+    },
+    {
+      "id": 34,
+      "name": "TOX ",
+      "column_index": 43,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 23451.0
+      }
+    },
+    {
+      "id": 35,
+      "name": "CD40",
+      "column_index": 44,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 31076.0
+      }
+    },
+    {
+      "id": 36,
+      "name": "CD1c ",
+      "column_index": 45,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 16599.0
+      }
+    },
+    {
+      "id": 37,
+      "name": "NGFR ",
+      "column_index": 46,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 26629.0
+      }
+    },
+    {
+      "id": 38,
+      "name": "Clec9a",
+      "column_index": 47,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 13319.0
+      }
+    },
+    {
+      "id": 39,
+      "name": "Axl ",
+      "column_index": 48,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 22114.0
+      }
+    },
+    {
+      "id": 40,
+      "name": "mast cell tryptase",
+      "column_index": 49,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 59975.0
+      }
+    },
+    {
+      "id": 41,
+      "name": "CD169 ",
+      "column_index": 50,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 9570.0
+      }
+    },
+    {
+      "id": 42,
+      "name": "GP100",
+      "column_index": 51,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 58780.0
+      }
+    },
+    {
+      "id": 43,
+      "name": "CD1a",
+      "column_index": 52,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 22260.0
+      }
+    },
+    {
+      "id": 44,
+      "name": "PNAd",
+      "column_index": 53,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 3345.0
+      }
+    },
+    {
+      "id": 45,
+      "name": "CD66",
+      "column_index": 54,
+      "pixel_value_range": {
+        "min": 0.0,
+        "max": 34153.0
       }
     }
   ],
-  "total_channels": 18
+  "total_channels": 46
 }

@@ -82,23 +82,38 @@ export default function useDataLoader() {
 
     // Helper: project and normalize
     const projectAndNormalize = (getter) => {
-      const projected = allCoords.map((p) => {
-        const { x, y, z } = getter(p);
-        return { ...p, x, y, z: z ?? 0 };
-      });
-      const xs = projected.map((p) => p.x);
-      const ys = projected.map((p) => p.y);
-      const zs = projected.map((p) => p.z || 0);
-      const [minX, maxX] = [Math.min(...xs), Math.max(...xs)];
-      const [minY, maxY] = [Math.min(...ys), Math.max(...ys)];
-      const [minZ, maxZ] = [Math.min(...zs), Math.max(...zs)];
-      return projected.map((p) => ({
-        ...p,
-        label: p.label ?? (p.id % 11),
-        x: safeScale(p.x, minX, maxX),
-        y: -safeScale(p.y, minY, maxY),
-        z: safeScale(p.z || 0, minZ, maxZ),
-      }));
+      // First pass: project points and compute min/max without spreading large arrays
+      const projected = new Array(allCoords.length);
+      let minX = Infinity, maxX = -Infinity;
+      let minY = Infinity, maxY = -Infinity;
+      let minZ = Infinity, maxZ = -Infinity;
+
+      for (let i = 0; i < allCoords.length; i++) {
+        const src = allCoords[i];
+        const { x, y, z } = getter(src);
+        const item = { ...src, x, y, z: z ?? 0 };
+        projected[i] = item;
+
+        const vx = item.x;
+        const vy = item.y;
+        const vz = item.z || 0;
+        if (vx < minX) minX = vx; if (vx > maxX) maxX = vx;
+        if (vy < minY) minY = vy; if (vy > maxY) maxY = vy;
+        if (vz < minZ) minZ = vz; if (vz > maxZ) maxZ = vz;
+      }
+
+      // Second pass: normalize
+      for (let i = 0; i < projected.length; i++) {
+        const p = projected[i];
+        projected[i] = {
+          ...p,
+          label: p.label ?? (p.id % 11),
+          x: safeScale(p.x, minX, maxX),
+          y: -safeScale(p.y, minY, maxY),
+          z: safeScale(p.z || 0, minZ, maxZ),
+        };
+      }
+      return projected;
     };
 
     // Raw (2D)
