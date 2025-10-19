@@ -91,28 +91,31 @@ const Viewer = ({
       rotationX: is3D ? 45 : 0,
       transitionDuration: 600,
       transitionEasing: ease,
+      // Exclude 'zoom' from transitions to avoid post-gesture wobble
       transitionInterpolator: new LinearInterpolator([
         "rotationX",
         "rotationOrbit",
-        "zoom",
         "target",
       ]),
     }));
   }, [is3D]);
 
   // Zoom sensitivity control - improved trackpad support
-  const zoomSensitivity = 0.8; // Reduce zoom sensitivity for smoother trackpad
+  // const zoomSensitivity = 0.8; // Reduce zoom sensitivity for smoother trackpad
   // Note: keep sprite size independent from camera zoom to avoid double scaling
   const zoomTimeoutRef = useRef(null);
   
   const handleViewStateChange = ({ viewState: next }) => {
-    setViewState(next);
-    
-    // When zoom changes, only propagate to shared state if provided.
-    // Do NOT adjust imageSize here; with sizeUnits="pixels" this would cause
-    // double-scaling (icon size + camera zoom) and lead to overlaps/gaps.
-    if (typeof sharedZoom === 'number' && typeof setSharedZoom === 'function') {
-      if (next.zoom !== sharedZoom) setSharedZoom(next.zoom);
+    const isZoomChange = next.zoom !== viewState.zoom;
+    setViewState((prev) => ({
+      ...next,
+      // Avoid animating zoom updates; other transitions remain
+      transitionDuration: isZoomChange ? 0 : (next.transitionDuration ?? prev.transitionDuration),
+    }));
+
+    // Propagate zoom to shared state if provided
+    if (typeof setSharedZoom === 'function' && next.zoom !== sharedZoom) {
+      setSharedZoom(next.zoom);
     }
   };
 
