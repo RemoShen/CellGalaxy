@@ -283,6 +283,48 @@ async def generate_json_files():
     except Exception as e:
         print(f"Generated JSON files failed: {str(e)}")
 
+def _to_native(val):
+    """Convert numpy/pandas scalars to native Python types for JSON serialization."""
+    try:
+        import numpy as _np
+        if isinstance(val, (_np.generic,)):
+            return val.item()
+    except Exception:
+        pass
+    if isinstance(val, (pd.Timestamp,)):
+        return val.isoformat()
+    if isinstance(val, (float, int, str, bool)) or val is None:
+        return val
+    try:
+        return json.loads(json.dumps(val))
+    except Exception:
+        return str(val)
+
+def generate_raw_json(raw_csv_path: str, out_path: str):
+    """Read a raw CSV and write an array JSON to `out_path`.
+
+    Each row -> { "id": row.id or index, "raw": {<other columns>} }
+    """
+    if not os.path.exists(raw_csv_path):
+        return
+    df = pd.read_csv(raw_csv_path)
+    cols = list(df.columns)
+    has_id = 'id' in cols or 'ID' in cols
+    id_col = 'id' if 'id' in cols else ('ID' if 'ID' in cols else None)
+
+    items = []
+    for idx, row in df.iterrows():
+        rid = int(_to_native(row[id_col])) if id_col is not None and not pd.isna(row[id_col]) else int(idx)
+        raw_map = {}
+        for c in cols:
+            if c == id_col:
+                continue
+            raw_map[c] = _to_native(row[c])
+        items.append({"id": rid, "raw": raw_map})
+
+    with open(out_path, 'w', encoding='utf-8') as f:
+        json.dump(items, f, ensure_ascii=False, indent=2)
+
 # =========================
 # API endpoints
 # =========================
@@ -292,7 +334,7 @@ async def root():
 
 @app.api_route("/upload/{file_type}", methods=["POST", "DELETE"])
 async def upload_or_delete(file_type: str, request: Request, file: UploadFile | None = File(None)):
-    if file_type not in ["zarr", "csv"]:
+    if file_type not in ["zarr", "csv", "raw"]:
         raise HTTPException(status_code=400, detail="Unsupported file type")
 
     if request.method == "DELETE":
@@ -307,10 +349,20 @@ async def upload_or_delete(file_type: str, request: Request, file: UploadFile | 
         remove_path(os.path.join(DATA_DIR, "channel_info.json"))
         return {"message": "CSV data cleared"}
 
+        
+    # DELETE for raw
+    if request.method == "DELETE" and file_type == "raw":
+        remove_path(os.path.join(DATA_DIR, "raw.csv"))
+        remove_path(os.path.join(DATA_DIR, "raw.json"))
+        return {"message": "Raw CSV data cleared"}
+
     if file is None:
         raise HTTPException(status_code=400, detail="No file provided")
 
-    file_path = os.path.join(DATA_DIR, file.filename if file_type == "zarr" else "data.csv")
+    file_path = os.path.join(
+        DATA_DIR,
+        file.filename if file_type == "zarr" else ("raw.csv" if file_type == "raw" else "data.csv")
+    )
     with open(file_path, "wb") as f:
         content = await file.read()
         f.write(content)
@@ -323,6 +375,11 @@ async def upload_or_delete(file_type: str, request: Request, file: UploadFile | 
         clear_cache_dir()
     elif file_type == "csv":
         await generate_json_files()
+    elif file_type == "raw":
+        try:
+            generate_raw_json(os.path.join(DATA_DIR, "raw.csv"), os.path.join(DATA_DIR, "raw.json"))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to generate raw.json: {e}")
     return {"message": f"{file.filename} uploaded successfully"}
 
 
@@ -338,6 +395,7 @@ async def upload_status():
     return {
         "zarr": has_zarr,
         "csv": os.path.exists(csv_path),
+        "raw": os.path.exists(os.path.join(DATA_DIR, "raw.csv")) and os.path.exists(os.path.join(DATA_DIR, "raw.json"))
     }
 
 @app.get("/channels")
