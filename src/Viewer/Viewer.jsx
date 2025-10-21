@@ -173,16 +173,24 @@ const Viewer = ({
       // Use utils function to perform box selection
       const picked = performBoxSelection(deck, bounds);
       
+      const activeFilter = filteredIds && filteredIds.size > 0;
       for (const p of picked) {
         const id = p?.object?.id;
-        if (id != null) ids.add(id);
+        if (id == null) continue;
+        if (activeFilter && !filteredIds.has(id)) continue; // ignore filtered-out items
+        ids.add(id);
       }
     }
 
     if (selectionMode === "lasso" && lassoPts.length >= 3 && viewport) {
       // Use utils function to perform lasso selection
       const lassoIds = performLassoSelection(points, viewport, lassoPts);
-      lassoIds.forEach(id => ids.add(id));
+      const activeFilter = filteredIds && filteredIds.size > 0;
+      if (activeFilter) {
+        for (const id of lassoIds) { if (filteredIds.has(id)) ids.add(id); }
+      } else {
+        lassoIds.forEach(id => ids.add(id));
+      }
     }
 
     setSelectedIds(ids);
@@ -414,11 +422,12 @@ const Viewer = ({
         onDragStart={onDragStart}
         onDrag={onDrag}
         onDragEnd={onDragEnd}
-        getTooltip={({ object }) =>
-          object
-            ? `id: ${object.id}\nlabel: ${object.label ?? object.id % 11}`
-            : null
-        }
+        getTooltip={({ object }) => {
+          if (!object) return null;
+          const activeFilter = filteredIds && filteredIds.size > 0;
+          if (activeFilter && !filteredIds.has(object.id)) return null;
+          return `id: ${object.id}\nlabel: ${object.label ?? object.id % 11}`;
+        }}
         getCursor={() => "default"}
         pickingRadius={6}
       />
