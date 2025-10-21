@@ -44,6 +44,7 @@ const Viewer = ({
   selectedIds = new Set(),
   setSelectedIds = () => {},
   clearSelection = () => {},
+  filteredIds = new Set(),
   // Shared zoom (optional): when provided, viewers sync zoom level
   sharedZoom,
   setSharedZoom,
@@ -273,10 +274,15 @@ const Viewer = ({
               windowMin: winMin01,
               windowMax: winMax01,
               premultiply: true,
-              getColor: (d) =>
-                selectedIds.has(d.id)
-                  ? [255, 140, 0, 255]
-                  : [col[0] ?? 255, col[1] ?? 255, col[2] ?? 255, a],
+              getColor: (d) => {
+                if (selectedIds.has(d.id)) return [255, 140, 0, 255];
+                const activeFilter = filteredIds && filteredIds.size > 0;
+                if (activeFilter && !filteredIds.has(d.id)) {
+                  const dimA = Math.min(a, 24);
+                  return [col[0] ?? 255, col[1] ?? 255, col[2] ?? 255, dimA];
+                }
+                return [col[0] ?? 255, col[1] ?? 255, col[2] ?? 255, a];
+              },
             })
           );
         }
@@ -292,7 +298,12 @@ const Viewer = ({
               parameters: { depthTest: true, blend: true, blendFunc: [1, 1], blendEquation: 32774 },
               windowMin: 0.0,
               windowMax: 1.0,
-              getColor: (d) => selectedIds.has(d.id)? [255, 140, 0, 255]: [255, 255, 255, 255],
+              getColor: (d) => {
+                if (selectedIds.has(d.id)) return [255, 140, 0, 255];
+                const activeFilter = filteredIds && filteredIds.size > 0;
+                if (activeFilter && !filteredIds.has(d.id)) return [255,255,255,30];
+                return [255,255,255,255];
+              },
             })
           );
         }
@@ -304,7 +315,12 @@ const Viewer = ({
           id: "scatter",
           data: points ?? [],
           getPosition: (d) => [d.x, d.y, d.z ?? 0],
-          getFillColor: (d) => selectedIds.has(d.id)? [255, 140, 0, 255]: [255, 255, 255, 255],
+          getFillColor: (d) => {
+            if (selectedIds.has(d.id)) return [255,140,0,255];
+            const activeFilter = filteredIds && filteredIds.size > 0;
+            if (activeFilter && !filteredIds.has(d.id)) return [255,255,255,30];
+            return [255,255,255,255];
+          },
           stroked: false,
           // Sync point radius with zoom the same way
           getRadius: computedImageSize*0.75,
@@ -318,7 +334,7 @@ const Viewer = ({
             getRadius: { duration: 300, easing: ease },
           },
           updateTriggers: {
-            getFillColor: [selectedIds],
+            getFillColor: [selectedIds, filteredIds],
             getRadius: [computedImageSize]
           },
         })
@@ -339,6 +355,7 @@ const Viewer = ({
     alphas,
     windows,
     is3D,
+    filteredIds,
   ]);
 
 

@@ -63,6 +63,8 @@ export default function useDataLoader() {
   const [selectionMode, setSelectionMode] = useState('none'); // 'none' | 'box' | 'lasso'
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const clearSelection = () => setSelectedIds(new Set());
+  // —— Filtered ids (dim non-matching) ——
+  const [filteredIds, setFilteredIds] = useState(() => new Set());
 
   // —— Utility: safe normalization, avoid division by 0 ——
   function safeScale(v, minV, maxV) {
@@ -384,6 +386,8 @@ export default function useDataLoader() {
     selectedIds,
     setSelectedIds,
     clearSelection,
+    filteredIds,
+    setFilteredIds,
     
     // Setter functions
     setChannels,

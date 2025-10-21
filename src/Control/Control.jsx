@@ -32,6 +32,8 @@ export default function Control({
   setSelectionMode = () => {},
   selectedIds = new Set(),
   setSelectedIds = () => {},
+  filteredIds = new Set(),
+  setFilteredIds = () => {},
 }) {
   return (
     <div className="control-panel">
@@ -58,7 +60,7 @@ export default function Control({
       <ImageSizeControl imageSize={imageSize} setImageSize={setImageSize} />
 
       {/* Filter (by raw data) */}
-      <Filter setSelectedIds={(ids) => { setSelectedIds(ids); setSelectionMode('none'); }} />
+      <Filter setFilteredIds={(ids) => { setFilteredIds(ids); }} />
 
       {/* Channel management */}
       <ChannelManager
