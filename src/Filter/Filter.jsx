@@ -505,8 +505,14 @@ export default function Filter({ setSelectedIds = () => {} }) {
           spellCheck={false}
         />
         </div>
-        <button className="filter-apply" onClick={applyFilter} disabled={loading}>
-          {loading ? 'Filtering...' : 'Apply'}
+        <button
+          className="filter-apply"
+          onClick={applyFilter}
+          disabled={loading}
+          title="Apply (Enter)"
+          aria-label="Apply"
+        >
+          {loading ? '…' : '⏎'}
         </button>
       </div>
 

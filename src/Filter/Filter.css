@@ -6,8 +6,10 @@
 }
 
 .filter-title {
-  font-weight: 600;
-  margin-bottom: 6px;
+  margin-bottom: 12px;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .filter-input-row {
@@ -15,6 +17,7 @@
   grid-template-columns: 1fr auto;
   gap: 8px;
   position: relative;
+  align-items: stretch; /* make input and button share row height */
 }
 
 .filter-input {
@@ -29,20 +32,26 @@
   font-size: 14px;
   line-height: 1.2;
   letter-spacing: 0;
+  min-height: 34px; /* provide a stable row height */
 }
 
 .filter-apply {
-  padding: 8px 12px;
-  border: none;
+  width: 30px;
+  height: 100%; /* match input height */
+  padding: 0;
   border-radius: 6px;
-  background: #5c5c5c;
-  color: #e2e8f0;
+  border: 1px solid #3a3a3a;
+  background: transparent;
+  color: #cbd5f5; /* lighter icon */
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
 }
 
-.filter-apply:hover:not(:disabled) {
-  background: #222223;
-}
+.filter-apply:hover:not(:disabled) { background: rgba(255,255,255,0.16); }
 
 /* Overlay highlight inside the input */
 .filter-input-wrap { position: relative; }
