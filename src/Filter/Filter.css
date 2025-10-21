@@ -1,7 +1,7 @@
 .filter-block {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid #e0e0e0;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e0e0e0;
   position: relative; /* anchor popover absolutely to this block */
 }
 
@@ -14,6 +14,7 @@
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 8px;
+  position: relative;
 }
 
 .filter-input {
@@ -21,8 +22,13 @@
   padding: 8px 10px;
   border-radius: 6px;
   border: 1px solid #3a3a3a;
-  background: #1d1f23;
-  color: #e2e8f0;
+  background: transparent; /* show overlay highlights below */
+  color: #e2e8f0; /* keep real text visible */
+  position: relative;
+  z-index: 1; /* above overlay */
+  font-size: 14px;
+  line-height: 1.2;
+  letter-spacing: 0;
 }
 
 .filter-apply {
@@ -37,6 +43,36 @@
 .filter-apply:hover:not(:disabled) {
   background: #222223;
 }
+
+/* Overlay highlight inside the input */
+.filter-input-wrap { position: relative; }
+.filter-input-overlay {
+  position: absolute;
+  inset: 0;
+  padding: 8px 10px; /* match input padding */
+  border-radius: 6px;
+  color: transparent; /* hide overlay text to avoid double render */
+  -webkit-text-fill-color: transparent; /* Safari */
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.2;
+  letter-spacing: 0;
+  white-space: pre;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0; /* under the input text */
+}
+.filter-input-overlay .placeholder { color: #64748b; }
+.filter-input-overlay .hl-attr {
+  background: rgba(99,102,241,0.25);
+  box-shadow: inset 0 0 0 1px rgba(99,102,241,0.45);
+  border-radius: 6px;
+  padding: 0; /* avoid expanding width */
+  /* ensure only background is visible, not the overlay text */
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+/* remove old transparent text mode */
 
 
 /* Popover for live suggestions */

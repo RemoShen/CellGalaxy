@@ -244,13 +244,18 @@ export default function Filter({ setSelectedIds = () => {} }) {
     const el = inputRef.current;
     const pos = el ? el.selectionStart : expr.length;
     const upto = expr.slice(0, pos);
-    // match: <alias> <op-part>
-    const m = upto.match(/([A-Za-z_][A-Za-z0-9_]*)\s*(==|!=|>=|<=|>|<|\bin\b)?\s*$/i);
+    // match patterns around caret: <alias> [spaces] [op or partial op] [spaces]
+    const m = upto.match(/([A-Za-z_][A-Za-z0-9_]*)\s*(?:([=!<>]{1,2})|\b(i|in)\b)?\s*$/i);
     if (!m) return { mode: 'column' };
     const token = m[1];
-    const op = m[2];
+    const opSym = m[2] || '';
+    const opWord = (m[3] || '').toLowerCase();
+    const op = opSym || (opWord === 'in' ? 'in' : '');
     const meta = aliasIndex[token];
-    if (meta && op) return { mode: 'value', alias: token, op, meta };
+    const exactOps = new Set(['==','!=','>=','<=','>','<','in']);
+    if (meta && op && exactOps.has(op)) return { mode: 'value', alias: token, op, meta };
+    // If alias typed with trailing spaces OR partial operator ('=', '!', '>', '<', or word 'i') → suggest operators
+    if (meta && (!op || !exactOps.has(op)) ) return { mode: 'op', alias: token, meta };
     return { mode: 'column' };
   }, [expr, aliasIndex]);
 
@@ -269,6 +274,10 @@ export default function Filter({ setSelectedIds = () => {} }) {
       }
       const ex = (m.examples || []).slice(0, 6).map((v) => ({ type: 'value', insert: JSON.stringify(v), label: JSON.stringify(v) }));
       return ex;
+    }
+    if (context.mode === 'op') {
+      const ops = ['==', '!=', '>', '<', '>=', '<=', 'in'];
+      return ops.map((op) => ({ type: 'op', insert: op, label: op }));
     }
     // Column suggestions
     const p = caretPrefix.toLowerCase();
@@ -326,6 +335,15 @@ export default function Filter({ setSelectedIds = () => {} }) {
       insertTextAtCaret(sug.insert);
       return;
     }
+    if (sug.type === 'op') {
+      insertTextAtCaret(sug.insert);
+      // Keep the popover open and move focus back to input so that
+      // value suggestions appear immediately after operator insertion
+      setShowPopover(true);
+      setActiveIdx(0);
+      requestAnimationFrame(() => { try { inputRef.current && inputRef.current.focus(); } catch {} });
+      return;
+    }
     const alias = sug.meta.alias;
     const m = expr.slice(0, inputRef.current.selectionStart).match(/([A-Za-z_][A-Za-z0-9_]*)$/);
     const replaceFrom = m ? m.index : inputRef.current.selectionStart;
@@ -362,7 +380,48 @@ export default function Filter({ setSelectedIds = () => {} }) {
     } finally { setLoading(false); }
   };
 
+  const setCaret = (pos) => {
+    const el = inputRef.current; if (!el) return;
+    requestAnimationFrame(() => { try { el.setSelectionRange(pos, pos); } catch {} });
+  };
+
+  const isWord = (ch) => /[A-Za-z0-9_]/.test(ch || '');
+  const findAliasTokenAt = (text, pos) => {
+    if (!text) return null;
+    const n = text.length;
+    let s = pos, epos = pos;
+    // If caret is between chars, expand both sides
+    while (s > 0 && isWord(text[s-1])) s--;
+    while (epos < n && isWord(text[epos])) epos++;
+    if (s === epos) return null; // not within a word
+    const token = text.slice(s, epos);
+    if (aliasIndex[token]) {
+      // Ensure word boundaries
+      const leftOk = s === 0 || !isWord(text[s-1]);
+      const rightOk = epos === n || !isWord(text[epos]);
+      if (leftOk && rightOk) return { start: s, end: epos, token };
+    }
+    return null;
+  };
+
   const onKeyDown = (e) => {
+    // Whole-token deletion when caret is inside a full alias
+    if ((e.key === 'Backspace' || e.key === 'Delete') && inputRef.current) {
+      const el = inputRef.current;
+      if (el.selectionStart === el.selectionEnd) { // no selection
+        const pos = el.selectionStart;
+        // For Delete, when at token start, treat as inside
+        const probePos = e.key === 'Backspace' ? Math.max(0, pos-1) : pos;
+        const hit = findAliasTokenAt(expr, probePos);
+        if (hit) {
+          e.preventDefault();
+          const next = expr.slice(0, hit.start) + expr.slice(hit.end);
+          setExpr(next);
+          setCaret(hit.start);
+          return;
+        }
+      }
+    }
     if (suggestions.length > 0) {
       if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx((i) => Math.min(i + 1, suggestions.length - 1)); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx((i) => Math.max(i - 1, 0)); return; }
@@ -371,11 +430,50 @@ export default function Filter({ setSelectedIds = () => {} }) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); applyFilter(); }
   };
 
+  // ===== Inline highlighting in the input (overlay) =====
+  const escapeHtml = (str) =>
+    String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+  const escRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  const overlayHtml = useMemo(() => {
+    let html = escapeHtml(expr || "");
+    const aliases = Object.keys(aliasIndex);
+    if (aliases.length === 0) return html;
+    // Sort long → short to avoid partial overlaps
+    const ordered = [...aliases].sort((a,b)=>b.length-a.length).map(escRegex);
+    const re = new RegExp(`\\b(${ordered.join('|')})\\b`, 'gi');
+    html = html.replace(re, '<span class="hl-attr">$1</span>');
+    return html;
+  }, [expr, aliasIndex]);
+
+  const overlayRef = useRef(null);
+  useEffect(() => {
+    const input = inputRef.current;
+    const overlay = overlayRef.current;
+    if (!input || !overlay) return;
+    const sync = () => {
+      overlay.style.transform = `translateX(${-input.scrollLeft}px)`;
+    };
+    sync();
+    input.addEventListener('scroll', sync);
+    return () => { input.removeEventListener('scroll', sync); };
+  }, [inputRef.current]);
+  useEffect(() => {
+    const input = inputRef.current; const overlay = overlayRef.current; if (!input || !overlay) return; overlay.style.transform = `translateX(${-input.scrollLeft}px)`; }, [expr]);
+
   return (
     <div className="filter-block">
       <div className="filter-title">Filter</div>
       <div className="filter-input-row">
-        <input
+        <div className="filter-input-wrap">
+          <div ref={overlayRef} className="filter-input-overlay" aria-hidden="true" dangerouslySetInnerHTML={{ __html: overlayHtml }} />
+          <input
           ref={inputRef}
           className="filter-input"
           placeholder="Enter expression, e.g. sex == 0 || age > 75"
@@ -386,6 +484,7 @@ export default function Filter({ setSelectedIds = () => {} }) {
           onBlur={() => setTimeout(() => setShowPopover(false), 120)}
           spellCheck={false}
         />
+        </div>
         <button className="filter-apply" onClick={applyFilter} disabled={loading}>
           {loading ? 'Filtering...' : 'Apply'}
         </button>
@@ -404,8 +503,20 @@ export default function Filter({ setSelectedIds = () => {} }) {
             <div className="filter-popover-empty">no matching columns (continue typing)</div>
           )}
           {!loadingMeta && suggestions.length > 0 && suggestions.map((s, i) => {
-            const key = s.type === 'value' ? `v-${i}-${s.label}` : `c-${s.meta.alias}`;
-            const label = s.type === 'value' ? s.label : s.meta.rawName;
+            // normalize key/label for all types
+            let key;
+            let label;
+            if (s.type === 'value') {
+              key = `v-${i}-${s.label}`;
+              label = s.label;
+            } else if (s.type === 'op') {
+              key = `op-${i}-${s.label}`;
+              label = s.label;
+            } else {
+              // column suggestion (has meta)
+              key = `c-${s.meta?.alias ?? i}`;
+              label = s.meta?.rawName ?? '';
+            }
             const onPick = () => insertSuggestion(s);
             return (
               <div
