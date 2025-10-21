@@ -356,12 +356,32 @@ export default function Filter({ setSelectedIds = () => {} }) {
     try {
       const rows = rawRows || [];
       if (rows.length === 0) { setSelectedIds(new Set()); setCount(0); return; }
-      if (!expr.trim()) { setSelectedIds(new Set()); setCount(0); return; }
-      if (!isExpressionSafe(expr)) { setError("表达式包含不支持的字符"); setSelectedIds(new Set()); setCount(0); return; }
+      const exp = (expr || "").trim();
+      if (!exp) { setError("表达式为空"); setSelectedIds(new Set()); setCount(0); return; }
+      if (!isExpressionSafe(exp)) { setError("表达式包含不支持的字符"); setSelectedIds(new Set()); setCount(0); return; }
 
       // Build param aliases from known columns (by aliasIndex order)
       const uniqueAliases = Object.keys(aliasIndex);
-      const fn = new Function(...uniqueAliases, `return (${expr});`);
+      let fn;
+      try {
+        fn = new Function(...uniqueAliases, `return (${exp});`);
+      } catch (e) {
+        setError(`表达式语法错误: ${e?.message || e}`);
+        setSelectedIds(new Set());
+        setCount(0);
+        return;
+      }
+
+      // Quick dry-run to catch ReferenceError (unknown identifiers) etc.
+      try {
+        const zeros = new Array(uniqueAliases.length).fill(0);
+        void fn(...zeros);
+      } catch (e) {
+        setError(`表达式不可执行: ${e?.message || e}`);
+        setSelectedIds(new Set());
+        setCount(0);
+        return;
+      }
 
       const ids = new Set();
       for (const item of rows) {
