@@ -5,4 +5,7 @@ public/data.csv
 public/coords.json
 public/.DS_Store
 public/channel_info.json
+public/raw.json
+public/raw.csv
 .cache/
+.DS_Store

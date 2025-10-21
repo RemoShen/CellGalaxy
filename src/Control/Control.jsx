@@ -6,6 +6,7 @@ import UMAPSelector from "../UMAPSelector/UMAPSelector";
 import ImageSizeControl from "../ImageSizeControl/ImageSizeControl";
 import ChannelManager from "../ChannelManager/ChannelManager";
 import SelectionPanel from "../SelectionPanel/SelectionPanel";
+import Filter from "../Filter/Filter";
 
 export default function Control({
   meta,
@@ -30,6 +31,7 @@ export default function Control({
   selectionMode = "none",
   setSelectionMode = () => {},
   selectedIds = new Set(),
+  setSelectedIds = () => {},
 }) {
   return (
     <div className="control-panel">
@@ -54,6 +56,9 @@ export default function Control({
 
       {/* Image size control */}
       <ImageSizeControl imageSize={imageSize} setImageSize={setImageSize} />
+
+      {/* Filter (by raw data) */}
+      <Filter setSelectedIds={(ids) => { setSelectedIds(ids); setSelectionMode('none'); }} />
 
       {/* Channel management */}
       <ChannelManager

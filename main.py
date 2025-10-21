@@ -300,17 +300,52 @@ def _to_native(val):
     except Exception:
         return str(val)
 
+def _parse_col_descriptor(name: str):
+    s = str(name or "").strip()
+    desc = None
+    base = s
+    if "(" in s and ")" in s and s.rfind("(") < s.rfind(")"):
+        l = s.rfind("(")
+        r = s.rfind(")")
+        desc = s[l+1:r].strip()
+        base = s[:l].strip()
+    return base if base else s, (desc or None)
+
+def _is_categorical(desc: str, series: pd.Series) -> bool:
+    if desc and ":" in desc:
+        return True
+    try:
+        from pandas.api import types as ptypes
+        if ptypes.is_numeric_dtype(series):
+            return False
+    except Exception:
+        pass
+    return True
+
 def generate_raw_json(raw_csv_path: str, out_path: str):
     """Read a raw CSV and write an array JSON to `out_path`.
 
-    Each row -> { "id": row.id or index, "raw": {<other columns>} }
+    Output format: [ {"schema": [{name, rawName, type, description}]}, {"id":.., "raw": {...}}, ... ]
     """
     if not os.path.exists(raw_csv_path):
         return
     df = pd.read_csv(raw_csv_path)
     cols = list(df.columns)
-    has_id = 'id' in cols or 'ID' in cols
     id_col = 'id' if 'id' in cols else ('ID' if 'ID' in cols else None)
+
+    # Build schema from first row and column names
+    schema = []
+    for c in cols:
+        if c == id_col:
+            continue
+        base, desc = _parse_col_descriptor(c)
+        ctype = 'categorical' if _is_categorical(desc, df[c]) else 'numeric'
+        schema.append({
+            'name': base,
+            'rawName': c,
+            'type': ctype,
+            'description': desc or ''
+        })
 
     items = []
     for idx, row in df.iterrows():
@@ -322,8 +357,9 @@ def generate_raw_json(raw_csv_path: str, out_path: str):
             raw_map[c] = _to_native(row[c])
         items.append({"id": rid, "raw": raw_map})
 
+    data = [{"schema": schema}] + items
     with open(out_path, 'w', encoding='utf-8') as f:
-        json.dump(items, f, ensure_ascii=False, indent=2)
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 # =========================
 # API endpoints
