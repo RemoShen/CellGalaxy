@@ -2,6 +2,7 @@
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid #e0e0e0;
+  position: relative; /* anchor popover absolutely to this block */
 }
 
 .filter-title {
@@ -40,35 +41,62 @@
 
 /* Popover for live suggestions */
 .filter-popover {
-  position: relative;
-  margin-top: 6px;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px); /* show above the input row */
   background: #1b1d21;
   border: 1px solid #2e3440;
   border-radius: 8px;
-  box-shadow: 0 6px 24px rgba(0,0,0,0.35);
-  overflow: hidden;
-  z-index: 10;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.45);
+  z-index: 50;
+  max-height: 220px; /* fixed height */
+  overflow-y: auto;  /* scroll when overflow */
+  font-size: 13px;  /* slightly smaller font */
 }
 
-.filter-popover-item {
+.filter-popover-head {
   display: flex;
-  gap: 6px;
-  align-items: baseline;
+  gap: 8px;
+  align-items: center;
   padding: 6px 10px;
-  color: #e2e8f0;
-  cursor: pointer;
+  border-bottom: 1px solid #2e3440;
 }
-.filter-popover-item .name {
+.filter-popover-head .name {
   font-weight: 600;
   color: #dbeafe;
   background: rgba(99,102,241,0.25);
   border: 1px solid rgba(99,102,241,0.45);
   padding: 2px 6px;
   border-radius: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 auto;
 }
-.filter-popover-item .sep { color: #6b7280; }
-.filter-popover-item .raw { color: #aab1bd; }
-.filter-popover-item .meta { color: #94a3b8; font-size: 12px; margin-left: auto; }
+.filter-popover-head .type-pill {
+  font-size: 12px;
+  color: #cbd5f5;
+  background: rgba(203,213,245,0.12);
+  border: 1px solid rgba(203,213,245,0.22);
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+.filter-popover-head .desc { color: #94a3b8; font-size: 12px; margin-left: auto; }
+
+.filter-popover-item {
+  display: block;
+  padding: 6px 10px; /* tighter row */
+  color: #e2e8f0;
+  cursor: pointer;
+}
+.filter-popover-item .name {
+  font-weight: 500;
+  color: #e2e8f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .filter-popover-item.used { opacity: 0.55; }
 .filter-popover-item.active { background: #272a30; }
 
@@ -78,20 +106,9 @@
   font-size: 13px;
 }
 
-.filter-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 8px;
-}
+.filter-footer { display: none; }
 
-.filter-columns {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  max-height: 64px;
-  overflow-y: auto;
-}
+.filter-columns { display: none; }
 
 .filter-col-pill {
   background: rgba(255,255,255,0.06);
@@ -103,11 +120,7 @@
 }
 .filter-col-pill.used { opacity: 0.55; }
 
-.filter-status { font-size: 12px; color: #cbd5f5; }
+.filter-status { display: none; }
 .filter-error { color: #f87171; }
 
-.filter-hint {
-  margin-top: 6px;
-  color: #9aa3b2;
-  font-size: 12px;
-}
+.filter-hint { display: none; }

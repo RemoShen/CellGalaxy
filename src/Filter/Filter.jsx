@@ -150,11 +150,12 @@ export default function Filter({ setSelectedIds = () => {} }) {
     try {
       setLoadingMeta(true);
       const ts = Date.now();
+      // Align with DataLoader: prefer backend static path first
       const tries = [
-        `/public/raw.json?ts=${ts}`,              // FastAPI static or CRA proxy -> backend
-        `${API}/public/raw.json?ts=${ts}`,        // direct backend in dev
-        `${PUBLIC_URL}/raw.json?ts=${ts}`,        // CRA public base
-        `/raw.json?ts=${ts}`,                     // CRA serves public/raw.json at root
+        `${API}/public/raw.json?ts=${ts}`,        // FastAPI static (works in dev with API base)
+        `/public/raw.json?ts=${ts}`,              // same-origin public
+        `/raw.json?ts=${ts}`,                     // CRA maps public/raw.json to root
+        `${PUBLIC_URL}/raw.json?ts=${ts}`,        // CRA public base (if defined)
       ];
       let data = null;
       for (const url of tries) {
@@ -163,7 +164,25 @@ export default function Filter({ setSelectedIds = () => {} }) {
           // eslint-disable-next-line no-console
           console.debug('Filter: fetch', url);
           const r = await fetch(url, { cache: 'no-store' });
-          if (r.ok) { data = await r.json(); break; }
+          if (!r.ok) continue;
+          // Read as text first to handle non-strict JSON (NaN/Infinity)
+          const txt = await r.text();
+          try {
+            data = JSON.parse(txt);
+          } catch (e) {
+            // Tolerate NaN/Infinity emitted by some generators; replace with null
+            const sanitized = txt
+              .replace(/\bNaN\b/g, 'null')
+              .replace(/\bInfinity\b/g, 'null')
+              .replace(/\b-Infinity\b/g, 'null');
+            try { data = JSON.parse(sanitized); }
+            catch (e2) {
+              // eslint-disable-next-line no-console
+              console.warn('Filter: sanitized parse failed', e2);
+              data = null;
+            }
+          }
+          if (data) break;
         } catch (e) {
           // eslint-disable-next-line no-console
           console.warn('Filter: fetch error', e);
@@ -260,7 +279,7 @@ export default function Filter({ setSelectedIds = () => {} }) {
       return a.baseName.localeCompare(b.baseName);
     });
     return ordered
-      .filter((m) => !p || m.alias.toLowerCase().startsWith(p))
+      .filter((m) => !p || m.baseName.toLowerCase().startsWith(p) || m.alias.toLowerCase().startsWith(p))
       .slice(0, 12)
       .map((m) => ({ type: 'column', meta: m }));
   }, [context, caretPrefix, metaList, usedColumns]);
@@ -359,7 +378,7 @@ export default function Filter({ setSelectedIds = () => {} }) {
         <input
           ref={inputRef}
           className="filter-input"
-          placeholder="输入表达式，例如: sex == 0 || age > 75"
+          placeholder="Enter expression, e.g. sex == 0 || age > 75"
           value={expr}
           onChange={(e) => { setExpr(e.target.value); setActiveIdx(0); }}
           onKeyDown={onKeyDown}
@@ -376,69 +395,35 @@ export default function Filter({ setSelectedIds = () => {} }) {
       {showPopover && (
         <div className="filter-popover">
           {loadingMeta && (
-            <div className="filter-popover-empty">正在读取 raw.json...</div>
+            <div className="filter-popover-empty">loading...</div>
           )}
           {!loadingMeta && metaList.length === 0 && (
-            <div className="filter-popover-empty">未找到可用列</div>
+            <div className="filter-popover-empty">no columns found</div>
           )}
           {!loadingMeta && metaList.length > 0 && suggestions.length === 0 && (
-            <div className="filter-popover-empty">无匹配列（继续输入筛选）</div>
+            <div className="filter-popover-empty">no matching columns (continue typing)</div>
           )}
           {!loadingMeta && suggestions.length > 0 && suggestions.map((s, i) => {
-            if (s.type === 'value') {
-              return (
-                <div
-                  key={`v-${i}-${s.label}`}
-                  className={`filter-popover-item${i === activeIdx ? ' active' : ''}`}
-                  onMouseDown={(e) => { e.preventDefault(); insertSuggestion(s); }}
-                >
-                  <span className="name">{s.label}</span>
-                </div>
-              );
-            }
-            const m = s.meta;
-            const used = usedColumns.has(m.rawName);
+            const key = s.type === 'value' ? `v-${i}-${s.label}` : `c-${s.meta.alias}`;
+            const label = s.type === 'value' ? s.label : s.meta.rawName;
+            const onPick = () => insertSuggestion(s);
             return (
               <div
-                key={`c-${m.alias}`}
-                className={`filter-popover-item${i === activeIdx ? ' active' : ''}${used ? ' used' : ''}`}
-                onMouseDown={(e) => { e.preventDefault(); insertSuggestion(s); }}
-                title={m.rawName}
+                key={key}
+                className={`filter-popover-item${i === activeIdx ? ' active' : ''}`}
+                onMouseDown={(e) => { e.preventDefault(); onPick(); }}
+                title={label}
               >
-                <span className="name">{m.alias}</span>
-                <span className="sep">→</span>
-                <span className="raw">{m.rawName}</span>
-                {Array.isArray(m.choices) && m.choices.length ? (
-                  <span className="meta">[{m.choices.slice(0,2).map((c)=>`${c.label}:${c.value}`).join(', ')}]</span>
-                ) : m.isNumeric ? (
-                  <span className="meta">[{Number.isFinite(m.min)?m.min:'-'}, {Number.isFinite(m.max)?m.max:'-'}]</span>
-                ) : (
-                  <span className="meta">[{(m.examples||[]).slice(0,2).map((v)=>JSON.stringify(v)).join(', ')}]</span>
-                )}
+                <span className="name">{label}</span>
               </div>
             );
           })}
         </div>
       )}
 
-      {/* Contextual hint when a full column is typed */}
-      {columnHint && <div className="filter-hint">{columnHint}</div>}
+      {/* Simplified UI: no contextual hint below */}
 
-      <div className="filter-footer">
-        <div className="filter-columns">
-          {metaList.map((m) => (
-            <span
-              className={`filter-col-pill${usedColumns.has(m.rawName)?' used':''}`}
-              key={m.alias}
-              title={m.rawName}
-              onMouseDown={(e)=>{e.preventDefault(); insertSuggestion({ type: 'column', meta: m });}}
-            >{m.rawName}</span>
-          ))}
-        </div>
-        <div className="filter-status">
-          {error ? <span className="filter-error">{error}</span> : (count != null ? <span>匹配: {count}</span> : null)}
-        </div>
-      </div>
+      {/* Simplified: hide footer chips and status */}
     </div>
   );
 }
