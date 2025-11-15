@@ -70,7 +70,6 @@
   opacity: 0.5;
   pointer-events: none;
 }
-/* 让单选项在栅格列内占满并左对齐，保证两列对齐 */
 .vm-row.radios .render-option {
   width: 100%;
   justify-content: flex-start;
