@@ -136,7 +136,7 @@ export default function FileUpload({ onRefresh = async () => {} }) {
             <div className="upload-menu" role="menu">
               <div className="upload-menu-item" role="menuitem">
                 <button className="upload-menu-action" onClick={() => { setOpen(false); handleFileSelect('zarr'); }} disabled={busy || status.zarr}>
-                  Upload Zarr
+                  Zarr Image (zip)
                 </button>
                 <button
                   className={`upload-menu-clear${status.zarr ? ' has-file' : ''}`}
@@ -148,7 +148,7 @@ export default function FileUpload({ onRefresh = async () => {} }) {
               </div>
               <div className="upload-menu-item" role="menuitem">
                 <button className="upload-menu-action" onClick={() => { setOpen(false); handleFileSelect('csv'); }} disabled={busy || status.csv}>
-                  Upload CSV
+                  Raw Data (csv)
                 </button>
                 <button
                   className={`upload-menu-clear${status.csv ? ' has-file' : ''}`}
@@ -160,7 +160,7 @@ export default function FileUpload({ onRefresh = async () => {} }) {
               </div>
               <div className="upload-menu-item" role="menuitem">
                 <button className="upload-menu-action" onClick={() => { setOpen(false); handleFileSelect('raw'); }} disabled={busy || status.raw}>
-                  Upload Raw
+                  Meta Data (csv)
                 </button>
                 <button
                   className={`upload-menu-clear${status.raw ? ' has-file' : ''}`}
