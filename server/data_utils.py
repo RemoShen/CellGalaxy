@@ -125,6 +125,24 @@ def process_coord_row(row: pd.Series, idx: int, n_per_chunk: int) -> Dict[str, A
     }
 
 
+def _pixel_range_from_array(channel_data: np.ndarray) -> tuple[float, float]:
+    """Compute 5%-95% pixel range from a numpy array."""
+    flat = channel_data.astype(np.float32).ravel()
+    if flat.size == 0:
+        return 0.0, 0.0
+    p5, p95 = np.percentile(flat, [5.0, 95.0])
+    return float(p5), float(p95)
+
+
+def _pixel_range_from_series(series: pd.Series) -> tuple[float, float]:
+    """Compute 5%-95% range from a pandas Series."""
+    if len(series) == 0:
+        return 0.0, 0.0
+    q05 = float(series.quantile(0.05))
+    q95 = float(series.quantile(0.95))
+    return q05, q95
+
+
 def get_channel_info(df: pd.DataFrame, img=None):
     """extract channel information from DataFrame / Zarr"""
     columns = list(df.columns)
@@ -134,16 +152,10 @@ def get_channel_info(df: pd.DataFrame, img=None):
         # prefer Zarr image statistics pixel range, otherwise fallback to DataFrame numeric range
         if img is not None:
             channel_data = img[i, :, :, :]
-            sorted_pixels = np.sort(channel_data.flatten())
-            total_pixels = len(sorted_pixels)
-            min_idx = 0
-            max_idx = total_pixels - 1
-            min_value = float(sorted_pixels[min_idx])
-            max_value = float(sorted_pixels[max_idx])
+            min_value, max_value = _pixel_range_from_array(channel_data)
         else:
             series = df[col_name]
-            min_value = float(series.min())
-            max_value = float(series.max())
+            min_value, max_value = _pixel_range_from_series(series)
         channels.append(
             {
                 "id": i,

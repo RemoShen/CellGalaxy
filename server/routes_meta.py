@@ -12,26 +12,42 @@ from .zarr_utils import open_zarr, meta_from_img, grid_for_count, get_default_ti
 router = APIRouter()
 
 
+def _csv_path() -> str:
+    return os.path.join(DATA_DIR, "data.csv")
+
+
+def _raw_paths() -> tuple[str, str]:
+    return (
+        os.path.join(DATA_DIR, "raw.csv"),
+        os.path.join(DATA_DIR, "raw.json"),
+    )
+
+
+def _has_zarr() -> bool:
+    """Check whether zarr directory contains any data."""
+    if not os.path.isdir(ZARR_DIR):
+        return False
+    try:
+        return any(os.scandir(ZARR_DIR))
+    except Exception:
+        # be conservative: if we cannot scan, assume there is some data
+        return True
+
+
 @router.get("/upload/status")
 async def upload_status():
-    has_zarr = False
-    if os.path.isdir(ZARR_DIR):
-        try:
-            has_zarr = any(os.scandir(ZARR_DIR))
-        except Exception:
-            has_zarr = True
-    csv_path = os.path.join(DATA_DIR, "data.csv")
+    csv_path = _csv_path()
+    raw_csv, raw_json = _raw_paths()
     return {
-        "zarr": has_zarr,
+        "zarr": _has_zarr(),
         "csv": os.path.exists(csv_path),
-        "raw": os.path.exists(os.path.join(DATA_DIR, "raw.csv"))
-        and os.path.exists(os.path.join(DATA_DIR, "raw.json")),
+        "raw": os.path.exists(raw_csv) and os.path.exists(raw_json),
     }
 
 
 @router.get("/channels")
 async def get_channels():
-    csv_path = os.path.join(DATA_DIR, "data.csv")
+    csv_path = _csv_path()
     if not os.path.exists(csv_path):
         return {"channels": [], "total_channels": 0}
     try:
@@ -83,7 +99,7 @@ def meta():
 
 @router.get("/coords")
 def coords(limit: int | None = Query(None)):
-    csv_path = os.path.join(DATA_DIR, "data.csv")
+    csv_path = _csv_path()
     if not os.path.exists(csv_path):
         return JSONResponse([])
     try:
@@ -99,6 +115,5 @@ def coords(limit: int | None = Query(None)):
         return JSONResponse(out)
     except Exception:
         return JSONResponse([])
-
 
 

@@ -23,11 +23,11 @@ except Exception:
 
 
 # process-level Zarr handle cache and thread pool
-_IMG = None
+_IMG: zarr.Array | None = None
 _IMG_LOCK = threading.Lock()
 _EXECUTOR = ThreadPoolExecutor(max_workers=max(2, (os.cpu_count() or 4)))
-_PREWARM_SET = set()
-_TILE_SIZE = None
+_PREWARM_SET: set[tuple[int, int]] = set()
+_TILE_SIZE: int | None = None
 _TILE_LOCK = threading.Lock()
 
 

@@ -13,6 +13,21 @@ from .data_utils import generate_json_files, generate_raw_json
 router = APIRouter()
 
 
+def _csv_paths() -> tuple[str, str, str]:
+    return (
+        os.path.join(DATA_DIR, "data.csv"),
+        os.path.join(DATA_DIR, "coords.json"),
+        os.path.join(DATA_DIR, "channel_info.json"),
+    )
+
+
+def _raw_paths() -> tuple[str, str]:
+    return (
+        os.path.join(DATA_DIR, "raw.csv"),
+        os.path.join(DATA_DIR, "raw.json"),
+    )
+
+
 @router.api_route("/upload/{file_type}", methods=["POST", "DELETE"])
 async def upload_or_delete(
     file_type: str, request: Request, file: UploadFile | None = File(None)
@@ -28,26 +43,29 @@ async def upload_or_delete(
             return {"message": "Zarr data cleared"}
 
         if file_type == "csv":
-            remove_path(os.path.join(DATA_DIR, "data.csv"))
-            remove_path(os.path.join(DATA_DIR, "coords.json"))
-            remove_path(os.path.join(DATA_DIR, "channel_info.json"))
+            data_csv, coords_json, channel_json = _csv_paths()
+            remove_path(data_csv)
+            remove_path(coords_json)
+            remove_path(channel_json)
             return {"message": "CSV data cleared"}
 
         if file_type == "raw":
-            remove_path(os.path.join(DATA_DIR, "raw.csv"))
-            remove_path(os.path.join(DATA_DIR, "raw.json"))
+            raw_csv, raw_json = _raw_paths()
+            remove_path(raw_csv)
+            remove_path(raw_json)
             return {"message": "Raw CSV data cleared"}
 
     # upload file
     if file is None:
         raise HTTPException(status_code=400, detail="No file provided")
 
-    file_path = os.path.join(
-        DATA_DIR,
+    target_name = (
         file.filename
         if file_type == "zarr"
-        else ("raw.csv" if file_type == "raw" else "data.csv"),
+        else ("raw.csv" if file_type == "raw" else "data.csv")
     )
+    file_path = os.path.join(DATA_DIR, target_name)
+
     with open(file_path, "wb") as f:
         content = await file.read()
         f.write(content)
@@ -62,17 +80,14 @@ async def upload_or_delete(
     elif file_type == "csv":
         await generate_json_files()
     elif file_type == "raw":
+        raw_csv, raw_json = _raw_paths()
         try:
-            generate_raw_json(
-                os.path.join(DATA_DIR, "raw.csv"),
-                os.path.join(DATA_DIR, "raw.json"),
-            )
+            generate_raw_json(raw_csv, raw_json)
         except Exception as e:
             raise HTTPException(
                 status_code=500, detail=f"Failed to generate raw.json: {e}"
             )
 
     return {"message": f"{file.filename} uploaded successfully"}
-
 
 

@@ -1,8 +1,9 @@
 from typing import Optional
 
+import os
 from fastapi import APIRouter, HTTPException, Query, Body, Request, Response
 from fastapi.responses import FileResponse
-import os
+
 from .models import AtlasRequest
 from .zarr_utils import (
     open_zarr,
@@ -18,13 +19,36 @@ from .zarr_utils import (
 router = APIRouter()
 
 
+def _validate_chunk_id(chunk_id: int, n_chunks: int) -> None:
+    if not (0 <= chunk_id < n_chunks):
+        raise HTTPException(status_code=404, detail="chunk_id out of range")
+
+
+def _validate_channel_index(channel: int, n_channels: int) -> None:
+    if not (0 <= channel < n_channels):
+        raise HTTPException(
+            status_code=400, detail=f"channel {channel} out of range [0,{n_channels-1}]"
+        )
+
+
+def _effective_tile(tile: Optional[int]) -> int:
+    return int(tile) if tile is not None else get_default_tile()
+
+
+def _build_etag(channel: int, chunk_id: int, tile: int) -> str:
+    return f"ch{channel}-chunk{chunk_id}-tile{tile}"
+
+
+def _cache_headers(etag: str) -> dict[str, str]:
+    return {"Cache-Control": "public, max-age=604800", "ETag": etag}
+
+
 @router.get("/atlas_uv/{chunk_id}")
 def atlas_uv(chunk_id: int, tile: Optional[int] = Query(None)):
     img = open_zarr()
     C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
-    if not (0 <= chunk_id < n_chunks):
-        raise HTTPException(status_code=404, detail="chunk_id out of range")
-    effective_tile = int(tile) if tile is not None else get_default_tile()
+    _validate_chunk_id(chunk_id, n_chunks)
+    effective_tile = _effective_tile(tile)
     rows, cols = grid_for_count(n_per_chunk)
     width = cols * effective_tile
     height = rows * effective_tile
@@ -69,19 +93,16 @@ def atlas(chunk_id: int, req: AtlasRequest = Body(...)):
             detail="Only single-channel is supported. Use GET /atlas/{chunk_id}?channel=..",
         )
     ch = chans[0]
-    if not (0 <= ch < C):
-        raise HTTPException(
-            status_code=400, detail=f"channel {ch} out of range [0,{C-1}]"
-        )
+    _validate_channel_index(ch, C)
+    _validate_chunk_id(chunk_id, n_chunks)
 
-    tile = int(req.tile) if req.tile is not None else get_default_tile()
+    tile = _effective_tile(req.tile)
 
     # single-channel fixed cache path
     cache_path = single_cache_path(ch, chunk_id, tile)
-    etag = f"ch{ch}-chunk{chunk_id}-tile{tile}"
+    etag = _build_etag(ch, chunk_id, tile)
     if os.path.exists(cache_path):
-        headers = {"Cache-Control": "public, max-age=604800", "ETag": etag}
-        return FileResponse(cache_path, media_type="image/png", headers=headers)
+        return FileResponse(cache_path, media_type="image/png", headers=_cache_headers(etag))
 
     # render and cache
     _render_and_cache_atlas(img, ch, chunk_id, tile)
@@ -91,8 +112,7 @@ def atlas(chunk_id: int, req: AtlasRequest = Body(...)):
         pass
     # prewarm other chunks of the same channel
     _prewarm_channel_async(ch, tile)
-    headers = {"Cache-Control": "public, max-age=604800", "ETag": etag}
-    return FileResponse(cache_path, media_type="image/png", headers=headers)
+    return FileResponse(cache_path, media_type="image/png", headers=_cache_headers(etag))
 
 
 @router.get("/atlas/{chunk_id}")
@@ -104,45 +124,36 @@ def atlas_get(
 ):
     img = open_zarr()
     C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
-    if not (0 <= channel < C):
-        raise HTTPException(
-            status_code=400, detail=f"channel {channel} out of range [0,{C-1}]"
-        )
-    if not (0 <= chunk_id < n_chunks):
-        raise HTTPException(status_code=404, detail="chunk_id out of range")
+    _validate_channel_index(channel, C)
+    _validate_chunk_id(chunk_id, n_chunks)
 
-    effective_tile = int(tile) if tile is not None else get_default_tile()
-    chans = [int(channel)]
-    cache_path = single_cache_path(chans[0], chunk_id, effective_tile)
-    etag = f"ch{chans[0]}-chunk{chunk_id}-tile{effective_tile}"
+    effective_tile = _effective_tile(tile)
+    ch = int(channel)
+    cache_path = single_cache_path(ch, chunk_id, effective_tile)
+    etag = _build_etag(ch, chunk_id, effective_tile)
 
     if os.path.exists(cache_path):
         if request is not None:
             inm = request.headers.get("if-none-match")
             if inm and inm.strip('"') == etag:
                 return Response(status_code=304)
-        headers = {"Cache-Control": "public, max-age=604800", "ETag": etag}
-        return FileResponse(cache_path, media_type="image/png", headers=headers)
+        return FileResponse(cache_path, media_type="image/png", headers=_cache_headers(etag))
 
-    _render_and_cache_atlas(img, chans[0], chunk_id, effective_tile)
+    _render_and_cache_atlas(img, ch, chunk_id, effective_tile)
     try:
         print(f"Saved atlas cache: {cache_path}")
     except Exception:
         pass
-    _prewarm_channel_async(chans[0], effective_tile)
-    headers = {"Cache-Control": "public, max-age=604800", "ETag": etag}
-    return FileResponse(cache_path, media_type="image/png", headers=headers)
+    _prewarm_channel_async(ch, effective_tile)
+    return FileResponse(cache_path, media_type="image/png", headers=_cache_headers(etag))
 
 
 @router.post("/prewarm")
 def prewarm(channel: int = Query(...), tile: Optional[int] = Query(None)):
     img = open_zarr()
     C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
-    if not (0 <= channel < C):
-        raise HTTPException(
-            status_code=400, detail=f"channel {channel} out of range [0,{C-1}]"
-        )
-    effective_tile = int(tile) if tile is not None else get_default_tile()
+    _validate_channel_index(channel, C)
+    effective_tile = _effective_tile(tile)
     _prewarm_channel_async(int(channel), effective_tile)
     return {
         "status": "ok",
@@ -150,6 +161,5 @@ def prewarm(channel: int = Query(...), tile: Optional[int] = Query(None)):
         "channel": int(channel),
         "tile": int(effective_tile),
     }
-
 
 
