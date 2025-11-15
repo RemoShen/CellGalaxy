@@ -161,7 +161,7 @@ export default function ChannelManager({
   return (
     <div className="channel-manager">
       <div className="channel-section-title">
-        <span>Channels</span>
+        <span>Channels({selected.length} / 4)</span>
         
         {/* Add channel area */}
         <div className="add-channel-section">
@@ -214,7 +214,7 @@ export default function ChannelManager({
               />
 
               {/* Channel name */}
-              <span className="channel-name">{channel.name}</span>
+              <span className="channel-name" title={channel.name}>{channel.name}</span>
 
               {/* Dual-end slider */}
               <div className="range-slider-container">

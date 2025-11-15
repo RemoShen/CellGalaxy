@@ -1,14 +1,31 @@
 /* Control component styles */
 .control-panel {
-  position: absolute;
-  top: 12px;
-  left: 12px;
+  position: fixed;
+  top: 0;
+  left: 0;
   background: rgba(79, 79, 79, 0.9);
   border: 1px solid #ffffff;
   padding: 12px;
   width: 250px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
   font-family: ui-sans-serif, system-ui;
+  height: 100vh;              /* automatically adjust to viewport height */
+  max-height: none;
+  overflow-y: auto;           /* allow scrolling within the panel */
+  box-sizing: border-box;
+  z-index: 1000;
+  /* hide scrollbar but keep scrolling functionality */
+  scrollbar-width: none;      /* Firefox */
+  -ms-overflow-style: none;   /* IE/Edge old version */
+}
+
+/* WebKit scrollbar hidden (Chrome/Safari) */
+.control-panel::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+.control-panel::-webkit-scrollbar-thumb {
+  background: transparent;
 }
 
 .control-section {

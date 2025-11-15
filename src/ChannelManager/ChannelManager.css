@@ -127,12 +127,23 @@
   font-size: 10px;
   color: #fff;
   margin-right: 10px;
-  min-width: 50px;
+  /* fixed column width, ensure right slider is equal length; overflow with ellipsis */
+  width: 55px;
+  flex: 0 0 55px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: default;          /* avoid text cursor */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;        /* prevent text selection */
 }
 
 /* Range slider container */
 .range-slider-container {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0; /* allow correct shrinkage when fixed column exists, keep slider equal length */
   display: flex;
   flex-direction: column;
   gap: 3px;
