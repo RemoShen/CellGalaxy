@@ -7,36 +7,59 @@ export default function ViewModeSelector({ viewMode, setViewMode, useUMAP, setUs
     <div className="viewmode-section">
       <div className="viewmode-title">Viewer</div>
       <div className="viewmode-options">
-        <div className="viewmode-group">
-          <button
-            className={`viewmode-btn ${viewMode === 'single' ? 'active' : ''}`}
-            onClick={() => setViewMode('single')}
-          >
+        {/* Row 1: Single vs Side by side */}
+        <div className="vm-row radios">
+          <label className="render-option">
+            <input
+              type="radio"
+              name="viewerMode"
+              value="single"
+              checked={viewMode === "single"}
+              onChange={() => setViewMode("single")}
+            />
+            <span className="radio-custom"></span>
             Single
-          </button>
-          <button
-            className={`viewmode-btn ${viewMode === 'dual' ? 'active' : ''}`}
-            onClick={() => setViewMode('dual')}
-          >
+          </label>
+          <label className="render-option">
+            <input
+              type="radio"
+              name="viewerMode"
+              value="dual"
+              checked={viewMode === "dual"}
+              onChange={() => setViewMode("dual")}
+            />
+            <span className="radio-custom"></span>
             Side by side
-          </button>
+          </label>
         </div>
-        {viewMode === "single" && (
-          <div className="viewmode-group">
-            <button
-              className={`viewmode-btn ${!useUMAP ? 'active' : ''}`}
-              onClick={() => setUseUMAP(false)}
-            >
-              Raw
-            </button>
-            <button
-              className={`viewmode-btn ${useUMAP ? 'active' : ''}`}
-              onClick={() => setUseUMAP(true)}
-            >
-              Umap
-            </button>
-          </div>
-        )}
+
+        {/* Row 2: Raw vs Umap (disabled in dual mode) */}
+        <div className={`vm-row radios ${isDual ? "disabled" : ""}`}>
+          <label className="render-option">
+            <input
+              type="radio"
+              name="projMode"
+              value="raw"
+              checked={!useUMAP}
+              disabled={isDual}
+              onChange={() => setUseUMAP(false)}
+            />
+            <span className="radio-custom"></span>
+            Raw
+          </label>
+          <label className="render-option">
+            <input
+              type="radio"
+              name="projMode"
+              value="umap"
+              checked={!!useUMAP}
+              disabled={isDual}
+              onChange={() => setUseUMAP(true)}
+            />
+            <span className="radio-custom"></span>
+            Umap
+          </label>
+        </div>
       </div>
     </div>
   );
