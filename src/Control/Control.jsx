@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import "./Control.css";
 import FileUpload from "../FileUpload/FileUpload";
 import RenderModeSelector from "../RenderModeSelector/RenderModeSelector";
@@ -35,9 +35,25 @@ export default function Control({
   filteredIds = new Set(),
   setFilteredIds = () => {},
 }) {
+  const [collapsed, setCollapsed] = useState(false);
   return (
-    <div className="control-panel">
-      <FileUpload onRefresh={refreshData} />
+    <div className={`control-panel ${collapsed ? "collapsed" : ""}`}>
+      <div className="control-header">
+        <div className="brand">
+          <div className="brand-logo" aria-hidden="true"></div>
+          <div className="brand-name">Cell Galaxy</div>
+        </div>
+        <button
+          className="control-toggle"
+          aria-label="Toggle sidebar"
+          onClick={() => setCollapsed((v) => !v)}
+          title={collapsed ? "Expand settings" : "Collapse settings"}
+        >
+          {collapsed ? "›" : "‹"}
+        </button>
+      </div>
+      <div className="control-content">
+        <FileUpload onRefresh={refreshData} />
       {/* Selection panel */}
       <SelectionPanel
         selectionMode={selectionMode}
@@ -72,6 +88,7 @@ export default function Control({
         setWindows={setWindows}
         dataVersion={dataVersion}
       />
+      </div>
     </div>
   );
 }

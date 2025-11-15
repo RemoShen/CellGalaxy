@@ -5,6 +5,7 @@ export default function FileUpload({ onRefresh = async () => {} }) {
   const [status, setStatus] = useState({ zarr: false, csv: false, raw: false });
   const [busy, setBusy] = useState(false);
   const [processing, setProcessing] = useState({ zarr: false, csv: false, raw: false });
+  const [open, setOpen] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -28,6 +29,17 @@ export default function FileUpload({ onRefresh = async () => {} }) {
   useEffect(() => {
     fetchStatus();
   }, [fetchStatus]);
+
+  // close menu on outside click
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (!open) return;
+      if (e.target.closest(".upload-menu") || e.target.closest(".upload-main-btn")) return;
+      setOpen(false);
+    };
+    document.addEventListener("click", onDocClick);
+    return () => document.removeEventListener("click", onDocClick);
+  }, [open]);
 
   const handleFileUpload = async (fileType, file) => {
     if (!file) return;
@@ -109,62 +121,58 @@ export default function FileUpload({ onRefresh = async () => {} }) {
         </div>
       )}
       <div className="file-upload-section">
-        <div className="upload-buttons">
-        <div className="upload-row">
+        <div className="upload-single">
           <button
             type="button"
-            className="upload-btn upload-zarr"
-            onClick={() => handleFileSelect('zarr')}
-            disabled={busy || status.zarr}
-          >
-            {processing.zarr ? 'Processing...' : 'Upload Zarr'}
-          </button>
-          <button
-            type="button"
-            className={`clear-upload-btn${status.zarr ? ' has-file' : ''}`}
-            onClick={() => handleClear('zarr')}
+            className="upload-main-btn"
+            onClick={() => setOpen((v) => !v)}
             disabled={busy}
-            title="Clear uploaded Zarr"
-            aria-label="Clear uploaded Zarr"
-          />
-        </div>
-        <div className="upload-row">
-          <button
-            type="button"
-            className="upload-btn upload-csv"
-            onClick={() => handleFileSelect('csv')}
-            disabled={busy || status.csv}
+            aria-haspopup="menu"
+            aria-expanded={open}
           >
-            {processing.csv ? 'Computing...' : 'Upload CSV'}
+            {processing.csv || processing.zarr || processing.raw ? 'Uploading...' : 'Upload'}
           </button>
-          <button
-            type="button"
-            className={`clear-upload-btn${status.csv ? ' has-file' : ''}`}
-            onClick={() => handleClear('csv')}
-            disabled={busy}
-            title="Clear uploaded CSV"
-            aria-label="Clear uploaded CSV"
-          />
+          {open && (
+            <div className="upload-menu" role="menu">
+              <div className="upload-menu-item" role="menuitem">
+                <button className="upload-menu-action" onClick={() => { setOpen(false); handleFileSelect('zarr'); }} disabled={busy || status.zarr}>
+                  Upload Zarr
+                </button>
+                <button
+                  className={`upload-menu-clear${status.zarr ? ' has-file' : ''}`}
+                  onClick={() => handleClear('zarr')}
+                  disabled={busy}
+                  title="Clear Zarr"
+                  aria-label="Clear Zarr"
+                />
+              </div>
+              <div className="upload-menu-item" role="menuitem">
+                <button className="upload-menu-action" onClick={() => { setOpen(false); handleFileSelect('csv'); }} disabled={busy || status.csv}>
+                  Upload CSV
+                </button>
+                <button
+                  className={`upload-menu-clear${status.csv ? ' has-file' : ''}`}
+                  onClick={() => handleClear('csv')}
+                  disabled={busy}
+                  title="Clear CSV"
+                  aria-label="Clear CSV"
+                />
+              </div>
+              <div className="upload-menu-item" role="menuitem">
+                <button className="upload-menu-action" onClick={() => { setOpen(false); handleFileSelect('raw'); }} disabled={busy || status.raw}>
+                  Upload Raw
+                </button>
+                <button
+                  className={`upload-menu-clear${status.raw ? ' has-file' : ''}`}
+                  onClick={() => handleClear('raw')}
+                  disabled={busy}
+                  title="Clear Raw"
+                  aria-label="Clear Raw"
+                />
+              </div>
+            </div>
+          )}
         </div>
-        <div className="upload-row">
-          <button
-            type="button"
-            className="upload-btn upload-csv"
-            onClick={() => handleFileSelect('raw')}
-            disabled={busy || status.raw}
-          >
-            {processing.raw ? 'Processing...' : 'Upload Raw'}
-          </button>
-          <button
-            type="button"
-            className={`clear-upload-btn${status.raw ? ' has-file' : ''}`}
-            onClick={() => handleClear('raw')}
-            disabled={busy}
-            title="Clear uploaded Raw"
-            aria-label="Clear uploaded Raw"
-          />
-        </div>
-      </div>
     </div>
     </>
   );
