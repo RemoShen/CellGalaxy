@@ -3,8 +3,8 @@
   position: fixed;
   top: 0;
   left: 0;
-  background: rgba(79, 79, 79, 0.9);
-  border: 1px solid #ffffff;
+  background: rgba(79, 79, 79, 0.3);
+  /* border: 0.5px solid #979191; */
   padding: 12px;
   width: 250px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
@@ -80,7 +80,7 @@
   background: transparent;
   box-shadow: none;
   overflow: visible; /* keep toggle visible/clickable */
-  pointer-events: none; /* panel does not receive events, avoid transparent rectangle blocking content */
+  pointer-events: none; /* panel不接收事件，避免透明矩形挡住内容 */
 }
 .control-panel.collapsed .control-content {
   display: none;
