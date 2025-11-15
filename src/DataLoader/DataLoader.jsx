@@ -2,11 +2,20 @@
 // useDataLoader.js  (with selection states)
 // =============================
 import { useEffect, useState, useRef, useCallback } from "react";
+import {
+  API_BASE,
+  fetchMeta,
+  fetchCoords,
+  fetchUV,
+  staticAtlasURL,
+  headStaticAtlas,
+  generateAtlasGrayGet,
+  generateAtlasGrayPost,
+  prewarm as prewarmAPI,
+} from "../api/api";
 
-// Development environment (port 3000) defaults to backend 8000; production same-origin can be empty
-const API = (typeof window !== 'undefined' && window.location && window.location.port === '3000')
-  ? 'http://localhost:8000'
-  : '';
+// API base is centralized in ../api/api
+const API = API_BASE;
 
 export default function useDataLoader() {
   const [meta, setMeta] = useState(null);
@@ -46,6 +55,12 @@ export default function useDataLoader() {
       try {
         const result = await task();
         resolve(result);
+      } catch (e) {
+        // Avoid unhandled rejection bubbling up
+        try {
+          console.error("runWithLimit task error", e);
+        } catch {}
+        resolve(undefined);
       } finally {
         limiterRef.current.inFlight--;
         const next = limiterRef.current.queue.shift();
@@ -140,33 +155,11 @@ export default function useDataLoader() {
   const refreshData = useCallback(async () => {
     setLoading(true);
     try {
-      let metaJson = null;
-      try {
-        const metaRes = await fetch(`${API}/meta`, { cache: 'no-store' });
-        if (metaRes.ok) {
-          metaJson = await metaRes.json();
-        } else {
-          try {
-            metaJson = await metaRes.json();
-          } catch {
-            metaJson = { error: "Failed to fetch meta" };
-          }
-        }
-      } catch (err) {
-        console.error("meta fetch failed", err);
-        metaJson = { error: "Failed to fetch meta" };
-      }
+      const abort = new AbortController();
+      let metaJson = await fetchMeta(abort.signal);
       setMeta(metaJson);
 
-      let coords = [];
-      try {
-        const coordsRes = await fetch(`${API}/public/coords.json?ts=${Date.now()}`, { cache: 'no-store' });
-        if (coordsRes.ok) {
-          coords = await coordsRes.json();
-        }
-      } catch (err) {
-        console.warn("coords fetch failed", err);
-      }
+      let coords = await fetchCoords(abort.signal);
       if (!Array.isArray(coords)) coords = [];
       setAllCoords(coords);
       if (coords.length === 0) {
@@ -232,8 +225,12 @@ export default function useDataLoader() {
   const ensureUV = async (chunkId) => {
     if (!meta) return;
     if (chunkUV[chunkId]) return;
-    const uv = await fetch(`${API}/atlas_uv/${chunkId}?tile=${meta.atlas.tile}`).then((r) => r.json());
-    setChunkUV((prev) => ({ ...prev, [chunkId]: uv }));
+    try {
+      const uv = await fetchUV(chunkId, meta.atlas.tile, undefined);
+      setChunkUV((prev) => ({ ...prev, [chunkId]: uv }));
+    } catch (e) {
+      console.error("ensureUV failed", e);
+    }
   };
 
   // Request atlas for a chunk (server-side RGBA synthesis)
@@ -278,11 +275,11 @@ export default function useDataLoader() {
     try {
       await runWithLimit(async () => {
         const t = meta?.atlas?.tile ?? 16;
-        const staticURL = `${API}/public/cache/ch${channel}/tile_${t}/chunk_${chunkId}.png`;
+        const staticURL = staticAtlasURL(channel, t, chunkId);
 
         // 1) First try HEAD to probe static cache at fixed path (avoid duplicate image downloads)
-        let head = await fetch(staticURL, { method: 'HEAD' });
-        if (head.ok || head.status === 304) {
+        const ok = await headStaticAtlas(staticURL, undefined);
+        if (ok) {
           setAtlasByChannel((prev) => ({
             ...prev,
             [chunkId]: { ...(prev[chunkId] || {}), [channel]: staticURL },
@@ -291,20 +288,16 @@ export default function useDataLoader() {
         }
 
         // 2) If not exists, trigger generation (GET alias → fallback to POST on failure)
-        let gen = await fetch(`${API}/atlas/${chunkId}?channel=${channel}&tile=${t}`, { method: 'GET' });
+        let gen = await generateAtlasGrayGet(chunkId, channel, t, undefined);
         if (!gen.ok && gen.status !== 304) {
           if (gen.status === 405 || gen.status === 404) {
-            gen = await fetch(`${API}/atlas/${chunkId}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ channels: [channel], tile: t })
-            });
+            gen = await generateAtlasGrayPost(chunkId, channel, t, undefined);
             if (!gen.ok) {
-              console.error("atlas generate POST failed", gen.status, await gen.text());
+              try { console.error("atlas generate POST failed", gen.status, await gen.text()); } catch {}
               return;
             }
           } else {
-            console.error("atlas generate GET failed", gen.status, await gen.text());
+            try { console.error("atlas generate GET failed", gen.status, await gen.text()); } catch {}
             return;
           }
         }
@@ -347,7 +340,7 @@ export default function useDataLoader() {
     (async () => {
       for (const ch of channels) {
         try {
-          fetch(`${API}/prewarm?channel=${ch}&tile=${t}`, { method: 'POST', keepalive: true }).catch(() => {});
+          prewarmAPI(ch, t);
         } catch {}
       }
     })();
