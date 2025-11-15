@@ -11,6 +11,10 @@
   display: flex;
   gap: 8px;
 }
+.viewmode-group {
+  display: flex;
+  gap: 8px;
+}
 .viewmode-btn {
   flex: 1;
   padding: 6px 10px;

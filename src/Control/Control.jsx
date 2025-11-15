@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import "./Control.css";
 import FileUpload from "../FileUpload/FileUpload";
 import RenderModeSelector from "../RenderModeSelector/RenderModeSelector";
-import UMAPSelector from "../UMAPSelector/UMAPSelector";
 import ViewModeSelector from "../ViewModeSelector/ViewModeSelector";
 import ImageSizeControl from "../ImageSizeControl/ImageSizeControl";
 import ChannelManager from "../ChannelManager/ChannelManager";
@@ -56,8 +55,6 @@ export default function Control({
         </button>
       </div>
       <div className="control-content">
-        {/* Viewer mode selection */}
-        <ViewModeSelector viewMode={viewMode} setViewMode={setViewMode} />
         <FileUpload onRefresh={refreshData} />
       {/* Selection panel */}
       <SelectionPanel
@@ -65,9 +62,13 @@ export default function Control({
         setSelectionMode={setSelectionMode}
         selectedIds={selectedIds}
       />
-
-      {/* Projection selection (only for single viewer) */}
-      {viewMode === "single" && <UMAPSelector useUMAP={useUMAP} setUseUMAP={setUseUMAP} />}
+      
+      <ViewModeSelector
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        useUMAP={useUMAP}
+        setUseUMAP={setUseUMAP}
+      />
 
       {/* Rendering mode selection */}
       <RenderModeSelector
