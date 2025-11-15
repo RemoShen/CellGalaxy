@@ -10,7 +10,12 @@ export default function SelectionPanel({
 
   return (
     <div className="selection-panel">
-      <div className="selection-panel-title">Selection</div>
+      <div className="selection-panel-title">
+        <span>Selection</span>
+        <span className="selection-count-inline">
+          Selected: <b>{selectedCount}</b> points
+        </span>
+      </div>
       
       <div className="selection-mode-buttons">
         <button
@@ -36,9 +41,7 @@ export default function SelectionPanel({
         </button>
       </div>
 
-      <div className="selection-count">
-        Selected: <b>{selectedCount}</b> points
-      </div>
+      
     </div>
   );
 }

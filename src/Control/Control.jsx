@@ -56,6 +56,16 @@ export default function Control({
       </div>
       <div className="control-content">
         <FileUpload onRefresh={refreshData} />
+      {/* Channel management (moved above Selection) */}
+      <ChannelManager
+        selected={channels}
+        setSelected={setChannels}
+        colors={colors}
+        setColors={setColors}
+        windows={windows}
+        setWindows={setWindows}
+        dataVersion={dataVersion}
+      />
       {/* Selection panel */}
       <SelectionPanel
         selectionMode={selectionMode}
@@ -84,16 +94,7 @@ export default function Control({
       {/* Filter (by raw data) */}
       <Filter setFilteredIds={(ids) => { setFilteredIds(ids); }} />
 
-      {/* Channel management */}
-      <ChannelManager
-        selected={channels}
-        setSelected={setChannels}
-        colors={colors}
-        setColors={setColors}
-        windows={windows}
-        setWindows={setWindows}
-        dataVersion={dataVersion}
-      />
+      
       </div>
     </div>
   );
