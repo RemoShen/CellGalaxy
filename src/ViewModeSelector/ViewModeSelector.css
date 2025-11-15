@@ -1,0 +1,33 @@
+.viewmode-section {
+  margin-bottom: 8px;
+}
+.viewmode-title {
+  margin-bottom: 6px;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+}
+.viewmode-options {
+  display: flex;
+  gap: 8px;
+}
+.viewmode-btn {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 12px;
+  border: 1px solid rgba(255,255,255,0.4);
+  border-radius: 6px;
+  color: #e6e6e6;
+  background: rgba(255,255,255,0.05);
+  cursor: pointer;
+}
+.viewmode-btn.active {
+  background: #ff8f00;
+  border-color: #ff8f00;
+  color: #111;
+}
+.viewmode-btn:hover {
+  background: rgba(255,255,255,0.12);
+}
+
+

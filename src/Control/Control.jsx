@@ -3,6 +3,7 @@ import "./Control.css";
 import FileUpload from "../FileUpload/FileUpload";
 import RenderModeSelector from "../RenderModeSelector/RenderModeSelector";
 import UMAPSelector from "../UMAPSelector/UMAPSelector";
+import ViewModeSelector from "../ViewModeSelector/ViewModeSelector";
 import ImageSizeControl from "../ImageSizeControl/ImageSizeControl";
 import ChannelManager from "../ChannelManager/ChannelManager";
 import SelectionPanel from "../SelectionPanel/SelectionPanel";
@@ -34,6 +35,8 @@ export default function Control({
   setSelectedIds = () => {},
   filteredIds = new Set(),
   setFilteredIds = () => {},
+  viewMode = "dual",
+  setViewMode = () => {},
 }) {
   const [collapsed, setCollapsed] = useState(false);
   return (
@@ -53,6 +56,8 @@ export default function Control({
         </button>
       </div>
       <div className="control-content">
+        {/* Viewer mode selection */}
+        <ViewModeSelector viewMode={viewMode} setViewMode={setViewMode} />
         <FileUpload onRefresh={refreshData} />
       {/* Selection panel */}
       <SelectionPanel
@@ -61,8 +66,8 @@ export default function Control({
         selectedIds={selectedIds}
       />
 
-      {/* UMAP mode selection */}
-      <UMAPSelector useUMAP={useUMAP} setUseUMAP={setUseUMAP} />
+      {/* Projection selection (only for single viewer) */}
+      {viewMode === "single" && <UMAPSelector useUMAP={useUMAP} setUseUMAP={setUseUMAP} />}
 
       {/* Rendering mode selection */}
       <RenderModeSelector
