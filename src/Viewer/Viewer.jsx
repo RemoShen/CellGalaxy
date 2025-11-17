@@ -437,7 +437,7 @@ const Viewer = ({
             channels,
             colors,
             alphas,
-            scale: 4,
+            previewSize: 128,
           });
 
           const textHtml = `id: ${object.id}<br/>label: ${object.label ?? object.id % 11}`;

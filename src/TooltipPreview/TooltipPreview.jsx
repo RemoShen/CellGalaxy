@@ -13,7 +13,7 @@ export function buildTooltipHTML({
   channels,
   colors,
   alphas,
-  scale = 4,
+  previewSize = 128,
 }) {
   if (!object) return "";
   const chunkId = object.chunk_id;
@@ -28,12 +28,13 @@ export function buildTooltipHTML({
     : Object.keys(availableByCh).map((v) => Number(v));
 
   const tile = uvMeta.tile || mapping.width || 16;
-  const dispW = Math.max(1, tile * scale);
-  const dispH = Math.max(1, tile * scale);
+  const dispW = Math.max(1, previewSize);
+  const dispH = Math.max(1, previewSize);
   const bgW = uvMeta.width || 0;
   const bgH = uvMeta.height || 0;
   const bgX = mapping.x || 0;
   const bgY = mapping.y || 0;
+  const scale = tile > 0 ? (previewSize / tile) : 1;
 
   const containerStyle = [
     `width:${dispW}px`,
