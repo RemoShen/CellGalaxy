@@ -7,5 +7,6 @@ public/.DS_Store
 public/channel_info.json
 public/raw.json
 public/raw.csv
+public/features.npy
 .cache/
 .DS_Store

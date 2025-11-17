@@ -22,6 +22,9 @@ def _raw_paths() -> tuple[str, str]:
         os.path.join(DATA_DIR, "raw.json"),
     )
 
+def _feat_path() -> str:
+    return os.path.join(DATA_DIR, "features.npy")
+
 
 def _has_zarr() -> bool:
     """Check whether zarr directory contains any data."""
@@ -42,6 +45,7 @@ async def upload_status():
         "zarr": _has_zarr(),
         "csv": os.path.exists(csv_path),
         "raw": os.path.exists(raw_csv) and os.path.exists(raw_json),
+        "feat": os.path.exists(_feat_path()),
     }
 
 

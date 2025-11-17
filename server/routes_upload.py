@@ -27,12 +27,15 @@ def _raw_paths() -> tuple[str, str]:
         os.path.join(DATA_DIR, "raw.json"),
     )
 
+def _feat_path() -> str:
+    return os.path.join(DATA_DIR, "features.npy")
+
 
 @router.api_route("/upload/{file_type}", methods=["POST", "DELETE"])
 async def upload_or_delete(
     file_type: str, request: Request, file: UploadFile | None = File(None)
 ):
-    if file_type not in ["zarr", "csv", "raw"]:
+    if file_type not in ["zarr", "csv", "raw", "feat"]:
         raise HTTPException(status_code=400, detail="Unsupported file type")
 
     # delete file
@@ -54,6 +57,10 @@ async def upload_or_delete(
             remove_path(raw_csv)
             remove_path(raw_json)
             return {"message": "Raw CSV data cleared"}
+        
+        if file_type == "feat":
+            remove_path(_feat_path())
+            return {"message": "Features cleared"}
 
     # upload file
     if file is None:
@@ -62,7 +69,11 @@ async def upload_or_delete(
     target_name = (
         file.filename
         if file_type == "zarr"
-        else ("raw.csv" if file_type == "raw" else "data.csv")
+        else (
+            "raw.csv"
+            if file_type == "raw"
+            else ("features.npy" if file_type == "feat" else "data.csv")
+        )
     )
     file_path = os.path.join(DATA_DIR, target_name)
 
@@ -87,6 +98,9 @@ async def upload_or_delete(
             raise HTTPException(
                 status_code=500, detail=f"Failed to generate raw.json: {e}"
             )
+    elif file_type == "feat":
+        # no post-processing for features
+        pass
 
     return {"message": f"{file.filename} uploaded successfully"}
 

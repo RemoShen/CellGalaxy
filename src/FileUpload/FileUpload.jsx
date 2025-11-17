@@ -2,16 +2,16 @@ import React, { useState, useEffect, useCallback } from "react";
 import "./FileUpload.css";
 
 export default function FileUpload({ onRefresh = async () => {} }) {
-  const [status, setStatus] = useState({ zarr: false, csv: false, raw: false });
+  const [status, setStatus] = useState({ zarr: false, csv: false, raw: false, feat: false });
   const [busy, setBusy] = useState(false);
-  const [processing, setProcessing] = useState({ zarr: false, csv: false, raw: false });
+  const [processing, setProcessing] = useState({ zarr: false, csv: false, raw: false, feat: false });
   const [open, setOpen] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     try {
       const res = await fetch(`/upload/status?ts=${Date.now()}`, { cache: 'no-store' });
       if (!res.ok) {
-        setStatus({ zarr: false, csv: false });
+        setStatus({ zarr: false, csv: false, raw: false, feat: false });
         return;
       }
       const data = await res.json();
@@ -19,10 +19,11 @@ export default function FileUpload({ onRefresh = async () => {} }) {
         zarr: Boolean(data?.zarr),
         csv: Boolean(data?.csv),
         raw: Boolean(data?.raw),
+        feat: Boolean(data?.feat),
       });
     } catch (err) {
       console.error("status fetch failed", err);
-      setStatus({ zarr: false, csv: false, raw: false });
+      setStatus({ zarr: false, csv: false, raw: false, feat: false });
     }
   }, []);
 
@@ -80,7 +81,9 @@ export default function FileUpload({ onRefresh = async () => {} }) {
   const handleFileSelect = (fileType) => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = (fileType === 'csv' || fileType === 'raw') ? '.csv' : '.zarr,.zip,.zarr.zip';
+    input.accept = fileType === 'zarr'
+      ? '.zarr,.zip,.zarr.zip'
+      : (fileType === 'feat' ? '.npy' : '.csv');
     input.onchange = (e) => {
       const file = e.target.files[0];
       if (file) {
@@ -110,13 +113,14 @@ export default function FileUpload({ onRefresh = async () => {} }) {
 
   return (
     <>
-      {(processing.csv || processing.zarr || processing.raw) && (
+      {(processing.csv || processing.zarr || processing.raw || processing.feat) && (
         <div className="fullscreen-processing-overlay">
           <div className="processing-content">
             <div className="processing-spinner"></div>
-            {processing.csv && <div className="processing-text">uploading CSV...</div>}
-            {processing.zarr && <div className="processing-text">uploading Zarr...</div>}
-            {processing.raw && <div className="processing-text">uploading Raw...</div>}
+            {processing.csv && <div className="processing-text">uploading Raw Data...</div>}
+            {processing.zarr && <div className="processing-text">uploading Image Data...</div>}
+            {processing.raw && <div className="processing-text">uploading Meta Data...</div>}
+            {processing.feat && <div className="processing-text">uploading Features...</div>}
           </div>
         </div>
       )}
@@ -130,7 +134,7 @@ export default function FileUpload({ onRefresh = async () => {} }) {
             aria-haspopup="menu"
             aria-expanded={open}
           >
-            {processing.csv || processing.zarr || processing.raw ? 'Uploading...' : 'Upload'}
+            {processing.csv || processing.zarr || processing.raw || processing.feat ? 'Uploading...' : 'Upload'}
           </button>
           {open && (
             <div className="upload-menu" role="menu">
@@ -156,6 +160,18 @@ export default function FileUpload({ onRefresh = async () => {} }) {
                   disabled={busy}
                   title="Clear CSV"
                   aria-label="Clear CSV"
+                />
+              </div>
+              <div className="upload-menu-item" role="menuitem">
+                <button className="upload-menu-action" onClick={() => { setOpen(false); handleFileSelect('feat'); }} disabled={busy || status.feat}>
+                  Features (npy)
+                </button>
+                <button
+                  className={`upload-menu-clear${status.feat ? ' has-file' : ''}`}
+                  onClick={() => handleClear('feat')}
+                  disabled={busy}
+                  title="Clear Features"
+                  aria-label="Clear Features"
                 />
               </div>
               <div className="upload-menu-item" role="menuitem">
