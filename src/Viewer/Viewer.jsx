@@ -5,6 +5,8 @@ import React, { useMemo, useState, useEffect, useRef } from "react";
 import DeckGL from "@deck.gl/react";
 import { ScatterplotLayer } from "@deck.gl/layers";
 import WindowedIconLayer from "../layers/WindowedIconLayer";
+import AnalysisPopover from "../AnalysisPopover/AnalysisPopover";
+import { ANALYSIS_SINGLE, ANALYSIS_GROUP } from "../analysis/commands";
 import {
   OrthographicView,
   OrbitView,
@@ -24,8 +26,10 @@ import {
 import "./Viewer.css";
 import buildTooltipHTML from "../TooltipPreview/TooltipPreview";
 import ClickToolbar from "../ClickToolbar/ClickToolbar";
+import GroupToolbar from "../GroupToolbar/GroupToolbar";
 
 const Viewer = ({
+  viewerId = "viewer",
   meta,
   points,
   chunkUV,
@@ -135,6 +139,10 @@ const Viewer = ({
   const [dragEnd, setDragEnd] = useState(null); // {x,y} screen
   const [lassoPts, setLassoPts] = useState([]); // [[x,y],...] screen
   const [toolbar, setToolbar] = useState({ show: false, x: 0, y: 0, object: null });
+  // Analysis popover state
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [popoverCmd, setPopoverCmd] = useState(null);
+  const [popoverPos, setPopoverPos] = useState({ x: 0, y: 0 });
 
   // Get unified screen coordinates (relative to canvas top-left)
   const getXY = (info) => getEventCoordinates(info, containerRef);
@@ -198,6 +206,7 @@ const Viewer = ({
     }
 
     setSelectedIds(ids);
+    try { window.__selectionOwner = viewerId; } catch {}
     setIsSelecting(false);
     setDragStart(null);
     setDragEnd(null);
@@ -208,8 +217,18 @@ const Viewer = ({
     if (!info?.object) {
       clearSelection();
       if (toolbar.show) setToolbar({ show: false, x: 0, y: 0, object: null });
+      setPopoverOpen(false);
       return;
     }
+    // 自动进入“单点分析”：把所点 cell 设为当前 selection
+    try {
+      const id = info?.object?.id;
+      if (id != null) {
+        setSelectedIds(new Set([id]));
+        try { window.__selectionOwner = viewerId; } catch {}
+      }
+    } catch {}
+    // 仍然保留轻量工具条（可关闭）
     const { x, y } = getXY(info);
     setToolbar({ show: true, x, y, object: info.object });
   };
@@ -492,9 +511,81 @@ const Viewer = ({
           setToolbar((t) => ({ ...t, show: false }));
         }}
         onFindTopK={() => {
-          // Placeholder: find similar TopK
-          setToolbar((t) => ({ ...t, show: false }));
+          // 显式触发 T1 分析（在点击位置附近展示）
+          try {
+            const id = toolbar.object?.id;
+            if (id != null) {
+              setPopoverCmd({ type: ANALYSIS_SINGLE, q: id });
+              setPopoverPos({ x: toolbar.x, y: toolbar.y });
+              setPopoverOpen(true);
+            }
+          } finally {
+            setToolbar((t) => ({ ...t, show: false }));
+          }
         }}
+      />
+      {/* Group analysis toolbar: 出现在有多选时 */}
+      <GroupToolbar
+        show={
+          !isSelecting &&
+          selectedIds &&
+          selectedIds.size > 1 &&
+          (typeof window === "undefined" || window.__selectionOwner === viewerId)
+        }
+        onAnalyze={() => {
+          try {
+            const ids = Array.from(selectedIds || []);
+            if (ids.length > 1) {
+              // 屏幕空间质心
+              const deck = deckRef.current?.deck;
+              const viewport = deck?.getViewports()[0];
+              if (viewport) {
+                // 求选中点的世界坐标质心
+                let cnt = 0, sx = 0, sy = 0;
+                const dpr = (typeof window !== "undefined" && window.devicePixelRatio) ? window.devicePixelRatio : 1;
+                for (const p of points) {
+                  if (!selectedIds.has(p.id)) continue;
+                  const [px, py] = viewport.project([p.x, p.y, p.z ?? 0]);
+                  // 将设备像素坐标转换为 CSS 像素，便于与容器绝对定位一致
+                  sx += px / dpr; 
+                  sy += py / dpr; 
+                  cnt++;
+                }
+                const container = containerRef.current;
+                const cssW = container ? container.clientWidth : (deck?.width || 0);
+                const cx = cnt ? sx / cnt : cssW / 2;
+                const cy = cnt ? sy / cnt : 24;
+                setPopoverPos({ x: cx, y: cy });
+              } else {
+                setPopoverPos({ x: toolbar.x || 20, y: toolbar.y || 20 });
+              }
+              setPopoverCmd({ type: ANALYSIS_GROUP, ids });
+              setPopoverOpen(true);
+            }
+          } catch {}
+        }}
+        onClear={() => clearSelection()}
+      />
+
+      {/* Analysis popover (floating window near selection) */}
+      <AnalysisPopover
+        open={popoverOpen}
+        command={popoverCmd}
+        x={popoverPos.x}
+        y={popoverPos.y}
+        onClose={() => setPopoverOpen(false)}
+        meta={meta}
+        chunkUV={chunkUV}
+        atlasURL={atlasURL}
+        atlasByChannel={atlasByChannel}
+        channels={channels}
+        colors={colors}
+        alphas={alphas}
+        pointsRaw={points}
+        pointsUMAP={points}
+        useUMAP={false}
+        selectedIds={selectedIds}
+        setSelectedIds={setSelectedIds}
       />
     </div>
   );

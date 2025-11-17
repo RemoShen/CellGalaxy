@@ -85,6 +85,42 @@ export function prewarm(channel, tile) {
   } catch {}
 }
 
+// ===== Global similarity histogram =====
+export async function fetchGlobalHist(bins = 60, sample = 50000, signal) {
+  try {
+    return await fetchJSON(`${API_BASE}/features/global_hist?bins=${bins}&sample=${sample}`, { signal });
+  } catch (e) {
+    console.error("fetchGlobalHist failed", e);
+    return null;
+  }
+}
+
+// ===== Features (T1/T2) =====
+export async function fetchT1(queryId, k = 30, signal) {
+  try {
+    return await fetchJSON(`${API_BASE}/features/t1?q=${queryId}&k=${k}`, { signal });
+  } catch (e) {
+    console.error("fetchT1 failed", e);
+    return { error: "Failed to fetch T1" };
+  }
+}
+
+export async function fetchT2(ids, signal) {
+  try {
+    const res = await fetch(`${API_BASE}/features/t2`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+      signal,
+    });
+    if (!res.ok) throw new Error(await safeReadText(res));
+    return await res.json();
+  } catch (e) {
+    console.error("fetchT2 failed", e);
+    return { error: "Failed to fetch T2" };
+  }
+}
+
 async function safeReadText(res) {
   try {
     return await res.text();

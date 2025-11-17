@@ -3,7 +3,6 @@ import useDataLoader from "./DataLoader/DataLoader";
 import Viewer from "./Viewer/Viewer";
 import Control from "./Control/Control";
 import "./App.css";
-
 export default function App() {
   const dataLoader = useDataLoader();
   const {
@@ -31,6 +30,7 @@ export default function App() {
             <Viewer
               key={`viewer-raw-${viewMode}`}
               {...rest}
+              viewerId="raw"
               points={pointsRaw}
               transitionsEnabled={!disableTransitions}
             />
@@ -40,6 +40,7 @@ export default function App() {
             <Viewer
               key={`viewer-umap-${viewMode}`}
               {...rest}
+              viewerId="umap"
               points={pointsUMAP}
               transitionsEnabled={!disableTransitions}
             />
@@ -51,6 +52,7 @@ export default function App() {
             <div className="viewer-label">{rest.useUMAP ? "UMAP" : "Raw"}</div>
             <Viewer
               {...rest}
+              viewerId="single"
               points={rest.useUMAP ? pointsUMAP : pointsRaw}
               transitionsEnabled={!disableTransitions}
             />

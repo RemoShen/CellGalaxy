@@ -1,7 +1,7 @@
 /* ClickToolbar - 悬浮工具条样式 */
 .click-toolbar {
   position: absolute;
-  transform: translate(10px, -10px); /* 稍微避开鼠标/点位 */
+  transform: none;
   display: inline-flex;
   align-items: center;
   gap: 4px;

@@ -6,6 +6,7 @@ from .config import DATA_DIR, CACHE_DIR, ZARR_DIR
 from .routes_upload import router as upload_router
 from .routes_meta import router as meta_router
 from .routes_atlas import router as atlas_router
+from .routes_features import router as features_router
 
 
 def create_app() -> FastAPI:
@@ -43,6 +44,7 @@ def create_app() -> FastAPI:
     app.include_router(upload_router)
     app.include_router(meta_router)
     app.include_router(atlas_router)
+    app.include_router(features_router)
     return app
 
 
