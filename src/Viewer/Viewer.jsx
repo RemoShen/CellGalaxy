@@ -23,6 +23,7 @@ import {
 } from "../utils";
 import "./Viewer.css";
 import buildTooltipHTML from "../TooltipPreview/TooltipPreview";
+import ClickToolbar from "../ClickToolbar/ClickToolbar";
 
 const Viewer = ({
   meta,
@@ -133,12 +134,14 @@ const Viewer = ({
   const [dragStart, setDragStart] = useState(null); // {x,y} screen
   const [dragEnd, setDragEnd] = useState(null); // {x,y} screen
   const [lassoPts, setLassoPts] = useState([]); // [[x,y],...] screen
+  const [toolbar, setToolbar] = useState({ show: false, x: 0, y: 0, object: null });
 
   // Get unified screen coordinates (relative to canvas top-left)
   const getXY = (info) => getEventCoordinates(info, containerRef);
 
   const onDragStart = (info) => {
     if (selectionMode === "none") return;
+    if (toolbar.show) setToolbar({ show: false, x: 0, y: 0, object: null });
     const { x, y } = getXY(info);
     setIsSelecting(true);
     setDragStart({ x, y });
@@ -202,7 +205,13 @@ const Viewer = ({
   };
 
   const onClick = (info) => {
-    if (!info?.object) clearSelection();
+    if (!info?.object) {
+      clearSelection();
+      if (toolbar.show) setToolbar({ show: false, x: 0, y: 0, object: null });
+      return;
+    }
+    const { x, y } = getXY(info);
+    setToolbar({ show: true, x, y, object: info.object });
   };
 
   // Establish a baseline zoom the first time we render. We map size by 2^(zoom-delta)
@@ -471,6 +480,22 @@ const Viewer = ({
           <polygon className="lasso-fill" points={lassoPath} />
         </svg>
       )}
+
+      {/* Click toolbar (only UI, no functionality) */}
+      <ClickToolbar
+        show={toolbar.show}
+        x={toolbar.x}
+        y={toolbar.y}
+        onClose={() => setToolbar({ show: false, x: 0, y: 0, object: null })}
+        onViewRaw={() => {
+          // Placeholder: view raw data
+          setToolbar((t) => ({ ...t, show: false }));
+        }}
+        onFindTopK={() => {
+          // Placeholder: find similar TopK
+          setToolbar((t) => ({ ...t, show: false }));
+        }}
+      />
     </div>
   );
 };
