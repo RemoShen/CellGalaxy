@@ -22,6 +22,7 @@ import {
   performLassoSelection,
 } from "../utils";
 import "./Viewer.css";
+import buildTooltipHTML from "../TooltipPreview/TooltipPreview";
 
 const Viewer = ({
   meta,
@@ -426,7 +427,24 @@ const Viewer = ({
           if (!object) return null;
           const activeFilter = filteredIds && filteredIds.size > 0;
           if (activeFilter && !filteredIds.has(object.id)) return null;
-          return `id: ${object.id}\nlabel: ${object.label ?? object.id % 11}`;
+
+          const previewHtml = buildTooltipHTML({
+            object,
+            iconMappingsByChunk,
+            chunkUV,
+            atlasByChannel,
+            atlasURL,
+            channels,
+            colors,
+            alphas,
+            scale: 4,
+          });
+
+          const textHtml = `id: ${object.id}<br/>label: ${object.label ?? object.id % 11}`;
+          return {
+            html: `${textHtml}${previewHtml ? "<br/>" + previewHtml : ""}`,
+            className: "deck-tooltip",
+          };
         }}
         getCursor={() => "default"}
         pickingRadius={6}
