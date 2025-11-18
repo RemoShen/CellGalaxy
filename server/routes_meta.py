@@ -56,13 +56,8 @@ async def get_channels():
         return {"channels": [], "total_channels": 0}
     try:
         df = pd.read_csv(csv_path)
-        # try to load zarr image for more precise pixel range estimation
-        img = None
-        if os.path.isdir(ZARR_DIR):
-            try:
-                img = open_zarr()
-            except Exception:
-                img = None
+        # assume Zarr is always available
+        img = open_zarr()
         channels = get_channel_info(df, img)
         return {"channels": channels, "total_channels": len(channels)}
     except Exception:

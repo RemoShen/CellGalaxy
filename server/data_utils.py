@@ -126,36 +126,23 @@ def process_coord_row(row: pd.Series, idx: int, n_per_chunk: int) -> Dict[str, A
 
 
 def _pixel_range_from_array(channel_data: np.ndarray) -> tuple[float, float]:
-    """Compute 5%-95% pixel range from a numpy array."""
+    """Compute 1%-99% pixel range from a numpy array."""
     flat = channel_data.astype(np.float32).ravel()
     if flat.size == 0:
         return 0.0, 0.0
-    p5, p95 = np.percentile(flat, [5.0, 95.0])
+    p5, p95 = np.percentile(flat, [1.0, 99.0])
     return float(p5), float(p95)
 
 
-def _pixel_range_from_series(series: pd.Series) -> tuple[float, float]:
-    """Compute 5%-95% range from a pandas Series."""
-    if len(series) == 0:
-        return 0.0, 0.0
-    q05 = float(series.quantile(0.05))
-    q95 = float(series.quantile(0.95))
-    return q05, q95
-
-
-def get_channel_info(df: pd.DataFrame, img=None):
-    """extract channel information from DataFrame / Zarr"""
+def get_channel_info(df: pd.DataFrame, img):
+    """Extract channel information using Zarr image statistics (assumes Zarr is available)."""
     columns = list(df.columns)
     channel_columns = columns[9:]  # columns after the 9th are channels
     channels = []
     for i, col_name in enumerate(channel_columns):
-        # prefer Zarr image statistics pixel range, otherwise fallback to DataFrame numeric range
-        if img is not None:
-            channel_data = img[i, :, :, :]
-            min_value, max_value = _pixel_range_from_array(channel_data)
-        else:
-            series = df[col_name]
-            min_value, max_value = _pixel_range_from_series(series)
+        # use Zarr image statistics pixel range
+        channel_data = img[i, :, :, :]
+        min_value, max_value = _pixel_range_from_array(channel_data)
         channels.append(
             {
                 "id": i,
@@ -174,19 +161,10 @@ async def generate_json_files() -> None:
         return
     try:
         df = pd.read_csv(csv_path)
-        img = None
-        if os.path.isdir(ZARR_DIR):
-            try:
-                img = open_zarr()
-            except Exception as e:
-                print(f"Zarr read failed: {str(e)}")
-        if img is not None:
-            C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
-            N = min(len(df), N)
-        else:
-            N = len(df)
-            n_per_chunk = 1
-            n_chunks = N
+        # assume Zarr is always available
+        img = open_zarr()
+        C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
+        N = min(len(df), N)
         coords = [process_coord_row(df.iloc[idx], idx, n_per_chunk) for idx in range(N)]
         channels = get_channel_info(df, img)
         with open(os.path.join(DATA_DIR, "coords.json"), "w", encoding="utf-8") as f:

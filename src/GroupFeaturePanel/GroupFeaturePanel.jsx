@@ -136,7 +136,7 @@ export default function GroupFeaturePanel({
     // 2D KDE grid
     const gw = 160, gh = 100;
     const grid = new Float32Array(gw * gh);
-    const sigma = 0.055; // domain scale（略小，细腻但更稀释）
+    const sigma = 0.055;
     const sig2 = 2 * sigma * sigma;
     for (let i = 0; i < N; i++) {
       const xi = x01[i];
