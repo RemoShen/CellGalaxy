@@ -1,31 +1,8 @@
 import React, { useMemo, useRef, useEffect, useState } from "react";
-import { buildTooltipHTML } from "../TooltipPreview/TooltipPreview";
 import "../FeatureDock/FeatureDock.css";
 import "../AnalysisPanels/GroupAnalysisPanel.css";
-
-function Thumb({ object, iconMappingsByChunk, chunkUV, atlasByChannel, atlasURL, channels, colors, alphas, size = 112, label }) {
-  const html = useMemo(
-    () =>
-      buildTooltipHTML({
-        object,
-        iconMappingsByChunk,
-        chunkUV,
-        atlasByChannel,
-        atlasURL,
-        channels,
-        colors,
-        alphas,
-        previewSize: size,
-      }),
-    [object, iconMappingsByChunk, chunkUV, atlasByChannel, atlasURL, channels, colors, alphas, size]
-  );
-  return (
-    <div className="thumb">
-      <div dangerouslySetInnerHTML={{ __html: html }} />
-      {label ? <div className="label">{label}</div> : null}
-    </div>
-  );
-}
+import "./GroupFeaturePanel.css";
+import { API_BASE, fetchViolinGlobal, fetchViolinSelection, fetchViolinGlobalKDE, fetchViolinSelectionKDE } from "../api/api";
 
 export default function GroupFeaturePanel({
   data,
@@ -38,41 +15,259 @@ export default function GroupFeaturePanel({
   alphas,
   points = [],
 }) {
-  const mapById = useMemo(() => {
-    const m = new Map();
-    for (const p of points) m.set(p.id, p);
-    return m;
-  }, [points]);
-  const repObj = mapById.get(data?.representative);
-
-  // 已移除：Centroid similarity(heatmap) 与 Group compactness distribution
-
-  // Gallery self-adaptive sizing (single row, no scrollbar)
-  const galleryRef = useRef(null);
-  const [thumbSize, setThumbSize] = useState(72);
-  const [mainSize, setMainSize] = useState(112);
+  // ============== Violin (Global vs Selection) ==============
+  const [violinData, setViolinData] = useState(null); // { global:{channels,values}, sel:{channels,values} }
+  const [violinMsg, setViolinMsg] = useState("Loading...");
+  const violinRef = useRef(null);
+  const [channelNames, setChannelNames] = useState(new Map()); // id -> name (from channel_info.json)
   useEffect(() => {
-    const update = () => {
-      const el = galleryRef.current;
-      if (!el) return;
-      const others = Math.min(5, Math.max(0, (data?.exemplars || []).length - 1));
-      const hasMain = !!repObj;
-      const total = others + (hasMain ? 1 : 0);
-      if (total === 0) return;
-      const gap = 12;
-      const w = el.clientWidth || 600;
-      const ratio = hasMain ? 1.35 : 1.0; // main vs others width ratio
-      const s = Math.floor((w - Math.max(0, total - 1) * gap) / (others + ratio));
-      const sClamped = Math.max(52, Math.min(110, s));
-      const main = Math.floor(ratio * sClamped);
-      setThumbSize(sClamped);
-      setMainSize(main);
+    let abort = false;
+    const run = async () => {
+      try {
+        const url = `${API_BASE}/public/channel_info.json?ts=${Date.now()}`;
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) return;
+        const json = await res.json();
+        const m = new Map();
+        if (json && Array.isArray(json.channels)) {
+          for (const ch of json.channels) {
+            if (typeof ch?.id === "number" && typeof ch?.name === "string") {
+              m.set(ch.id, ch.name);
+            }
+          }
+        }
+        if (!abort) setChannelNames(m);
+      } catch {}
     };
-    update();
-    const onResize = () => update();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [data, repObj]);
+    run();
+    return () => { abort = true; };
+  }, []);
+  useEffect(() => {
+    let abort = false;
+    const run = async () => {
+      try {
+        setViolinMsg("Loading...");
+        const activeChs = Array.isArray(channels) && channels.length > 0 ? channels.map((c) => Number(c)) : [];
+        if (activeChs.length === 0) {
+          setViolinData(null);
+          setViolinMsg("No active channels");
+          return;
+        }
+        // collect ids
+        const ids = Array.isArray(data?.coords) ? data.coords.map((o) => o.id) : [];
+        if (!Array.isArray(ids) || ids.length === 0) {
+          setViolinData(null);
+          setViolinMsg("No selection");
+          return;
+        }
+        // fetch global and selection KDE
+        const [gkde, skde] = await Promise.all([
+          fetchViolinGlobalKDE(100000, 99.0, 0.1, activeChs, 256, undefined),
+          fetchViolinSelectionKDE(ids, 100000, 99.0, 0.1, activeChs, 256, undefined),
+        ]);
+        if (!abort) {
+          if (gkde && skde && !gkde.error && !skde.error && Array.isArray(gkde.channels) && Array.isArray(skde.channels)) {
+            setViolinData({ global_kde: gkde, sel_kde: skde });
+            setViolinMsg("");
+          } else {
+            setViolinData(null);
+            setViolinMsg("Failed to load violin data");
+          }
+        }
+      } catch {
+        if (!abort) {
+          setViolinData(null);
+          setViolinMsg("Failed to load violin data");
+        }
+      }
+    };
+    run();
+    return () => {
+      abort = true;
+    };
+  }, [data]);
+
+  useEffect(() => {
+    const canvas = violinRef.current;
+    if (!canvas) return;
+    const pack = violinData;
+    const gkde = pack?.global_kde;
+    const skde = pack?.sel_kde;
+    const chs = Array.isArray(gkde?.channels) ? gkde.channels : null;
+    if (!chs || !Array.isArray(gkde?.xs) || !Array.isArray(gkde?.ys) || !Array.isArray(skde?.xs) || !Array.isArray(skde?.ys)) {
+
+      const ctx0 = canvas.getContext("2d");
+      if (!ctx0) return;
+      const dpr0 = window.devicePixelRatio || 1;
+      const w0 = canvas.clientWidth || 600;
+      const h0 = canvas.clientHeight || 220;
+      canvas.width = Math.round(w0 * dpr0);
+      canvas.height = Math.round(h0 * dpr0);
+      ctx0.setTransform(1,0,0,1,0,0);
+      ctx0.scale(dpr0, dpr0);
+      ctx0.clearRect(0,0,w0,h0);
+
+      ctx0.fillStyle = "rgba(255,255,255,0.03)";
+      ctx0.fillRect(0,0,w0,h0);
+      if (violinMsg) {
+        ctx0.fillStyle = "rgba(255,255,255,0.75)";
+        ctx0.font = "14px sans-serif";
+        ctx0.fillText(violinMsg, 12, 22);
+        ctx0.fillStyle = "rgba(255,255,255,0.15)";
+        ctx0.fillRect(10, 28, w0 - 20, 1);
+      }
+      return;
+    }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth || 900;
+    const h = canvas.clientHeight || 200;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0,0,w,h);
+
+    const bg = ctx.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, "rgba(255,255,255,0.02)");
+    bg.addColorStop(1, "rgba(255,255,255,0.02)");
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, w, h);
+    const marginL = 56, marginR = 16, marginT = 16, marginB = 32;
+    const plotW = w - marginL - marginR;
+    const plotH = h - marginT - marginB;
+    const C = chs.length;
+    if (C === 0) return;
+    // x-axis layout for each channel (x-axis layout for each channel)
+    const colW = plotW / C;
+
+    const gammaY = 4.0; // adjustable: >1 upper more sparse, <1 upper more dense
+    const toY = (t01) => {
+      const u = Math.max(0, Math.min(1, t01));
+      const nonlin = Math.pow(u, gammaY);
+      return marginT + (1 - nonlin) * plotH;
+    };
+    const colorGlobal = "rgba(255,184,76,0.85)"; // orange (global/left)
+    const colorSel = "rgba(0,200,255,0.85)";     // blue (selection/right)
+
+    ctx.lineWidth = 1;
+
+    let uLo = 0;
+    let uHi = 65535;
+    const mapToUnion01 = (v) => (v - uLo) / (uHi - uLo + 1e-6);
+    // left y-axis ticks (real intensity values, considering nonlinear transformation; evenly distributed in display space to avoid crowding)
+    ctx.textAlign = "right";
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    const numTicks = 4; // display 3~4 ticks
+    for (let i = 0; i < numTicks; i++) {
+      // p: 0 top, 1 bottom (evenly distributed in display space)
+      const p = i / (numTicks - 1);
+      const y = marginT + p * plotH;
+      // reverse mapping to get actual intensity: t = (1 - p)^(1/gamma)
+      const t = Math.pow(1 - p, 1 / gammaY);
+      const v = uLo + t * (uHi - uLo);
+      const label = v >= 1000 ? Math.round(v).toString() : v.toFixed(2);
+      ctx.fillText(label, marginL - 6, y + 4);
+    }
+    // x-axis channel names (using channel colors + displaying real channel names from channel_info.json)
+    ctx.textAlign = "center";
+    ctx.font = "14px sans-serif";
+    for (let i = 0; i < C; i++) {
+      const cx = marginL + i * colW + colW * 0.5;
+      const chIdx = chs[i];
+      const label = channelNames.get(chIdx) || (channels?.[chIdx]?.name) || `ch${chIdx}`;
+      const col = colors?.[chIdx] || [230,230,235];
+      ctx.fillStyle = `rgba(${col[0] ?? 230},${col[1] ?? 230},${col[2] ?? 235},0.95)`;
+      ctx.fillText(label, cx, h - 10);
+    }
+    // calculate density and draw (global/selection both use backend KDE)
+    for (let i = 0; i < C; i++) {
+      const xsG = Array.isArray(gkde?.xs?.[i]) ? gkde.xs[i] : [];
+      const ysG = Array.isArray(gkde?.ys?.[i]) ? gkde.ys[i] : [];
+      const maxYG = Math.max(1e-6, ...(ysG || []));
+      const nG = (Array.isArray(gkde?.n) && typeof gkde.n[i] === "number") ? gkde.n[i] : 0;
+      const dg = {
+        lo: Array.isArray(xsG) && xsG.length ? xsG[0] : 0,
+        hi: Array.isArray(xsG) && xsG.length ? xsG[xsG.length - 1] : 1,
+        xs: xsG,
+        ys: (ysG || []).map(v => v / maxYG),
+      };
+      const xsS = Array.isArray(skde?.xs?.[i]) ? skde.xs[i] : [];
+      const ysS = Array.isArray(skde?.ys?.[i]) ? skde.ys[i] : [];
+      const maxYS = Math.max(1e-6, ...(ysS || []));
+      const nS = (Array.isArray(skde?.n) && typeof skde.n[i] === "number") ? skde.n[i] : 0;
+      const ds = {
+        lo: Array.isArray(xsS) && xsS.length ? xsS[0] : 0,
+        hi: Array.isArray(xsS) && xsS.length ? xsS[xsS.length - 1] : 1,
+        xs: xsS,
+        ys: (ysS || []).map(v => v / maxYS),
+      };
+      const cx = marginL + i * colW + colW * 0.5;
+      const halfW = Math.max(8, Math.min(22, colW * 0.35));
+      const denom = Math.max(1, nG);
+      const selScale = Math.max(0, Math.min(1, nS / denom)); // sample size ratio relative to global
+      const halfW_sel = halfW * selScale;
+      // global (left)
+      ctx.fillStyle = colorGlobal;
+      ctx.beginPath();
+      for (let b = 0; b < (dg.xs?.length || 0); b++) {
+        const v = dg.xs[b];
+        const tUnion = mapToUnion01(v);
+        const y = toY(tUnion);
+        const wLeft = (dg.ys[b] || 0) * halfW;
+        if (b === 0) ctx.moveTo(cx, y);
+        ctx.lineTo(cx - wLeft, y);
+      }
+      for (let b = (dg.xs?.length || 0) - 1; b >= 0; b--) {
+        const v = dg.xs[b];
+        const tUnion = mapToUnion01(v);
+        const y = toY(tUnion);
+        ctx.lineTo(cx, y);
+      }
+      ctx.closePath();
+      ctx.globalAlpha = 0.85;
+      ctx.fill();
+      // outer border (enhanced contrast)
+      ctx.globalAlpha = 1.0;
+      ctx.strokeStyle = "rgba(255,255,255,0.2)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.globalAlpha = 1.0;
+      // selection (right)
+      ctx.fillStyle = colorSel;
+      ctx.beginPath();
+      for (let b = 0; b < (ds.xs?.length || 0); b++) {
+        const v = ds.xs[b];
+        const tUnion = mapToUnion01(v);
+        const y = toY(tUnion);
+        const wRight = (ds.ys[b] || 0) * halfW_sel;
+        if (b === 0) ctx.moveTo(cx, y);
+        ctx.lineTo(cx + wRight, y);
+      }
+      for (let b = (ds.xs?.length || 0) - 1; b >= 0; b--) {
+        const v = ds.xs[b];
+        const tUnion = mapToUnion01(v);
+        const y = toY(tUnion);
+        ctx.lineTo(cx, y);
+      }
+      ctx.closePath();
+      ctx.globalAlpha = 0.85;
+      ctx.fill();
+      ctx.globalAlpha = 1.0;
+      ctx.strokeStyle = "rgba(255,255,255,0.2)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.globalAlpha = 1.0;
+      // middle line (slightly thicker)
+      ctx.strokeStyle = "rgba(255,255,255,0.35)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, marginT);
+      ctx.lineTo(cx, marginT + plotH);
+      ctx.stroke();
+    }
+  }, [violinData, channels]);
 
   // High-dimensional Similarity Field (seriation-based)
   const fieldRef = useRef(null);
@@ -97,7 +292,7 @@ export default function GroupFeaturePanel({
     ctx.scale(dpr, dpr);
     ctx.clearRect(0,0,w,h);
     if (N === 0) return;
-    // margins（扩大留白，避免元素拥挤与遮挡）
+
     const mx = 36, my = 28;
     // x from seriation
     const orderIdx = [];
@@ -115,7 +310,7 @@ export default function GroupFeaturePanel({
     const x01 = orderIdx.map(r => r / n1);
     // y from similarity to centroid
     const y01 = sims.map(s => Math.max(0, Math.min(1, (s + 1) / 2)));
-    // （已移除 seriation cluster cue）
+
     // draw global y background bands (1D hist as horizontal bands)
     if (Array.isArray(gY.centers) && Array.isArray(gY.counts) && gY.centers.length === gY.counts.length && gY.centers.length > 0) {
       const maxC = Math.max(1, ...gY.counts);
@@ -218,7 +413,7 @@ export default function GroupFeaturePanel({
       ctx.stroke();
       ctx.setLineDash([]);
     }
-    // legend box（右上角）
+    // legend box
     if (typeof medGlobal === "number" || typeof medGroup === "number") {
       const pad = 8;
       const lh = 16;
@@ -323,13 +518,13 @@ export default function GroupFeaturePanel({
     // center, radii
     const cx = w / 2, cy = h / 2;
     const R = Math.min(w, h) * 0.48;
-    const R0 = Math.min(w, h) * 0.075; // 缩小内半径（约等于直径15%）
-    // 背景底色
+    const R0 = Math.min(w, h) * 0.075;
+
     ctx.fillStyle = "rgba(255,255,255,0.02)";
     ctx.beginPath();
     ctx.arc(cx, cy, R, 0, Math.PI*2);
     ctx.fill();
-    // 工具函数：KDE over [0,1]
+
     const kde1d = (vals01, bandwidth = 0.08, samples = 192) => {
       if (!vals01 || vals01.length === 0) return { xs: [], ys: [] };
       const xs = new Array(samples);
@@ -346,12 +541,12 @@ export default function GroupFeaturePanel({
         }
         ys[i] = acc * norm;
       }
-      // 归一化 0..1
+
       const maxY = Math.max(1e-6, ...ys);
       for (let i = 0; i < samples; i++) ys[i] /= maxY;
       return { xs, ys };
     };
-    // 组内半径：r = 1 - s，组内 min-max 归一化 r_norm ∈ [0,1]
+
     const sClip = sims.map(v => Math.max(-1, Math.min(1, v)));
     const rVals = sClip.map(v => 1 - v);
     let rMin = 0, rMax = 1;
@@ -360,14 +555,14 @@ export default function GroupFeaturePanel({
       rMax = Math.max(...rVals);
     }
     const r01Group = rVals.map(v => (v - rMin) / (rMax - rMin + 1e-6));
-    // 计算 group KDE（基于 r_norm 的平滑径向带）
+    // calculate group KDE (based on r_norm smooth radial band)
     const bw = Math.max(0.05, Math.min(0.15, 1 / Math.sqrt(Math.max(8, r01Group.length))));
     const { xs: gx, ys: gy } = kde1d(r01Group, bw, 192);
-    // 计算 global 密度（由直方图平滑）
+    // calculate global density (smoothed by histogram)
     let hx = [], hy = [];
     if (Array.isArray(ghist.centers) && Array.isArray(ghist.counts) && ghist.centers.length === ghist.counts.length && ghist.centers.length > 0) {
       const maxC = Math.max(1, ...ghist.counts);
-      // 平滑 counts（3点均值）并归一化
+      // smooth counts (3-point mean) and normalize
       const sm = ghist.counts.map((c, i, a) => {
         const c0 = a[Math.max(0, i-1)] ?? c, c1 = c, c2 = a[Math.min(a.length-1, i+1)] ?? c;
         return (c0 + c1 + c2) / 3;
@@ -375,7 +570,7 @@ export default function GroupFeaturePanel({
       hx = ghist.centers.slice();
       hy = sm;
     }
-    // 绘制 global 背景带（柔和、低透明度），避免“CD”
+    // draw global background band (soft, low opacity) to avoid "CD"
     if (hx.length > 0) {
       ctx.save();
       ctx.filter = "blur(1.2px)";
@@ -384,7 +579,7 @@ export default function GroupFeaturePanel({
         const r01 = 1 - s01; // r_global_norm
         const r = R0 + r01 * (R - R0);
         const a = 0.06 + 0.18 * hy[i];
-        ctx.strokeStyle = `rgba(180,180,185,${a})`; // 全局：浅灰
+        ctx.strokeStyle = `rgba(180,180,185,${a})`; // global: light gray
         ctx.lineWidth = 10;
         ctx.beginPath();
         ctx.arc(cx, cy, r, 0, Math.PI*2);
@@ -392,7 +587,7 @@ export default function GroupFeaturePanel({
       }
       ctx.restore();
     }
-    // 绘制 group 密度带（平滑KDE，无条纹，淡蓝）
+    // draw group density band (smoothed KDE, no stripes, light blue)
     if (N > 0) {
       ctx.save();
       ctx.filter = "blur(1.8px)";
@@ -400,27 +595,27 @@ export default function GroupFeaturePanel({
         const r01 = gx[i];
         const r = R0 + r01 * (R - R0);
         const a = 0.10 + 0.35 * gy[i];
-        ctx.strokeStyle = `rgba(0,160,255,${a})`; // 组内：淡蓝，亮度随密度
+        ctx.strokeStyle = `rgba(0,160,255,${a})`; // group: light blue; brightness scales with density
         ctx.lineWidth = 12;
         ctx.beginPath();
         ctx.arc(cx, cy, r, 0, Math.PI*2);
         ctx.stroke();
       }
       ctx.restore();
-      // angle from proj1（方向轴）
+      // angle from proj1 (direction axis)
       let minP = Math.min(...proj), maxP = Math.max(...proj);
       if (!isFinite(minP) || !isFinite(maxP) || minP === maxP) {
         minP = -1; maxP = 1;
       }
-      // 角度正方向轴线（极淡）+ 箭头（指向 PCA1 positive）
-      const thetaPos = Math.PI; // t=1 对应的方向
+      // angle from proj1 (direction axis)
+      const thetaPos = Math.PI; // direction corresponding to t=1
       ctx.strokeStyle = "rgba(255,255,255,0.1)";
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(cx, cy);
       ctx.lineTo(cx + (R-2) * Math.cos(thetaPos), cy + (R-2) * Math.sin(thetaPos));
       ctx.stroke();
-      // 小箭头
+      // small arrow
       const ax = cx + (R-2) * Math.cos(thetaPos);
       const ay = cy + (R-2) * Math.sin(thetaPos);
       const ah = 6;
@@ -432,11 +627,11 @@ export default function GroupFeaturePanel({
       ctx.closePath();
       ctx.fill();
 
-      // 计算局部密度（用于点大小，密集→小，稀疏→大）
+      // calculate local density (used for point size, dense→small, sparse→large)
       const tvals = proj.map(v => (v - minP) / (maxP - minP)); // [0,1]
       const dens = new Array(N).fill(0);
       if (N <= 1500) {
-        const aeps = 0.08, reps = 0.06; // 角度/半径邻域
+        const aeps = 0.08, reps = 0.06; // angle/radius neighborhood
         for (let i = 0; i < N; i++) {
           let c = 0;
           const ti = tvals[i], ri = r01Group[i];
@@ -444,21 +639,21 @@ export default function GroupFeaturePanel({
             if (i === j) continue;
             const tj = tvals[j], rj = r01Group[j];
             let dt = Math.abs(ti - tj);
-            dt = Math.min(dt, 1 - dt); // 环绕
+            dt = Math.min(dt, 1 - dt); // wrap around
             const dr = Math.abs(ri - rj);
             if (dt < aeps && dr < reps) c++;
           }
           dens[i] = c;
         }
-        // 归一化到 [0,1]
+        // normalize to [0,1]
         const md = Math.max(1, ...dens);
         for (let i = 0; i < N; i++) dens[i] = dens[i] / md;
       } else {
-        // 大组时不计算，默认中等密度
+        // for large groups, do not calculate, default medium density
         for (let i = 0; i < N; i++) dens[i] = 0.5;
       }
 
-      // 前景点：亮度=similarity，大小=密度(反比)，描边=exemplar
+      // foreground points: brightness=similarity, size=density(inverse), stroke=exemplar
       for (let i = 0; i < N; i++) {
         const r01 = r01Group[i];
         const r = R0 + r01 * (R - R0);
@@ -466,9 +661,9 @@ export default function GroupFeaturePanel({
         const theta = (t * Math.PI * 2) - Math.PI;
         const x = cx + r * Math.cos(theta);
         const y = cy + r * Math.sin(theta);
-        // 点大小：稀疏更大
+        // point size: sparse larger
         const size = 1.6 + (1 - dens[i]) * 2.2; // 1.6..3.8
-        // 亮度：相似度越高越亮（HSL）
+        // brightness: higher similarity brighter (HSL)
         const s01_for_light = Math.max(0, Math.min(1, (sClip[i] + 1) / 2));
         const light = 40 + Math.round(45 * s01_for_light); // 40%..85%
         ctx.strokeStyle = "rgba(0,0,0,0.3)";
@@ -480,7 +675,6 @@ export default function GroupFeaturePanel({
         ctx.beginPath();
         ctx.arc(x, y, size, 0, Math.PI*2);
         ctx.fill();
-        // exemplar 高亮描边
         const idHere = memberIds[i];
         if (exemplarSet.has(idHere)) {
           ctx.strokeStyle = "rgba(255,255,255,0.95)";
@@ -495,26 +689,22 @@ export default function GroupFeaturePanel({
           ctx.stroke();
         }
       }
-      // 群心标记
       ctx.fillStyle = "rgba(255,255,255,0.9)";
       ctx.beginPath();
       ctx.arc(cx, cy, 2.5, 0, Math.PI*2);
       ctx.fill();
     }
-    // 外边界
     ctx.strokeStyle = "rgba(255,255,255,0.18)";
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.arc(cx, cy, R, 0, Math.PI*2);
     ctx.stroke();
-    // 图例：径向相似度
     ctx.fillStyle = "rgba(255,255,255,0.6)";
     ctx.font = "12px sans-serif";
     ctx.textAlign = "left";
     ctx.fillText("high sim", cx + 6, cy + 4);
     ctx.textAlign = "right";
     ctx.fillText("low sim", cx + R - 6, cy + 4);
-    // 图例：角度方向（投影）
     ctx.textAlign = "center";
     ctx.fillStyle = "rgba(255,255,255,0.55)";
     ctx.fillText("− projection → +", cx, cy - R - 6 + 16);
@@ -524,54 +714,29 @@ export default function GroupFeaturePanel({
   return (
     <div>
 
+
       <div className="feature-section">
-        <div className="feature-title">Representative gallery</div>
-        {/* 自适应一行排布：根据容器宽度动态缩放，避免滚动条 */}
-        <div ref={galleryRef} className="gallery-row">
-          {repObj ? (
-            <Thumb
-              object={repObj}
-              iconMappingsByChunk={iconMappingsByChunk}
-              chunkUV={chunkUV}
-              atlasByChannel={atlasByChannel}
-              atlasURL={atlasURL}
-              channels={channels}
-              colors={colors}
-              alphas={alphas}
-              size={mainSize}
-              label={"centroid exemplar"}
-            />
-          ) : null}
-          {(data?.exemplars || []).slice(1, 6).map((ex) => {
-            const obj = mapById.get(ex.id);
-            if (!obj) return null;
-            return (
-              <Thumb
-                key={ex.id}
-                object={obj}
-                iconMappingsByChunk={iconMappingsByChunk}
-                chunkUV={chunkUV}
-                atlasByChannel={atlasByChannel}
-                atlasURL={atlasURL}
-                channels={channels}
-                colors={colors}
-                alphas={alphas}
-                size={thumbSize}
-                label={`sim ${ex.similarity.toFixed(2)}`}
-              />
-            );
-          })}
+        <div className="gfp-header">
+          <div className="feature-title">Expression Distribution: Local vs Global</div>
+          <div className="gfp-legend">
+            <div className="gfp-legend-item">
+              <span className="gfp-swatch gfp-swatch--global" />
+              <span className="gfp-legend-label">Global</span>
+            </div>
+            <div className="gfp-legend-item">
+              <span className="gfp-swatch gfp-swatch--selection" />
+              <span className="gfp-legend-label">Selection</span>
+            </div>
+          </div>
         </div>
+
+        <canvas ref={violinRef} className="gfp-violin-canvas" />
       </div>
 
       <div className="feature-section">
         <div className="feature-title">High-dimensional Similarity Field</div>
-        <canvas ref={fieldRef} style={{ width: "100%", height: 320, display: "block" }} />
+        <canvas ref={fieldRef} className="gfp-field-canvas" />
       </div>
-
-      {/* 已移除 heatmap 与 compactness 分布 */}
-
-      {/* 已移除 Group difference 指标 */}
     </div>
   );
 }

@@ -220,7 +220,7 @@ const Viewer = ({
       setPopoverOpen(false);
       return;
     }
-    // 自动进入“单点分析”：把所点 cell 设为当前 selection
+    // Auto-enter single-cell analysis: set the clicked cell as the current selection
     try {
       const id = info?.object?.id;
       if (id != null) {
@@ -228,7 +228,7 @@ const Viewer = ({
         try { window.__selectionOwner = viewerId; } catch {}
       }
     } catch {}
-    // 仍然保留轻量工具条（可关闭）
+    // Keep the lightweight toolbar (can be closed)
     const { x, y } = getXY(info);
     setToolbar({ show: true, x, y, object: info.object });
   };
@@ -511,7 +511,7 @@ const Viewer = ({
           setToolbar((t) => ({ ...t, show: false }));
         }}
         onFindTopK={() => {
-          // 显式触发 T1 分析（在点击位置附近展示）
+          // Explicitly trigger T1 analysis (shown near the click position)
           try {
             const id = toolbar.object?.id;
             if (id != null) {
@@ -524,7 +524,7 @@ const Viewer = ({
           }
         }}
       />
-      {/* Group analysis toolbar: 出现在有多选时 */}
+      {/* Group analysis toolbar: appears when multiple items are selected */}
       <GroupToolbar
         show={
           !isSelecting &&
@@ -536,17 +536,17 @@ const Viewer = ({
           try {
             const ids = Array.from(selectedIds || []);
             if (ids.length > 1) {
-              // 屏幕空间质心
+              // Screen-space centroid
               const deck = deckRef.current?.deck;
               const viewport = deck?.getViewports()[0];
               if (viewport) {
-                // 求选中点的世界坐标质心
+                // Compute the world-space centroid of selected points
                 let cnt = 0, sx = 0, sy = 0;
                 const dpr = (typeof window !== "undefined" && window.devicePixelRatio) ? window.devicePixelRatio : 1;
                 for (const p of points) {
                   if (!selectedIds.has(p.id)) continue;
                   const [px, py] = viewport.project([p.x, p.y, p.z ?? 0]);
-                  // 将设备像素坐标转换为 CSS 像素，便于与容器绝对定位一致
+                  // Convert device pixels to CSS pixels so absolute positioning aligns with the container
                   sx += px / dpr; 
                   sy += py / dpr; 
                   cnt++;

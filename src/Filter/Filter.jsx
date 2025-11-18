@@ -213,7 +213,7 @@ export default function Filter({ setFilteredIds = () => {} }) {
     }
   };
 
-  // Try preloading on mount so第一次聚焦更快（若失败不影响，聚焦时仍会再尝试）
+  // Try preloading on mount so the first focus is faster (if it fails, it will retry on focus)
   useEffect(() => { ensureMeta.current(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   const columns = useMemo(() => metaList.map((m)=>m.rawName), [metaList]);

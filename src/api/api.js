@@ -35,6 +35,16 @@ export async function fetchMeta(signal) {
   }
 }
 
+// ===== Violin density (backend KDE) =====
+export async function fetchViolinGlobalKDE(max = 100000, perc = 99.0, thr = 0.1, channels = null, grid = 256, signal) {
+  try {
+    const chParam = Array.isArray(channels) && channels.length > 0 ? `&channels=${channels.join(",")}` : "";
+    return await fetchJSON(`${API_BASE}/violin/global_kde?max_samples_per_channel=${max}&perc_for_thr=${perc}&thr_factor=${thr}&grid=${grid}${chParam}`, { signal });
+  } catch (e) {
+    console.error("fetchViolinGlobalKDE failed", e);
+    return { error: "Failed to fetch violin global KDE" };
+  }
+}
 export async function fetchCoords(signal) {
   try {
     const url = `${API_BASE}/public/coords.json?ts=${Date.now()}`;
@@ -85,16 +95,6 @@ export function prewarm(channel, tile) {
   } catch {}
 }
 
-// ===== Global similarity histogram =====
-export async function fetchGlobalHist(bins = 60, sample = 50000, signal) {
-  try {
-    return await fetchJSON(`${API_BASE}/features/global_hist?bins=${bins}&sample=${sample}`, { signal });
-  } catch (e) {
-    console.error("fetchGlobalHist failed", e);
-    return null;
-  }
-}
-
 // ===== Features (T1/T2) =====
 export async function fetchT1(queryId, k = 30, signal) {
   try {
@@ -121,6 +121,23 @@ export async function fetchT2(ids, signal) {
   }
 }
 
+export async function fetchViolinSelectionKDE(ids, max = 100000, perc = 99.0, thr = 0.1, channels = null, grid = 256, signal) {
+  try {
+    const body = { ids, max, perc, thr, grid };
+    if (Array.isArray(channels) && channels.length > 0) body.channels = channels;
+    const res = await fetch(`${API_BASE}/violin/selection_kde`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal,
+    });
+    if (!res.ok) throw new Error(await safeReadText(res));
+    return await res.json();
+  } catch (e) {
+    console.error("fetchViolinSelectionKDE failed", e);
+    return { error: "Failed to fetch violin selection KDE" };
+  }
+}
 async function safeReadText(res) {
   try {
     return await res.text();

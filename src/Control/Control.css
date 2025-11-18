@@ -80,7 +80,7 @@
   background: transparent;
   box-shadow: none;
   overflow: visible; /* keep toggle visible/clickable */
-  pointer-events: none; /* panel不接收事件，避免透明矩形挡住内容 */
+  pointer-events: none; /* panel does not receive events to avoid transparent rect blocking content */
 }
 .control-panel.collapsed .control-content {
   display: none;

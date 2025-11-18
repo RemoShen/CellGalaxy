@@ -73,7 +73,7 @@ export default function AnalysisPopover({
       if (!open || !command) return;
       // base position: anchor + offset
       try {
-        // 先直接使用锚点坐标（相对 viewer 容器），避免在尚未挂载时测量错误
+        // Use anchor coordinates directly (relative to the viewer container) to avoid measurement errors before mount
         setPos({ x: Math.round(x + 12), y: Math.round(y + 12) });
       } catch {
         setPos({ x: Math.round(x + 12), y: Math.round(y + 12) });
