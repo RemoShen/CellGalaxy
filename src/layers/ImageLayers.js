@@ -30,6 +30,18 @@ export default function ImageLayers({
   getRegionIndexForId,
   regionColors,
 }) {
+
+  const selectedPoints = useMemo(() => {
+    if (!points || !getRegionIndexForId) return [];
+    const arr = [];
+    for (const p of points) {
+      const rIdx = getRegionIndexForId(p.id);
+      if (typeof rIdx === "number" && rIdx >= 0) arr.push(p);
+    }
+    return arr;
+  }, [points, getRegionIndexForId]);
+  const hasSelection = selectedPoints.length > 0;
+
   const layers = useMemo(() => {
     if (!meta) return [];
 
@@ -52,7 +64,11 @@ export default function ImageLayers({
           iconMapping: mapping,
           getIcon: (d) => d.icon,
           getPosition: (d) => [d.x, d.y, d.z ?? 0],
-          getSize: computedImageSize,
+          getSize: (d) => {
+            const rIdx = getRegionIndexForId?.(d.id);
+            const scale = typeof rIdx === "number" && rIdx >= 0 ? 1.2 : 1.0;
+            return computedImageSize * scale;
+          },
           sizeScale: 1,
           fovy: 45,
           near: 0.1,
@@ -68,7 +84,7 @@ export default function ImageLayers({
             getSize: { duration: 300, easing: ease },
           },
           updateTriggers: {
-            getSize: [computedImageSize],
+            getSize: [computedImageSize, selectedPoints.length],
           },
         };
         let addedGray = false;
@@ -102,6 +118,10 @@ export default function ImageLayers({
                   const rIdx = getRegionIndexForId?.(d.id);
                   if (typeof rIdx === "number" && rIdx >= 0)
                     return regionColors[Math.min(rIdx, regionColors.length - 1)];
+                  if (hasSelection) {
+                    const dimA = Math.max(30, Math.round(a * 0.35));
+                    return [col[0] ?? 255, col[1] ?? 255, col[2] ?? 255, dimA];
+                  }
                   const activeFilter = filteredIds && filteredIds.size > 0;
                   if (activeFilter && !filteredIds.has(d.id)) {
                     const dimA = Math.min(a, 24);
@@ -132,13 +152,14 @@ export default function ImageLayers({
                   const rIdx = getRegionIndexForId?.(d.id);
                   if (typeof rIdx === "number" && rIdx >= 0)
                     return regionColors[Math.min(rIdx, regionColors.length - 1)];
+                  if (hasSelection) return [255, 255, 255, 110];
                   const activeFilter = filteredIds && filteredIds.size > 0;
                   if (activeFilter && !filteredIds.has(d.id)) return [255, 255, 255, 30];
                   return [255, 255, 255, 255];
                 },
                 updateTriggers: {
                   ...baseConfig.updateTriggers,
-                  getColor: [filteredIds],
+                  getColor: [filteredIds, selectedPoints.length],
                 },
               })
             );
@@ -159,6 +180,10 @@ export default function ImageLayers({
                 flatColor: true,
                 premultiply: true,
                 getColor: (d) => {
+                  const rIdx = getRegionIndexForId?.(d.id);
+                  if (hasSelection && !(typeof rIdx === "number" && rIdx >= 0)) {
+                    return [0, 0, 0, 0];
+                  }
                   const activeFilter = filteredIds && filteredIds.size > 0;
                   if (activeFilter && !filteredIds.has(d.id)) return [0, 0, 0, 0];
                   const rgb = clusterColor(d.label);
@@ -167,7 +192,7 @@ export default function ImageLayers({
                 },
                 updateTriggers: {
                   ...baseConfig.updateTriggers,
-                  getColor: [filteredIds, clusterOpacity],
+                  getColor: [filteredIds, clusterOpacity, selectedPoints.length],
                 },
               })
             );
@@ -180,16 +205,25 @@ export default function ImageLayers({
                 getPosition: (d) => [d.x, d.y, d.z ?? 0],
                 stroked: false,
                 getFillColor: (d) => {
+                  const rIdx = getRegionIndexForId?.(d.id);
+                  if (hasSelection && !(typeof rIdx === "number" && rIdx >= 0)) return [0, 0, 0, 0];
                   const activeFilter = filteredIds && filteredIds.size > 0;
                   if (activeFilter && !filteredIds.has(d.id)) return [0, 0, 0, 0];
                   const rgb = clusterColor(d.label);
                   return [rgb[0], rgb[1], rgb[2], a];
                 },
-                getRadius: computedImageSize * 0.76,
+                getRadius: (d) => {
+                  const rIdx = getRegionIndexForId?.(d.id);
+                  const scale = typeof rIdx === "number" && rIdx >= 0 ? 1.2 : 1.0;
+                  return computedImageSize * 0.76 * scale;
+                },
                 radiusUnits: "pixels",
                 pickable: false,
                 parameters: { depthTest: false, blend: false },
-                updateTriggers: { getFillColor: [filteredIds, clusterOpacity], getRadius: [computedImageSize] },
+                updateTriggers: {
+                  getFillColor: [filteredIds, clusterOpacity, selectedPoints.length],
+                  getRadius: [computedImageSize, selectedPoints.length],
+                },
               })
             );
           }
@@ -228,12 +262,18 @@ export default function ImageLayers({
           getPosition: (d) => [d.x, d.y, d.z ?? 0],
           stroked: false,
           getFillColor: (d) => {
+            const rIdx = getRegionIndexForId?.(d.id);
+            if (hasSelection && !(typeof rIdx === "number" && rIdx >= 0)) return [0, 0, 0, 0];
             const activeFilter = filteredIds && filteredIds.size > 0;
             if (activeFilter && !filteredIds.has(d.id)) return [0, 0, 0, 0];
             const rgb = clusterColor(d.label);
             return [rgb[0], rgb[1], rgb[2], a];
           },
-          getRadius: computedImageSize * 0.72,
+          getRadius: (d) => {
+            const rIdx = getRegionIndexForId?.(d.id);
+            const scale = typeof rIdx === "number" && rIdx >= 0 ? 1.2 : 1.0;
+            return computedImageSize * 0.72 * scale;
+          },
           radiusUnits: "pixels",
           pickable: true,
           autoHighlight: true,
@@ -242,7 +282,7 @@ export default function ImageLayers({
             getPosition: { duration: 600, easing: ease },
             getRadius: { duration: 300, easing: ease },
           },
-          updateTriggers: { getFillColor: [filteredIds, clusterOpacity], getRadius: [computedImageSize] },
+          updateTriggers: { getFillColor: [filteredIds, clusterOpacity, selectedPoints.length], getRadius: [computedImageSize, selectedPoints.length] },
         })
       );
     } else {
@@ -255,12 +295,17 @@ export default function ImageLayers({
             const rIdx = getRegionIndexForId?.(d.id);
             if (typeof rIdx === "number" && rIdx >= 0)
               return regionColors[Math.min(rIdx, regionColors.length - 1)];
+            if (hasSelection) return [255, 255, 255, 110];
             const activeFilter = filteredIds && filteredIds.size > 0;
             if (activeFilter && !filteredIds.has(d.id)) return [255, 255, 255, 30];
             return [255, 255, 255, 255];
           },
           stroked: false,
-          getRadius: computedImageSize * 0.75,
+          getRadius: (d) => {
+            const rIdx = getRegionIndexForId?.(d.id);
+            const scale = typeof rIdx === "number" && rIdx >= 0 ? 1.22 : 1.0;
+            return computedImageSize * 0.75 * scale;
+          },
           radiusScale: 1,
           radiusUnits: "pixels",
           pickable: true,
@@ -270,7 +315,7 @@ export default function ImageLayers({
             getPosition: { duration: 600, easing: ease },
             getRadius: { duration: 300, easing: ease },
           },
-          updateTriggers: { getFillColor: [filteredIds], getRadius: [computedImageSize] },
+          updateTriggers: { getFillColor: [filteredIds, selectedPoints.length], getRadius: [computedImageSize, selectedPoints.length] },
         })
       );
     }
@@ -314,6 +359,7 @@ export default function ImageLayers({
     computedImageSize,
     getRegionIndexForId,
     regionColors,
+    selectedPoints.length,
   ]);
 
   return layers;
