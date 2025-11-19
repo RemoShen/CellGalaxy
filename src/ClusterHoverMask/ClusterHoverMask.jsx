@@ -3,12 +3,7 @@ import { SolidPolygonLayer } from "@deck.gl/layers";
 import { clusterColor } from "../utils/clustering";
 import { pointInPolygon, getEventCoordinates } from "../utils/utils";
 
-/**
- * ClusterHoverMask
- * - 仅在 2D 下工作
- * - 当鼠标悬停在某聚类凸包区域内、且未命中任何图元时，渲染半透明蒙版填充该区域
- * - 采用 render-prop 方式向父组件暴露 onHover 与附加 layers
- */
+
 export default function ClusterHoverMask({
   outlineData = [],
   is3D = false,
@@ -16,37 +11,60 @@ export default function ClusterHoverMask({
   containerRef,
   active = true,
   altPressed = false,
+
+  screenOutlines3D = [],
   children = () => null,
 }) {
-  const [hoverMask, setHoverMask] = useState(null);
+  const [hoverMask, setHoverMask] = useState(null);      // 2D: world-space polygon
+  const [hoverMask3D, setHoverMask3D] = useState(null);  // 3D: screen-space path
 
   const onHover = (info) => {
-    if (!active) { setHoverMask(null); return; }
-    // 命中点/图标时不显示蒙版；按住 Alt 则优先显示聚类蒙版
+    if (!active) { setHoverMask(null); setHoverMask3D(null); return; }
+
     const altFromEvent = !!(info && info.srcEvent && info.srcEvent.altKey);
     const preferCluster = altPressed || altFromEvent;
-    if (info && info.object && !preferCluster) { setHoverMask(null); return; }
-    if (is3D || !outlineData || outlineData.length === 0) { setHoverMask(null); return; }
+    if (info && info.object && !preferCluster) { setHoverMask(null); setHoverMask3D(null); return; }
+    if (!is3D && (!outlineData || outlineData.length === 0)) { setHoverMask(null); return; }
+    if (is3D && (!screenOutlines3D || screenOutlines3D.length === 0)) { setHoverMask3D(null); return; }
     try {
       const deck = deckRef.current?.deck;
       const viewport = deck?.getViewports?.()[0];
-      if (!viewport) { setHoverMask(null); return; }
+      if (!viewport) { setHoverMask(null); setHoverMask3D(null); return; }
       const { x, y } = getEventCoordinates(info, containerRef);
-      for (const o of outlineData) {
-        const polyScreen = o.path.map(([wx, wy, wz]) => viewport.project([wx, wy, wz || 0]));
-        if (polyScreen.length >= 3 && pointInPolygon([x, y], polyScreen)) {
-          const rgb = clusterColor(o.label ?? 0);
-          // 更低一些的透明度（约 25%）
-          setHoverMask({
-            path: o.path,
-            color: [rgb[0], rgb[1], rgb[2], 64],
-          });
-          return;
+      if (!is3D) {
+        for (const o of outlineData) {
+          const polyScreen = o.path.map(([wx, wy, wz]) => viewport.project([wx, wy, wz || 0]));
+          if (polyScreen.length >= 3 && pointInPolygon([x, y], polyScreen)) {
+            const rgb = clusterColor(o.label ?? 0);
+
+            setHoverMask({
+              path: o.path,
+              color: [rgb[0], rgb[1], rgb[2], 64],
+            });
+            setHoverMask3D(null);
+            return;
+          }
         }
+        setHoverMask(null);
+      } else {
+
+        for (const s of screenOutlines3D) {
+          const poly = s.poly || [];
+          if (poly.length >= 3 && pointInPolygon([x, y], poly)) {
+            const rgb = s.rgb || [255, 255, 255];
+            setHoverMask3D({
+              d: s.d,
+              fill: `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.25)`,
+            });
+            setHoverMask(null);
+            return;
+          }
+        }
+        setHoverMask3D(null);
       }
-      setHoverMask(null);
     } catch {
       setHoverMask(null);
+      setHoverMask3D(null);
     }
   };
 
@@ -67,7 +85,17 @@ export default function ClusterHoverMask({
     );
   }
 
-  return children({ onHover, layers });
+  const child = children({ onHover, layers });
+  return (
+    <>
+      {child}
+      {is3D && hoverMask3D && (
+        <svg className="cluster-outline-svg">
+          <path d={hoverMask3D.d} fill={hoverMask3D.fill} stroke="none" />
+        </svg>
+      )}
+    </>
+  );
 }
 
 

@@ -52,7 +52,13 @@ export function projectOutlines3D(viewport, points, filteredIds) {
     if (!hull || hull.length < 3) continue;
     const rgb = clusterColor(label);
     const d = hull.map(([x, y], i) => `${i ? "L" : "M"}${x},${y}`).join(" ") + " Z";
-    paths.push({ d, color: `rgba(${rgb[0]},${rgb[1]},${rgb[2]},1)` });
+    paths.push({
+      d,
+      poly: hull.map(([x, y]) => [x, y]),
+      color: `rgba(${rgb[0]},${rgb[1]},${rgb[2]},1)`,
+      rgb,
+      label,
+    });
   }
   return paths;
 }

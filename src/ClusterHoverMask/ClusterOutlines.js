@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
 import { projectOutlines3D } from "../utils/clustering";
 
-/**
- * 计算 3D 模式下的屏幕空间聚类外轮廓（用于 SVG 覆盖层）
- */
 export default function ClusterOutlines({
   is3D = false,
   clusterOutlineOn = false,

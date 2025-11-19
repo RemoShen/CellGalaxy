@@ -218,6 +218,7 @@ const Viewer = ({
               containerRef={containerRef}
               active={hoverMaskEnabled && clusterOutlineOn}
               altPressed={altPressed}
+              screenOutlines3D={screenOutlines}
             >
               {({ onHover, layers: hoverLayers }) => (
                 <DeckGL
