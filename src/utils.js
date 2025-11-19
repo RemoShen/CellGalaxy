@@ -245,3 +245,31 @@ export function kde1d(values01, bandwidth = 0.08, samples = 192) {
 }
 
 
+/**
+ * Compute 2D convex hull using Andrew's monotone chain.
+ * @param {Array<{x:number,y:number}>} pts - points array
+ * @returns {Array<[number,number]>} hull path (counter-clockwise), no repeated last point
+ */
+export function computeConvexHull2D(pts) {
+  const n = Array.isArray(pts) ? pts.length : 0;
+  if (n < 3) return pts.map(p => [p.x, p.y]);
+  const p = pts.map((v, i) => ({ x: +v.x, y: +v.y })).filter(v => Number.isFinite(v.x) && Number.isFinite(v.y));
+  p.sort((a, b) => (a.x === b.x ? a.y - b.y : a.x - b.x));
+  const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const lower = [];
+  for (let i = 0; i < p.length; i++) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p[i]) <= 0) lower.pop();
+    lower.push(p[i]);
+  }
+  const upper = [];
+  for (let i = p.length - 1; i >= 0; i--) {
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p[i]) <= 0) upper.pop();
+    upper.push(p[i]);
+  }
+  upper.pop();
+  lower.pop();
+  const hull = lower.concat(upper).map(v => [v.x, v.y]);
+  return hull;
+}
+
+

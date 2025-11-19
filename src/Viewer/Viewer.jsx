@@ -3,7 +3,7 @@
 // =============================
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import DeckGL from "@deck.gl/react";
-import { ScatterplotLayer } from "@deck.gl/layers";
+import { ScatterplotLayer, PathLayer } from "@deck.gl/layers";
 import WindowedIconLayer from "../layers/WindowedIconLayer";
 import AnalysisPopover from "../AnalysisPopover/AnalysisPopover";
 import SelectionOverlay from "../SelectionOverlay/SelectionOverlay";
@@ -26,6 +26,7 @@ import {
   performBoxSelection,
   performLassoSelection,
 } from "../utils";
+import { clusterColor, buildOutlineData2D, projectOutlines3D } from "../utils/clustering";
 import "./Viewer.css";
 import buildTooltipHTML from "../TooltipPreview/TooltipPreview";
 import ClickToolbar from "../ToolBar/ClickToolbar/ClickToolbar";
@@ -56,6 +57,11 @@ const Viewer = ({
   setSelectedRegions = () => {},
   clearSelection = () => {},
   filteredIds = new Set(),
+  // Clustering overlay
+  clusterColorOn = false,
+  clusterOpacity = 0.25,
+  clusterLineWidth = 1.5,
+  clusterOutlineOn = false,
   // Shared zoom (optional): when provided, viewers sync zoom level
   sharedZoom,
   setSharedZoom,
@@ -206,6 +212,28 @@ const Viewer = ({
     }
   });
 
+  // Build clustering outlines (convex hulls) lazily
+  const outlineData = useMemo(() => {
+    if (!clusterOutlineOn || is3D || !points || points.length < 3) return [];
+    return buildOutlineData2D(points);
+  }, [clusterOutlineOn, is3D, points]);
+
+  // —— 3D mode: screen-space hulls (recomputed on view change) ——
+  const [screenOutlines, setScreenOutlines] = useState([]);
+  useEffect(() => {
+    if (!is3D || !clusterOutlineOn) { setScreenOutlines([]); return; }
+    try {
+      const deck = deckRef.current?.deck;
+      const viewport = deck?.getViewports?.()[0];
+      if (!viewport || !points || points.length < 3) { setScreenOutlines([]); return; }
+      const paths = projectOutlines3D(viewport, points, filteredIds);
+      setScreenOutlines(paths);
+    } catch {
+      setScreenOutlines([]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [is3D, clusterOutlineOn, points, filteredIds, viewState.zoom, viewState.rotationX, viewState.rotationOrbit, viewState.target]);
+
   const layers = useMemo(() => {
     if (!meta) return [];
 
@@ -294,10 +322,83 @@ const Viewer = ({
             })
           );
         }
+
+        // Clustering color overlay on top of sprites
+        if (clusterColorOn) {
+          // Prefer to render with the same atlas to avoid any seam/gap (perfect square coverage)
+          const atlasAny =
+            (atlasByChannel?.[chunkId] && Object.values(atlasByChannel[chunkId])[0]) ||
+            null;
+          if (atlasAny) {
+            all.push(
+              new WindowedIconLayer({
+                ...baseConfig,
+                id: `cluster-color-atlas-${chunkId}`,
+                iconAtlas: String(atlasAny),
+                parameters: { depthTest: false, blend: true, blendFunc: [1, 1], blendEquation: 32774 },
+                windowMin: 0.0,
+                windowMax: 1.0,
+                premultiply: true,
+                getColor: (d) => {
+                  const activeFilter = filteredIds && filteredIds.size > 0;
+                  if (activeFilter && !filteredIds.has(d.id)) return [0,0,0,0];
+                  const rgb = clusterColor(d.label);
+                  const a = Math.round(Math.min(1, Math.max(0, clusterOpacity)) * 255);
+                  return [rgb[0], rgb[1], rgb[2], a];
+                },
+                updateTriggers: {
+                  ...baseConfig.updateTriggers,
+                  getColor: [filteredIds, clusterOpacity],
+                }
+              })
+            );
+          } else {
+            // Fallback: circle overlay
+            const a = Math.round(Math.min(1, Math.max(0, clusterOpacity)) * 255);
+            all.push(
+              new ScatterplotLayer({
+                id: `cluster-color-${chunkId}`,
+                data: arr,
+                getPosition: (d) => [d.x, d.y, d.z ?? 0],
+                stroked: false,
+                getFillColor: (d) => {
+                  const activeFilter = filteredIds && filteredIds.size > 0;
+                  if (activeFilter && !filteredIds.has(d.id)) return [0,0,0,0];
+                  const rgb = clusterColor(d.label);
+                  return [rgb[0], rgb[1], rgb[2], a];
+                },
+                getRadius: computedImageSize * 0.76,
+                radiusUnits: "pixels",
+                pickable: false,
+                parameters: { depthTest: false, blend: true, blendFunc: [1, 1], blendEquation: 32774 },
+                updateTriggers: { getFillColor: [filteredIds, clusterOpacity], getRadius: [computedImageSize] }
+              })
+            );
+          }
+        }
+      }
+      // Single PathLayer for all clustering outlines (global, not per-chunk)
+      if (!is3D && clusterOutlineOn && clusterLineWidth > 0 && outlineData.length > 0) {
+        all.push(
+          new PathLayer({
+            id: "cluster-outlines",
+            data: outlineData,
+            getPath: (d) => d.path,
+            getColor: (d) => d.color,
+            widthUnits: "pixels",
+            getWidth: Math.max(0, clusterLineWidth),
+            parameters: { depthTest: false },
+            pickable: false,
+            rounded: true,
+            jointRounded: true,
+            miterLimit: 2,
+            updateTriggers: { getColor: [outlineData.length], getWidth: [clusterLineWidth] }
+          })
+        );
       }
       return all;
     } else {
-      return [
+      const base = [
         new ScatterplotLayer({
           id: "scatter",
           data: points ?? [],
@@ -327,6 +428,47 @@ const Viewer = ({
           },
         })
       ];
+      if (clusterColorOn) {
+        const a = Math.round(Math.min(1, Math.max(0, clusterOpacity)) * 255);
+        base.push(
+          new ScatterplotLayer({
+            id: "scatter-cluster-color",
+            data: points ?? [],
+            getPosition: (d) => [d.x, d.y, d.z ?? 0],
+            stroked: false,
+            getFillColor: (d) => {
+              const activeFilter = filteredIds && filteredIds.size > 0;
+              if (activeFilter && !filteredIds.has(d.id)) return [0,0,0,0];
+              const rgb = clusterColor(d.label);
+              return [rgb[0], rgb[1], rgb[2], a];
+            },
+            getRadius: computedImageSize*0.72,
+            radiusUnits: "pixels",
+            pickable: false,
+            parameters: { depthTest: false, blend: true, blendFunc: [1, 1], blendEquation: 32774 },
+            updateTriggers: { getFillColor: [filteredIds, clusterOpacity], getRadius: [computedImageSize] }
+          })
+        );
+      }
+      if (!is3D && clusterOutlineOn && clusterLineWidth > 0 && outlineData.length > 0) {
+        base.push(
+          new PathLayer({
+            id: "scatter-cluster-outlines",
+            data: outlineData,
+            getPath: (d) => d.path,
+            getColor: (d) => d.color,
+            widthUnits: "pixels",
+            getWidth: Math.max(0, clusterLineWidth),
+            parameters: { depthTest: false },
+            pickable: false,
+            rounded: true,
+            jointRounded: true,
+            miterLimit: 2,
+            updateTriggers: { getColor: [outlineData.length], getWidth: [clusterLineWidth] }
+          })
+        );
+      }
+      return base;
     }
   }, [
     points,
@@ -344,6 +486,11 @@ const Viewer = ({
     windows,
     is3D,
     filteredIds,
+    clusterColorOn,
+    clusterOpacity,
+    clusterLineWidth,
+    clusterOutlineOn,
+    outlineData,
   ]);
 
 
@@ -439,6 +586,15 @@ const Viewer = ({
               getCursor={() => "default"}
               pickingRadius={6}
             />
+
+            {/* 3D mode clustering outlines: screen-space SVG overlay */}
+            {is3D && clusterOutlineOn && screenOutlines.length > 0 && (
+              <svg className="cluster-outline-svg">
+                {screenOutlines.map((s, i) => (
+                  <path key={i} d={s.d} fill="none" stroke={s.color} strokeWidth={clusterLineWidth} />
+                ))}
+              </svg>
+            )}
 
             {/* Group analysis toolbar */}
             <GroupToolbar

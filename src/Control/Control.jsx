@@ -7,6 +7,7 @@ import ImageSizeControl from "../ImageSizeControl/ImageSizeControl";
 import ChannelManager from "../ChannelManager/ChannelManager";
 import SelectionPanel from "../SelectionPanel/SelectionPanel";
 import Filter from "../Filter/Filter";
+import ClusteringControl from "../ClusteringControl/ClusteringControl";
 
 export default function Control({
   meta,
@@ -36,6 +37,16 @@ export default function Control({
   setFilteredIds = () => {},
   viewMode = "dual",
   setViewMode = () => {},
+  
+  // —— clustering overlay props ——
+  clusterColorOn = false,
+  setClusterColorOn = () => {},
+  clusterOutlineOn = false,
+  setClusterOutlineOn = () => {},
+  clusterOpacity = 0.25,
+  setClusterOpacity = () => {},
+  clusterLineWidth = 1.5,
+  setClusterLineWidth = () => {},
 }) {
   const [collapsed, setCollapsed] = useState(false);
   return (
@@ -94,7 +105,18 @@ export default function Control({
       {/* Filter (by raw data) */}
       <Filter setFilteredIds={(ids) => { setFilteredIds(ids); }} />
 
-      
+      {/* Clustering overlay control */}
+      <ClusteringControl
+        colorOn={clusterColorOn}
+        setColorOn={setClusterColorOn}
+        outlineOn={clusterOutlineOn}
+        setOutlineOn={setClusterOutlineOn}
+        opacity={clusterOpacity}
+        setOpacity={setClusterOpacity}
+        lineWidth={clusterLineWidth}
+        setLineWidth={setClusterLineWidth}
+      />
+    
       </div>
     </div>
   );

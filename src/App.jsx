@@ -9,6 +9,8 @@ export default function App() {
   const {
     pointsRaw,
     pointsUMAP,
+    clusterColorOn,
+    clusterOutlineOn,
     // pass-through for other props
     ...rest
   } = dataLoader;
@@ -33,6 +35,8 @@ export default function App() {
               {...rest}
               viewerId="raw"
               points={pointsRaw}
+              clusterColorOn={clusterColorOn}
+              clusterOutlineOn={false}
               transitionsEnabled={!disableTransitions}
             />
           </div>
@@ -43,6 +47,8 @@ export default function App() {
               {...rest}
               viewerId="umap"
               points={pointsUMAP}
+              clusterColorOn={clusterColorOn}
+              clusterOutlineOn={clusterOutlineOn}
               transitionsEnabled={!disableTransitions}
             />
           </div>
@@ -55,6 +61,8 @@ export default function App() {
               {...rest}
               viewerId="single"
               points={rest.useUMAP ? pointsUMAP : pointsRaw}
+              clusterColorOn={rest.useUMAP ? clusterColorOn : clusterColorOn}
+              clusterOutlineOn={rest.useUMAP ? clusterOutlineOn : false}
               transitionsEnabled={!disableTransitions}
             />
           </div>

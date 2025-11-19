@@ -1,0 +1,59 @@
+.clu-block {
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #2e3440;
+}
+.clu-title {
+  margin-bottom: 12px;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+}
+.clu-buttons {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.clu-btn {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #3a3a3a;
+  background: transparent;
+  color: #e2e8f0;
+  cursor: pointer;
+}
+.clu-btn:hover { background: rgba(255,255,255,0.12); }
+.clu-btn.on {
+  background: rgba(99,102,241,0.22);
+  border-color: rgba(99,102,241,0.55);
+}
+.clu-row {
+  display: grid;
+  grid-template-columns: 80px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.clu-label {
+  color: #cbd5f5;
+  font-size: 12px;
+}
+.clu-select {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #3a3a3a;
+  background: transparent;
+  color: #e2e8f0;
+}
+.clu-range {
+  width: 100%;
+}
+.clu-val {
+  color: #94a3b8;
+  font-size: 12px;
+  min-width: 52px;
+  text-align: right;
+}
+
+

@@ -37,6 +37,15 @@ export default function useDataLoader() {
   const [renderMode, setRenderMode] = useState('sprites'); // 'sprites' | 'points'
   const [is3D, setIs3D] = useState(false); // 2D/3D toggle
   
+  // —— Clustering overlay settings ——
+  // two independent toggles: color overlay & outline
+  const [clusterColorOn, setClusterColorOn] = useState(false);
+  const [clusterOutlineOn, setClusterOutlineOn] = useState(false);
+  // opacity for color overlay [0..1]
+  const [clusterOpacity, setClusterOpacity] = useState(0.25);
+  // line width (px) for outline mode
+  const [clusterLineWidth, setClusterLineWidth] = useState(1.5);
+  
   // UMAP mode settings (kept for compatibility, side-by-side uses both)
   const [useUMAP, setUseUMAP] = useState(false);
 
@@ -373,6 +382,16 @@ export default function useDataLoader() {
     // Rendering mode
     renderMode,
     is3D,
+    
+    // Clustering overlay
+    clusterColorOn,
+    setClusterColorOn,
+    clusterOutlineOn,
+    setClusterOutlineOn,
+    clusterOpacity,
+    setClusterOpacity,
+    clusterLineWidth,
+    setClusterLineWidth,
     
     // UMAP mode (kept for compatibility)
     useUMAP,

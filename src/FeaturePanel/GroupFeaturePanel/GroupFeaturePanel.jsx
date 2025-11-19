@@ -167,7 +167,8 @@ export default function GroupFeaturePanel({
       // reverse mapping to get actual intensity: t = (1 - p)^(1/gamma)
       const t = Math.pow(1 - p, 1 / gammaY);
       const v = uLo + t * (uHi - uLo);
-      const label = v >= 1000 ? Math.round(v).toString() : v.toFixed(2);
+      // render tick labels as integers (previous behavior), avoid trailing decimals like '0.00'
+      const label = Math.round(v).toString();
       ctx.fillText(label, marginL - 6, y + 4);
     }
     // x-axis channel names (using channel colors + displaying real channel names from channel_info.json)
