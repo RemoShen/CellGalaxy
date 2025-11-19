@@ -35,6 +35,7 @@ export default function App() {
               {...rest}
               viewerId="raw"
               points={pointsRaw}
+              hoverMaskEnabled={false}
               clusterColorOn={clusterColorOn}
               clusterOutlineOn={false}
               transitionsEnabled={!disableTransitions}
@@ -47,6 +48,7 @@ export default function App() {
               {...rest}
               viewerId="umap"
               points={pointsUMAP}
+              hoverMaskEnabled={true}
               clusterColorOn={clusterColorOn}
               clusterOutlineOn={clusterOutlineOn}
               transitionsEnabled={!disableTransitions}
@@ -61,6 +63,7 @@ export default function App() {
               {...rest}
               viewerId="single"
               points={rest.useUMAP ? pointsUMAP : pointsRaw}
+              hoverMaskEnabled={!!rest.useUMAP}
               clusterColorOn={rest.useUMAP ? clusterColorOn : clusterColorOn}
               clusterOutlineOn={rest.useUMAP ? clusterOutlineOn : false}
               transitionsEnabled={!disableTransitions}

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { getEventCoordinates, computeSelectionBounds, performBoxSelection, performLassoSelection } from "../utils";
+import { getEventCoordinates, computeSelectionBounds, performBoxSelection, performLassoSelection } from "../utils/utils";
 import { SELECTION_NONE, SELECTION_BOX, SELECTION_LASSO } from "../constants/selection";
 
 export default function SelectionOverlay({

@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import "./ClickToolbar.css";
-import { clampPositionToParent } from "../../utils";
+import { clampPositionToParent } from "../../utils/utils";
 
 export default function ClickToolbar({
   show,

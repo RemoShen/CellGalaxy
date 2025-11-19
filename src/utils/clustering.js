@@ -1,5 +1,5 @@
 import { CLUSTERING_COLORS } from "../constants/clustering";
-import { computeConvexHull2D } from "../utils";
+import { computeConvexHull2D } from "./utils";
 
 export function clusterColor(label) {
   const palette = CLUSTERING_COLORS;
@@ -28,6 +28,7 @@ export function buildOutlineData2D(points) {
     out.push({
       path: hull.map(([x, y]) => [x, y, 0]),
       color: [rgb[0], rgb[1], rgb[2], 255],
+      label,
     });
   }
   return out;

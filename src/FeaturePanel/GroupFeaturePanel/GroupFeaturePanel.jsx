@@ -1,19 +1,14 @@
-import React, { useMemo, useRef, useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "../../FeatureDock/FeatureDock.css";
 import "./GroupFeaturePanel.css";
-import { API_BASE, fetchViolinGlobal, fetchViolinSelection, fetchViolinGlobalKDE, fetchViolinSelectionKDE } from "../../api/api";
-import { kde1d } from "../../utils";
+import { API_BASE, fetchViolinGlobalKDE, fetchViolinSelectionKDE } from "../../api/api";
+import { kde1d } from "../../utils/utils";
 
 export default function GroupFeaturePanel({
   data,
-  iconMappingsByChunk,
-  chunkUV,
-  atlasByChannel,
-  atlasURL,
   channels,
   colors,
-  alphas,
-  points = [],
+
 }) {
   // ============== Violin (Global vs Selection) ==============
   const [violinData, setViolinData] = useState(null); // { global:{channels,values}, sel:{channels,values} }

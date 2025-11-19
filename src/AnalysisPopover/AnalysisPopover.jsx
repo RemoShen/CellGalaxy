@@ -4,7 +4,7 @@ import { fetchT1, fetchT2 } from "../api/api";
 import CellAnalysisPanel from "../FeaturePanel/LocalFeaturePanel/LocalFeaturePanel";
 import GroupAnalysisPanel from "../FeaturePanel/GroupFeaturePanel/GroupFeaturePanel";
 import { ANALYSIS_SINGLE, ANALYSIS_GROUP } from "../constants/analysis";
-import { buildIconMappingsByChunk, clampPositionToParent } from "../utils";
+import { buildIconMappingsByChunk, clampPositionToParent } from "../utils/utils";
 
 export default function AnalysisPopover({
   open,
