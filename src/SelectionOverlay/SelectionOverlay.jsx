@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { getEventCoordinates, computeSelectionBounds, performBoxSelection, performLassoSelection } from "../utils/utils";
 import { SELECTION_NONE, SELECTION_BOX, SELECTION_LASSO } from "../constants/selection";
 
@@ -22,11 +22,13 @@ export default function SelectionOverlay({
   const [dragStart, setDragStart] = useState(null); // {x,y}
   const [dragEnd, setDragEnd] = useState(null); // {x,y}
   const [lassoPts, setLassoPts] = useState([]); // [[x,y],...]
-  const [shiftDown, setShiftDown] = useState(false);
+  const additiveRef = useRef(false);
+  const shiftDownRef = useRef(false);
 
+  // Track Shift as a fallback, but only use it at gesture start
   useEffect(() => {
-    const onKeyDown = (e) => { if (e.key === "Shift") setShiftDown(true); };
-    const onKeyUp = (e) => { if (e.key === "Shift") setShiftDown(false); };
+    const onKeyDown = (e) => { if (e.key === "Shift") shiftDownRef.current = true; };
+    const onKeyUp = (e) => { if (e.key === "Shift") shiftDownRef.current = false; };
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
     return () => {
@@ -40,6 +42,9 @@ export default function SelectionOverlay({
   const onDragStart = (info) => {
     if (selectionMode === SELECTION_NONE) return;
     onBeginSelection();
+    // Capture whether this gesture is additive based on Shift at gesture start
+    const se = info?.srcEvent || info?.sourceEvent || info?.event || info?.nativeEvent;
+    additiveRef.current = !!((se && se.shiftKey) || shiftDownRef.current);
     const { x, y } = getXY(info);
     setIsSelecting(true);
     setDragStart({ x, y });
@@ -67,7 +72,7 @@ export default function SelectionOverlay({
     const deck = deckRef.current?.deck;
     const viewport = deck?.getViewports()[0];
     const ids = new Set();
-    const isAdditive = !!(info?.srcEvent?.shiftKey || info?.sourceEvent?.shiftKey || shiftDown);
+    const isAdditive = !!additiveRef.current;
 
     if (selectionMode === SELECTION_BOX && dragStart && dragEnd) {
       const bounds = computeSelectionBounds(dragStart, dragEnd);
@@ -112,6 +117,7 @@ export default function SelectionOverlay({
     try { window.__selectionOwner = viewerId; } catch {}
 
     setIsSelecting(false);
+    additiveRef.current = false;
     setDragStart(null);
     setDragEnd(null);
     setLassoPts([]);
