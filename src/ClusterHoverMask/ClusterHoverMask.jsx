@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SolidPolygonLayer } from "@deck.gl/layers";
 import { clusterColor } from "../utils/clustering";
 import { pointInPolygon, getEventCoordinates } from "../utils/utils";
@@ -55,6 +55,7 @@ export default function ClusterHoverMask({
             setHoverMask3D({
               d: s.d,
               fill: `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.25)`,
+              label: s.label,
             });
             setHoverMask(null);
             return;
@@ -67,6 +68,24 @@ export default function ClusterHoverMask({
       setHoverMask3D(null);
     }
   };
+
+  // when hover on 3D mode, update the hover mask 
+  useEffect(() => {
+    if (!is3D || !hoverMask3D || !screenOutlines3D || screenOutlines3D.length === 0) return;
+    const s = screenOutlines3D.find((o) => o.label === hoverMask3D.label);
+    if (!s) return;
+    const rgb = s.rgb || [255, 255, 255];
+    setHoverMask3D((prev) =>
+      prev
+        ? {
+            d: s.d,
+            fill: `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.25)`,
+            label: s.label,
+          }
+        : prev
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [is3D, screenOutlines3D]);
 
   const layers = [];
   if (!is3D && hoverMask) {
