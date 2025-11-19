@@ -251,7 +251,7 @@ def _coords_for_ids(ids: List[int]) -> List[Dict]:
                     "id": int(i),
                     "raw": {"x": float(row.get("X_centroid", 0)), "y": float(row.get("Y_centroid", 0))},
                     "umap2": {"x": float(row.get("umap2_x", 0)), "y": float(row.get("umap2_y", 0))},
-                    "label": int(row.get("label", int(i) % 11)),
+                    "label": int(row.get("label", row.get("clustering", int(i) % 11))),
                     "chunk_id": int(row.get("chunk_id", int(i))),  # optional, best-effort
                     "local_index": int(row.get("local_index", int(i))),
                 }

@@ -121,7 +121,7 @@ def process_coord_row(row: pd.Series, idx: int, n_per_chunk: int) -> Dict[str, A
             "y": float(row.get("umap3_y", y_raw)),
             "z": float(row.get("umap3_z", 0)),
         },
-        "label": int(row.get("label", stable_label(idx))),
+        "label": int(row.get("label", row.get("clustering", stable_label(idx)))),
     }
 
 
