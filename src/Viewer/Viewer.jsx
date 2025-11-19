@@ -27,6 +27,7 @@ import ClusterHoverMask from "../ClusterHoverMask/ClusterHoverMask";
 import DeckViewState from "./DeckViewState";
 import ImageLayers from "../layers/ImageLayers";
 import ClusterOutlines from "../ClusterHoverMask/ClusterOutlines";
+import useClusterSelection from "./useClusterSelection";
 
 const Viewer = ({
   viewerId = "viewer",
@@ -82,6 +83,15 @@ const Viewer = ({
     [meta, chunkUV]
   );
 
+  const { selectClusterByLabel, selectSingleById } = useClusterSelection({
+    points,
+    filteredIds,
+    selectedRegions,
+    setSelectedRegions,
+    setSelectedIds,
+    viewerId,
+  });
+
   // —— Selection (using screen coordinates) ——
   const deckRef = useRef(null);
   const containerRef = useRef(null);
@@ -104,16 +114,14 @@ const Viewer = ({
       setPopoverOpen(false);
       return;
     }
-    // Auto-enter single-cell analysis: set the clicked cell as the current selection
-    try {
-      const id = info?.object?.id;
-      if (id != null) {
-        const one = new Set([id]);
-        setSelectedRegions([one]);
-        setSelectedIds(one);
-        try { window.__selectionOwner = viewerId; } catch {}
+    if (altPressed) {
+      const lbl = info?.object?.label;
+      if (selectClusterByLabel(lbl)) {
+        return;
       }
-    } catch {}
+    }
+
+    selectSingleById(info?.object?.id);
     // Keep the lightweight toolbar (can be closed)
     const { x, y } = getEventCoordinates(info, containerRef);
     setToolbar({ show: true, x, y, object: info.object });
@@ -125,7 +133,6 @@ const Viewer = ({
     return buildOutlineData2D(points);
   }, [is3D, points]);
 
-  // —— 3D mode: screen-space hulls（抽为 hook）
   const screenOutlines = ClusterOutlines({
     is3D,
     clusterOutlineOn,
@@ -135,7 +142,6 @@ const Viewer = ({
     viewDeps: [viewState.zoom, viewState.rotationX, viewState.rotationOrbit, viewState.target],
   });
 
-  // —— 图层构建（抽为 hook）
   const layers = ImageLayers({
     meta,
     renderMode,
@@ -238,7 +244,6 @@ const Viewer = ({
                   onDrag={onDrag}
                   onDragEnd={onDragEnd}
                   getTooltip={({ object }) => {
-                // Alt 下优先聚类，不显示点信息
                 if (altPressed) return null;
                 if (!object) return null;
                 const activeFilter = filteredIds && filteredIds.size > 0;
