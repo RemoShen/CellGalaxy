@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import "./AnalysisPopover.css";
 import { fetchT1, fetchT2 } from "../api/api";
-import { CellAnalysisPanel, GroupAnalysisPanel } from "../AnalysisPanels";
-import { ANALYSIS_SINGLE, ANALYSIS_GROUP } from "../analysis/commands";
-import { buildIconMappingsByChunk } from "../utils";
+import CellAnalysisPanel from "../FeaturePanel/LocalFeaturePanel/LocalFeaturePanel";
+import GroupAnalysisPanel from "../FeaturePanel/GroupFeaturePanel/GroupFeaturePanel";
+import { ANALYSIS_SINGLE, ANALYSIS_GROUP } from "../constants/analysis";
+import { buildIconMappingsByChunk, clampPositionToParent } from "../utils";
 
 export default function AnalysisPopover({
   open,
@@ -41,20 +42,8 @@ export default function AnalysisPopover({
   const clampIntoViewport = () => {
     const node = rootRef.current;
     if (!node) return;
-    const rect = node.getBoundingClientRect();
-    const parent = node.offsetParent || document.body;
-    const prect = parent.getBoundingClientRect();
-    const margin = 8;
-    // coordinates are relative to offsetParent; clamp within parent box
-    let nx = pos.x;
-    let ny = pos.y;
-    const maxX = Math.max(margin, prect.width - rect.width - margin);
-    const maxY = Math.max(margin, prect.height - rect.height - margin);
-    if (nx > maxX) nx = maxX;
-    if (ny > maxY) ny = maxY;
-    if (nx < margin) nx = margin;
-    if (ny < margin) ny = margin;
-    if (nx !== pos.x || ny !== pos.y) setPos({ x: nx, y: ny });
+    const clamped = clampPositionToParent(node, pos.x, pos.y, 8);
+    if (clamped.x !== pos.x || clamped.y !== pos.y) setPos(clamped);
   };
   useLayoutEffect(() => {
     if (!open) return;

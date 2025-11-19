@@ -138,6 +138,32 @@ export function getEventCoordinates(info, containerRef) {
 }
 
 /**
+ * Clamp an absolute position into the bounds of a node's offset parent
+ * @param {HTMLElement} node - the element to clamp within its offsetParent
+ * @param {number} x - desired left (CSS pixels)
+ * @param {number} y - desired top (CSS pixels)
+ * @param {number} margin - padding margin from edges
+ * @returns {{x:number, y:number}} clamped position
+ */
+export function clampPositionToParent(node, x, y, margin = 8) {
+  if (!node) return { x, y };
+  const parent = node.offsetParent || document.body;
+  const prect = parent.getBoundingClientRect();
+  const rect = node.getBoundingClientRect ? node.getBoundingClientRect() : { width: node.offsetWidth || 0, height: node.offsetHeight || 0 };
+  const w = rect.width || node.offsetWidth || 0;
+  const h = rect.height || node.offsetHeight || 0;
+  let nx = Math.round(x);
+  let ny = Math.round(y);
+  const maxX = Math.max(margin, prect.width - w - margin);
+  const maxY = Math.max(margin, prect.height - h - margin);
+  if (nx > maxX) nx = maxX;
+  if (ny > maxY) ny = maxY;
+  if (nx < margin) nx = margin;
+  if (ny < margin) ny = margin;
+  return { x: nx, y: ny };
+}
+
+/**
  * Calculate selection box boundaries
  * @param {Object} dragStart - drag start point {x, y}
  * @param {Object} dragEnd - drag end point {x, y}
@@ -190,6 +216,32 @@ export function performLassoSelection(points, viewport, lassoPoints) {
   }
   
   return ids;
+}
+
+/**
+ * 1D Kernel Density Estimation over values in [0,1]
+ * Returns xs in [0,1] and ys normalized to max 1
+ */
+export function kde1d(values01, bandwidth = 0.08, samples = 192) {
+  const vals = Array.isArray(values01) ? values01 : [];
+  if (vals.length === 0) return { xs: [], ys: [] };
+  const xs = new Array(samples);
+  const ys = new Array(samples).fill(0);
+  const twoSigma2 = 2 * bandwidth * bandwidth;
+  const norm = 1 / (Math.sqrt(Math.PI * twoSigma2) * vals.length);
+  for (let i = 0; i < samples; i++) {
+    const x = i / (samples - 1);
+    xs[i] = x;
+    let acc = 0;
+    for (let j = 0; j < vals.length; j++) {
+      const d = x - vals[j];
+      acc += Math.exp(-(d * d) / twoSigma2);
+    }
+    ys[i] = acc * norm;
+  }
+  const maxY = Math.max(1e-6, ...ys);
+  for (let i = 0; i < samples; i++) ys[i] /= maxY;
+  return { xs, ys };
 }
 
 

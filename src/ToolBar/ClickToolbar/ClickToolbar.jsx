@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import "./ClickToolbar.css";
+import { clampPositionToParent } from "../../utils";
 
 export default function ClickToolbar({
   show,
@@ -16,19 +17,7 @@ export default function ClickToolbar({
   const clamp = () => {
     const node = rootRef.current;
     if (!node) return;
-    const parent = node.offsetParent || document.body;
-    const prect = parent.getBoundingClientRect();
-    const w = node.offsetWidth || 140;
-    const h = node.offsetHeight || 40;
-    const margin = 8;
-    let nx = Math.round(x + 6); // small offset
-    let ny = Math.round(y - 6);
-    const maxX = Math.max(margin, prect.width - w - margin);
-    const maxY = Math.max(margin, prect.height - h - margin);
-    if (nx > maxX) nx = maxX;
-    if (ny > maxY) ny = maxY;
-    if (nx < margin) nx = margin;
-    if (ny < margin) ny = margin;
+    const { x: nx, y: ny } = clampPositionToParent(node, x + 6, y - 6, 8);
     setPos({ left: nx, top: ny });
   };
   useLayoutEffect(() => { clamp(); }, [x, y, show]);

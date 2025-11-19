@@ -51,4 +51,13 @@
   display: block;
 }
 
+/* Merged from GroupAnalysisPanel.css (shared gallery row layout) */
+.gallery-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 12px;
+  overflow-x: hidden;
+  padding-bottom: 8px;
+}
+
 

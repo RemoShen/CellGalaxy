@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { buildTooltipHTML } from "../TooltipPreview/TooltipPreview";
-import "../FeatureDock/FeatureDock.css";
+import { buildTooltipHTML } from "../../TooltipPreview/TooltipPreview";
+import "../../FeatureDock/FeatureDock.css";
+import "./LocalFeaturePanel.css";
 
 function Thumb({ object, iconMappingsByChunk, chunkUV, atlasByChannel, atlasURL, channels, colors, alphas, size = 96, label }) {
   const html = useMemo(
@@ -403,7 +404,7 @@ export default function LocalFeaturePanel({
           {/* Compactness gauge (smaller is better → use percentile directly) */}
           <div className="metric-row">
             <div className="metric-name">Compactness</div>
-            <div style={{paddingRight: 8}}>
+            <div className="metric-pad-right">
               <div
                 className="metric-line"
                 aria-label="compactness line"
@@ -436,7 +437,7 @@ export default function LocalFeaturePanel({
           {/* Difference gauge (larger is more unique → percentile higher is more right) */}
           <div className="metric-row">
             <div className="metric-name">Difference</div>
-            <div style={{paddingRight: 8}}>
+            <div className="metric-pad-right">
               <div
                 className="metric-line"
                 aria-label="difference line"
@@ -474,7 +475,7 @@ export default function LocalFeaturePanel({
       {(view === "all" || view === "hist") && (
       <div className="feature-section">
         <div className="feature-title">Similarity histogram</div>
-        <div ref={wrapperRef} style={{ position: "relative", overflow: "visible" }}>
+        <div ref={wrapperRef} className="hist-wrapper">
           <canvas
             className="hist-canvas"
             ref={canvasRef}
@@ -485,19 +486,10 @@ export default function LocalFeaturePanel({
           />
           {globalTooltip && (
             <div
+              className="fixed-tooltip"
               style={{
-                position: "absolute",
                 left: Math.round(globalTooltip.x),
                 top: Math.round(globalTooltip.y),
-                pointerEvents: "none",
-                background: "rgba(0,0,0,0.85)",
-                color: "#fff",
-                padding: "6px 8px",
-                borderRadius: 8,
-                fontSize: 12,
-                boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
-                zIndex: 9999,
-                whiteSpace: "nowrap",
               }}
             >
               {globalTooltip.lines.map((t, i) => (
@@ -508,10 +500,6 @@ export default function LocalFeaturePanel({
         </div>
       </div>
       )}
-
-      {/* Difference module merged into Local metrics card */}
-
-      {/* remove "UMAP + Spatial highlight" explanation block */}
     </div>
   );
 }

@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./FeatureDock.css";
 import { fetchT1, fetchT2 } from "../api/api";
 import { buildIconMappingsByChunk } from "../utils";
-import { CellAnalysisPanel, GroupAnalysisPanel } from "../AnalysisPanels";
+import CellAnalysisPanel from "../FeaturePanel/LocalFeaturePanel/LocalFeaturePanel";
+import GroupAnalysisPanel from "../FeaturePanel/GroupFeaturePanel/GroupFeaturePanel";
 
 export default function FeatureDock({
   meta,

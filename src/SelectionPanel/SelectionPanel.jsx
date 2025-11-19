@@ -1,4 +1,5 @@
 import React from "react";
+import { SELECTION_NONE, SELECTION_BOX, SELECTION_LASSO } from "../constants/selection";
 import "./SelectionPanel.css";
 
 export default function SelectionPanel({
@@ -19,22 +20,22 @@ export default function SelectionPanel({
       
       <div className="selection-mode-buttons">
         <button
-          className={`selection-mode-btn ${selectionMode === "none" ? "active" : ""}`}
-          onClick={() => setSelectionMode("none")}
+          className={`selection-mode-btn ${selectionMode === SELECTION_NONE ? "active" : ""}`}
+          onClick={() => setSelectionMode(SELECTION_NONE)}
           title="No selection mode"
         >
           <img src="/icons/none.svg" alt="None" />
         </button>
         <button
-          className={`selection-mode-btn ${selectionMode === "box" ? "active" : ""}`}
-          onClick={() => setSelectionMode("box")}
+          className={`selection-mode-btn ${selectionMode === SELECTION_BOX ? "active" : ""}`}
+          onClick={() => setSelectionMode(SELECTION_BOX)}
           title="Drag to draw a rectangle"
         >
           <img src="/icons/box.svg" alt="Box" />
         </button>
         <button
-          className={`selection-mode-btn ${selectionMode === "lasso" ? "active" : ""}`}
-          onClick={() => setSelectionMode("lasso")}
+          className={`selection-mode-btn ${selectionMode === SELECTION_LASSO ? "active" : ""}`}
+          onClick={() => setSelectionMode(SELECTION_LASSO)}
           title="Drag to draw a lasso"
         >
           <img src="/icons/lasso.svg" alt="Lasso" />

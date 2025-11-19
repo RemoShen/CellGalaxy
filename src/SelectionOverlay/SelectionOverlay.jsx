@@ -1,0 +1,151 @@
+import React, { useEffect, useMemo, useState } from "react";
+import { getEventCoordinates, computeSelectionBounds, performBoxSelection, performLassoSelection } from "../utils";
+import { SELECTION_NONE, SELECTION_BOX, SELECTION_LASSO } from "../constants/selection";
+
+export default function SelectionOverlay({
+  containerRef,
+  deckRef,
+  viewerId = "viewer",
+  // selection props
+  selectionMode = "none", // 'none' | 'box' | 'lasso'
+  points = [],
+  filteredIds = new Set(),
+  selectedRegions = [],
+  setSelectedRegions = () => {},
+  setSelectedIds = () => {},
+  // callbacks
+  onBeginSelection = () => {},
+  // render-prop child to wire handlers into DeckGL and expose selecting state
+  children,
+}) {
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [dragStart, setDragStart] = useState(null); // {x,y}
+  const [dragEnd, setDragEnd] = useState(null); // {x,y}
+  const [lassoPts, setLassoPts] = useState([]); // [[x,y],...]
+  const [shiftDown, setShiftDown] = useState(false);
+
+  useEffect(() => {
+    const onKeyDown = (e) => { if (e.key === "Shift") setShiftDown(true); };
+    const onKeyUp = (e) => { if (e.key === "Shift") setShiftDown(false); };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, []);
+
+  const getXY = (info) => getEventCoordinates(info, containerRef);
+
+  const onDragStart = (info) => {
+    if (selectionMode === SELECTION_NONE) return;
+    onBeginSelection();
+    const { x, y } = getXY(info);
+    setIsSelecting(true);
+    setDragStart({ x, y });
+    setDragEnd({ x, y });
+    if (selectionMode === SELECTION_LASSO) setLassoPts([[x, y]]);
+  };
+
+  const onDrag = (info) => {
+    if (!isSelecting) return;
+    const { x, y } = getXY(info);
+    setDragEnd({ x, y });
+    if (selectionMode === SELECTION_LASSO) {
+      setLassoPts((prev) =>
+        prev.length &&
+        prev[prev.length - 1][0] === x &&
+        prev[prev.length - 1][1] === y
+          ? prev
+          : [...prev, [x, y]]
+      );
+    }
+  };
+
+  const onDragEnd = (info) => {
+    if (!isSelecting) return;
+    const deck = deckRef.current?.deck;
+    const viewport = deck?.getViewports()[0];
+    const ids = new Set();
+    const isAdditive = !!(info?.srcEvent?.shiftKey || info?.sourceEvent?.shiftKey || shiftDown);
+
+    if (selectionMode === SELECTION_BOX && dragStart && dragEnd) {
+      const bounds = computeSelectionBounds(dragStart, dragEnd);
+      const picked = performBoxSelection(deck, bounds);
+      const activeFilter = filteredIds && filteredIds.size > 0;
+      for (const p of picked) {
+        const id = p?.object?.id;
+        if (id == null) continue;
+        if (activeFilter && !filteredIds.has(id)) continue;
+        ids.add(id);
+      }
+    }
+    if (selectionMode === SELECTION_LASSO && lassoPts.length >= 3 && viewport) {
+      const lassoIds = performLassoSelection(points, viewport, lassoPts);
+      const activeFilter = filteredIds && filteredIds.size > 0;
+      if (activeFilter) {
+        for (const id of lassoIds) { if (filteredIds.has(id)) ids.add(id); }
+      } else {
+        lassoIds.forEach(id => ids.add(id));
+      }
+    }
+
+    let newRegions;
+    if (isAdditive) {
+      const prev = Array.isArray(selectedRegions) ? selectedRegions : [];
+      if (prev.length >= 2) {
+        newRegions = [prev[1], ids];
+      } else {
+        newRegions = [...prev, ids];
+      }
+    } else {
+      newRegions = [ids];
+    }
+
+    const union = new Set();
+    for (const r of newRegions) {
+      if (!r) continue;
+      for (const id of r) union.add(id);
+    }
+    setSelectedRegions(newRegions);
+    setSelectedIds(union);
+    try { window.__selectionOwner = viewerId; } catch {}
+
+    setIsSelecting(false);
+    setDragStart(null);
+    setDragEnd(null);
+    setLassoPts([]);
+  };
+
+  const lassoPath = useMemo(
+    () => (lassoPts.length ? lassoPts.map(([x, y]) => `${x},${y}`).join(" ") : ""),
+    [lassoPts]
+  );
+
+  return (
+    <>
+      {typeof children === "function" ? children({ onDragStart, onDrag, onDragEnd, isSelecting }) : null}
+      {/* Box selection rectangle */}
+      {isSelecting && selectionMode === SELECTION_BOX && dragStart && dragEnd && (
+        <div
+          className="selection-rect"
+          style={{
+            left: Math.min(dragStart.x, dragEnd.x),
+            top: Math.min(dragStart.y, dragEnd.y),
+            width: Math.abs(dragStart.x - dragEnd.x),
+            height: Math.abs(dragStart.y - dragEnd.y),
+          }}
+        />
+      )}
+      {/* Lasso visualization (screen space SVG) */}
+      {isSelecting && selectionMode === SELECTION_LASSO && lassoPts.length > 1 && (
+        <svg className="lasso-svg">
+          <polyline className="lasso-polyline" points={lassoPath} />
+          <polygon className="lasso-fill" points={lassoPath} />
+        </svg>
+      )}
+    </>
+  );
+}
+
+

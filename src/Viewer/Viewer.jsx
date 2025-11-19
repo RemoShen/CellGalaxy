@@ -6,7 +6,10 @@ import DeckGL from "@deck.gl/react";
 import { ScatterplotLayer } from "@deck.gl/layers";
 import WindowedIconLayer from "../layers/WindowedIconLayer";
 import AnalysisPopover from "../AnalysisPopover/AnalysisPopover";
-import { ANALYSIS_SINGLE, ANALYSIS_GROUP } from "../analysis/commands";
+import SelectionOverlay from "../SelectionOverlay/SelectionOverlay";
+import { defaultRegionColors, makeRegionIndexGetter } from "../SelectionOverlay/selectionUtils";
+import { ANALYSIS_SINGLE, ANALYSIS_GROUP } from "../constants/analysis";
+import { SELECTION_NONE, SELECTION_BOX, SELECTION_LASSO } from "../constants/selection";
 import {
   OrthographicView,
   OrbitView,
@@ -25,8 +28,8 @@ import {
 } from "../utils";
 import "./Viewer.css";
 import buildTooltipHTML from "../TooltipPreview/TooltipPreview";
-import ClickToolbar from "../ClickToolbar/ClickToolbar";
-import GroupToolbar from "../GroupToolbar/GroupToolbar";
+import ClickToolbar from "../ToolBar/ClickToolbar/ClickToolbar";
+import GroupToolbar from "../ToolBar/GroupToolbar/GroupToolbar";
 
 const Viewer = ({
   viewerId = "viewer",
@@ -49,6 +52,8 @@ const Viewer = ({
   selectionMode = "none",
   selectedIds = new Set(),
   setSelectedIds = () => {},
+  selectedRegions = [],
+  setSelectedRegions = () => {},
   clearSelection = () => {},
   filteredIds = new Set(),
   // Shared zoom (optional): when provided, viewers sync zoom level
@@ -134,84 +139,17 @@ const Viewer = ({
   // —— Selection (using screen coordinates) ——
   const deckRef = useRef(null);
   const containerRef = useRef(null);
-  const [isSelecting, setIsSelecting] = useState(false);
-  const [dragStart, setDragStart] = useState(null); // {x,y} screen
-  const [dragEnd, setDragEnd] = useState(null); // {x,y} screen
-  const [lassoPts, setLassoPts] = useState([]); // [[x,y],...] screen
   const [toolbar, setToolbar] = useState({ show: false, x: 0, y: 0, object: null });
   // Analysis popover state
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [popoverCmd, setPopoverCmd] = useState(null);
   const [popoverPos, setPopoverPos] = useState({ x: 0, y: 0 });
-
-  // Get unified screen coordinates (relative to canvas top-left)
-  const getXY = (info) => getEventCoordinates(info, containerRef);
-
-  const onDragStart = (info) => {
-    if (selectionMode === "none") return;
-    if (toolbar.show) setToolbar({ show: false, x: 0, y: 0, object: null });
-    const { x, y } = getXY(info);
-    setIsSelecting(true);
-    setDragStart({ x, y });
-    setDragEnd({ x, y });
-    if (selectionMode === "lasso") setLassoPts([[x, y]]);
-  };
-
-  const onDrag = (info) => {
-    if (!isSelecting) return;
-    const { x, y } = getXY(info);
-    setDragEnd({ x, y });
-    if (selectionMode === "lasso") {
-      setLassoPts((prev) =>
-        prev.length &&
-        prev[prev.length - 1][0] === x &&
-        prev[prev.length - 1][1] === y
-          ? prev
-          : [...prev, [x, y]]
-      );
-    }
-  };
-
-  const onDragEnd = () => {
-    if (!isSelecting) return;
-
-    const deck = deckRef.current?.deck;
-    const viewport = deck?.getViewports()[0];
-    const ids = new Set();
-
-    if (selectionMode === "box" && dragStart && dragEnd) {
-      // Use utils function to calculate selection bounds
-      const bounds = computeSelectionBounds(dragStart, dragEnd);
-      // Use utils function to perform box selection
-      const picked = performBoxSelection(deck, bounds);
-      
-      const activeFilter = filteredIds && filteredIds.size > 0;
-      for (const p of picked) {
-        const id = p?.object?.id;
-        if (id == null) continue;
-        if (activeFilter && !filteredIds.has(id)) continue; // ignore filtered-out items
-        ids.add(id);
-      }
-    }
-
-    if (selectionMode === "lasso" && lassoPts.length >= 3 && viewport) {
-      // Use utils function to perform lasso selection
-      const lassoIds = performLassoSelection(points, viewport, lassoPts);
-      const activeFilter = filteredIds && filteredIds.size > 0;
-      if (activeFilter) {
-        for (const id of lassoIds) { if (filteredIds.has(id)) ids.add(id); }
-      } else {
-        lassoIds.forEach(id => ids.add(id));
-      }
-    }
-
-    setSelectedIds(ids);
-    try { window.__selectionOwner = viewerId; } catch {}
-    setIsSelecting(false);
-    setDragStart(null);
-    setDragEnd(null);
-    setLassoPts([]);
-  };
+  // Distinct highlight colors for up to two regions
+  const regionColors = defaultRegionColors;
+  const getRegionIndexForId = useMemo(
+    () => makeRegionIndexGetter(selectedRegions),
+    [selectedRegions]
+  );
 
   const onClick = (info) => {
     if (!info?.object) {
@@ -224,12 +162,14 @@ const Viewer = ({
     try {
       const id = info?.object?.id;
       if (id != null) {
-        setSelectedIds(new Set([id]));
+        const one = new Set([id]);
+        setSelectedRegions([one]);
+        setSelectedIds(one);
         try { window.__selectionOwner = viewerId; } catch {}
       }
     } catch {}
     // Keep the lightweight toolbar (can be closed)
-    const { x, y } = getXY(info);
+    const { x, y } = getEventCoordinates(info, containerRef);
     setToolbar({ show: true, x, y, object: info.object });
   };
 
@@ -312,7 +252,8 @@ const Viewer = ({
               windowMax: winMax01,
               premultiply: true,
               getColor: (d) => {
-                if (selectedIds.has(d.id)) return [255, 140, 0, 255];
+                const rIdx = getRegionIndexForId(d.id);
+                if (rIdx >= 0) return regionColors[Math.min(rIdx, regionColors.length - 1)];
                 const activeFilter = filteredIds && filteredIds.size > 0;
                 if (activeFilter && !filteredIds.has(d.id)) {
                   const dimA = Math.min(a, 24);
@@ -320,6 +261,10 @@ const Viewer = ({
                 }
                 return [col[0] ?? 255, col[1] ?? 255, col[2] ?? 255, a];
               },
+              updateTriggers: {
+                ...baseConfig.updateTriggers,
+                getColor: [selectedIds, selectedRegions, filteredIds, colors, alphas, windows],
+              }
             })
           );
         }
@@ -336,11 +281,16 @@ const Viewer = ({
               windowMin: 0.0,
               windowMax: 1.0,
               getColor: (d) => {
-                if (selectedIds.has(d.id)) return [255, 140, 0, 255];
+                const rIdx = getRegionIndexForId(d.id);
+                if (rIdx >= 0) return regionColors[Math.min(rIdx, regionColors.length - 1)];
                 const activeFilter = filteredIds && filteredIds.size > 0;
                 if (activeFilter && !filteredIds.has(d.id)) return [255,255,255,30];
                 return [255,255,255,255];
               },
+              updateTriggers: {
+                ...baseConfig.updateTriggers,
+                getColor: [selectedIds, selectedRegions, filteredIds],
+              }
             })
           );
         }
@@ -353,7 +303,8 @@ const Viewer = ({
           data: points ?? [],
           getPosition: (d) => [d.x, d.y, d.z ?? 0],
           getFillColor: (d) => {
-            if (selectedIds.has(d.id)) return [255,140,0,255];
+            const rIdx = getRegionIndexForId(d.id);
+            if (rIdx >= 0) return regionColors[Math.min(rIdx, regionColors.length - 1)];
             const activeFilter = filteredIds && filteredIds.size > 0;
             if (activeFilter && !filteredIds.has(d.id)) return [255,255,255,30];
             return [255,255,255,255];
@@ -371,7 +322,7 @@ const Viewer = ({
             getRadius: { duration: 300, easing: ease },
           },
           updateTriggers: {
-            getFillColor: [selectedIds, filteredIds],
+            getFillColor: [selectedIds, selectedRegions, filteredIds],
             getRadius: [computedImageSize]
           },
         })
@@ -397,7 +348,7 @@ const Viewer = ({
 
 
   const controller =
-    selectionMode === "none"
+    selectionMode === SELECTION_NONE
       ? is3D
         ? { 
             type: OrbitController,
@@ -429,89 +380,119 @@ const Viewer = ({
           }
       : false;
 
-  // Place lasso visualization in screen-space SVG for WYSIWYG
-  const lassoPath = lassoPts.length
-    ? lassoPts.map(([x, y]) => `${x},${y}`).join(" ")
-    : "";
-
   return (
     <div className="viewer-root" ref={containerRef}>
-      <DeckGL
-        ref={deckRef}
-        views={
-          is3D
-            ? [new OrbitView({ id: "3d", orbitAxis: "Y", flipY: false })]
-            : [new OrthographicView({ id: "2d", flipY: false })]
-        }
-        controller={controller}
-        viewState={{ ...viewState, zoom: typeof sharedZoom === 'number' ? sharedZoom : viewState.zoom }}
-        onViewStateChange={handleViewStateChange}
-        layers={layers}
-        onClick={onClick}
-        onDragStart={onDragStart}
-        onDrag={onDrag}
-        onDragEnd={onDragEnd}
-        getTooltip={({ object }) => {
-          if (!object) return null;
-          const activeFilter = filteredIds && filteredIds.size > 0;
-          if (activeFilter && !filteredIds.has(object.id)) return null;
-
-          const previewHtml = buildTooltipHTML({
-            object,
-            iconMappingsByChunk,
-            chunkUV,
-            atlasByChannel,
-            atlasURL,
-            channels,
-            colors,
-            alphas,
-            previewSize: 128,
-          });
-
-          const textHtml = `id: ${object.id}<br/>label: ${object.label ?? object.id % 11}`;
-          return {
-            html: `${textHtml}${previewHtml ? "<br/>" + previewHtml : ""}`,
-            className: "deck-tooltip",
-          };
+      <SelectionOverlay
+        containerRef={containerRef}
+        deckRef={deckRef}
+        viewerId={viewerId}
+        selectionMode={selectionMode}
+        points={points}
+        filteredIds={filteredIds}
+        selectedRegions={selectedRegions}
+        setSelectedRegions={setSelectedRegions}
+        setSelectedIds={setSelectedIds}
+        onBeginSelection={() => {
+          if (toolbar.show) setToolbar({ show: false, x: 0, y: 0, object: null });
         }}
-        getCursor={() => "default"}
-        pickingRadius={6}
-      />
+      >
+        {({ onDragStart, onDrag, onDragEnd, isSelecting }) => (
+          <>
+            <DeckGL
+              ref={deckRef}
+              views={
+                is3D
+                  ? [new OrbitView({ id: "3d", orbitAxis: "Y", flipY: false })]
+                  : [new OrthographicView({ id: "2d", flipY: false })]
+              }
+              controller={controller}
+              viewState={{ ...viewState, zoom: typeof sharedZoom === 'number' ? sharedZoom : viewState.zoom }}
+              onViewStateChange={handleViewStateChange}
+              layers={layers}
+              onClick={onClick}
+              onDragStart={onDragStart}
+              onDrag={onDrag}
+              onDragEnd={onDragEnd}
+              getTooltip={({ object }) => {
+                if (!object) return null;
+                const activeFilter = filteredIds && filteredIds.size > 0;
+                if (activeFilter && !filteredIds.has(object.id)) return null;
 
-      {/* Box selection rectangle (screen space) */}
-      {isSelecting && selectionMode === "box" && dragStart && dragEnd && (
-        <div
-          className="selection-rect"
-          style={{
-            left: Math.min(dragStart.x, dragEnd.x),
-            top: Math.min(dragStart.y, dragEnd.y),
-            width: Math.abs(dragStart.x - dragEnd.x),
-            height: Math.abs(dragStart.y - dragEnd.y),
-          }}
-        />
-      )}
+                const previewHtml = buildTooltipHTML({
+                  object,
+                  iconMappingsByChunk,
+                  chunkUV,
+                  atlasByChannel,
+                  atlasURL,
+                  channels,
+                  colors,
+                  alphas,
+                  previewSize: 128,
+                });
 
-      {/* Lasso visualization (screen space SVG) */}
-      {isSelecting && selectionMode === "lasso" && lassoPts.length > 1 && (
-        <svg className="lasso-svg">
-          <polyline className="lasso-polyline" points={lassoPath} />
-          {/* Optional: light fill for closed area */}
-          <polygon className="lasso-fill" points={lassoPath} />
-        </svg>
-      )}
+                const textHtml = `id: ${object.id}<br/>label: ${object.label ?? object.id % 11}`;
+                return {
+                  html: `${textHtml}${previewHtml ? "<br/>" + previewHtml : ""}`,
+                  className: "deck-tooltip",
+                };
+              }}
+              getCursor={() => "default"}
+              pickingRadius={6}
+            />
 
-      {/* Click toolbar (only UI, no functionality) */}
+            {/* Group analysis toolbar */}
+            <GroupToolbar
+              show={
+                !isSelecting &&
+                selectedIds &&
+                selectedIds.size > 1 &&
+                (typeof window === "undefined" || window.__selectionOwner === viewerId)
+              }
+              onAnalyze={() => {
+                try {
+                  const ids = Array.from(selectedIds || []);
+                  if (ids.length > 1) {
+                    const deck = deckRef.current?.deck;
+                    const viewport = deck?.getViewports()[0];
+                    if (viewport) {
+                      let cnt = 0, sx = 0, sy = 0;
+                      const dpr = (typeof window !== "undefined" && window.devicePixelRatio) ? window.devicePixelRatio : 1;
+                      for (const p of points) {
+                        if (!selectedIds.has(p.id)) continue;
+                        const [px, py] = viewport.project([p.x, p.y, p.z ?? 0]);
+                        sx += px / dpr;
+                        sy += py / dpr;
+                        cnt++;
+                      }
+                      const container = containerRef.current;
+                      const cssW = container ? container.clientWidth : (deck?.width || 0);
+                      const cx = cnt ? sx / cnt : cssW / 2;
+                      const cy = cnt ? sy / cnt : 24;
+                      setPopoverPos({ x: cx, y: cy });
+                    } else {
+                      setPopoverPos({ x: toolbar.x || 20, y: toolbar.y || 20 });
+                    }
+                    setPopoverCmd({ type: ANALYSIS_GROUP, ids });
+                    setPopoverOpen(true);
+                  }
+                } catch {}
+              }}
+              onClear={() => clearSelection()}
+            />
+          </>
+        )}
+      </SelectionOverlay>
+
+      {/* Click toolbar */}
       <ClickToolbar
         show={toolbar.show}
         x={toolbar.x}
         y={toolbar.y}
         onClose={() => setToolbar({ show: false, x: 0, y: 0, object: null })}
         onViewRaw={() => {
-          // Placeholder: view raw data
           setToolbar((t) => ({ ...t, show: false }));
         }}
         onFindTopK={() => {
-          // Explicitly trigger T1 analysis (shown near the click position)
           try {
             const id = toolbar.object?.id;
             if (id != null) {
@@ -524,49 +505,6 @@ const Viewer = ({
           }
         }}
       />
-      {/* Group analysis toolbar: appears when multiple items are selected */}
-      <GroupToolbar
-        show={
-          !isSelecting &&
-          selectedIds &&
-          selectedIds.size > 1 &&
-          (typeof window === "undefined" || window.__selectionOwner === viewerId)
-        }
-        onAnalyze={() => {
-          try {
-            const ids = Array.from(selectedIds || []);
-            if (ids.length > 1) {
-              // Screen-space centroid
-              const deck = deckRef.current?.deck;
-              const viewport = deck?.getViewports()[0];
-              if (viewport) {
-                // Compute the world-space centroid of selected points
-                let cnt = 0, sx = 0, sy = 0;
-                const dpr = (typeof window !== "undefined" && window.devicePixelRatio) ? window.devicePixelRatio : 1;
-                for (const p of points) {
-                  if (!selectedIds.has(p.id)) continue;
-                  const [px, py] = viewport.project([p.x, p.y, p.z ?? 0]);
-                  // Convert device pixels to CSS pixels so absolute positioning aligns with the container
-                  sx += px / dpr; 
-                  sy += py / dpr; 
-                  cnt++;
-                }
-                const container = containerRef.current;
-                const cssW = container ? container.clientWidth : (deck?.width || 0);
-                const cx = cnt ? sx / cnt : cssW / 2;
-                const cy = cnt ? sy / cnt : 24;
-                setPopoverPos({ x: cx, y: cy });
-              } else {
-                setPopoverPos({ x: toolbar.x || 20, y: toolbar.y || 20 });
-              }
-              setPopoverCmd({ type: ANALYSIS_GROUP, ids });
-              setPopoverOpen(true);
-            }
-          } catch {}
-        }}
-        onClear={() => clearSelection()}
-      />
-
       {/* Analysis popover (floating window near selection) */}
       <AnalysisPopover
         open={popoverOpen}

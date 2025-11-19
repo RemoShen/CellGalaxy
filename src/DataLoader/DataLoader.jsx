@@ -77,7 +77,11 @@ export default function useDataLoader() {
   // —— Selection related (new) ——
   const [selectionMode, setSelectionMode] = useState('none'); // 'none' | 'box' | 'lasso'
   const [selectedIds, setSelectedIds] = useState(() => new Set());
-  const clearSelection = () => setSelectedIds(new Set());
+  const [selectedRegions, setSelectedRegions] = useState(() => []); // array of Set<number>
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setSelectedRegions([]);
+  };
   // —— Filtered ids (dim non-matching) ——
   const [filteredIds, setFilteredIds] = useState(() => new Set());
 
@@ -378,6 +382,8 @@ export default function useDataLoader() {
     setSelectionMode,
     selectedIds,
     setSelectedIds,
+    selectedRegions,
+    setSelectedRegions,
     clearSelection,
     filteredIds,
     setFilteredIds,

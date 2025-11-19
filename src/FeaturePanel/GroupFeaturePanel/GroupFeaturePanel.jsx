@@ -1,8 +1,8 @@
 import React, { useMemo, useRef, useEffect, useState } from "react";
-import "../FeatureDock/FeatureDock.css";
-import "../AnalysisPanels/GroupAnalysisPanel.css";
+import "../../FeatureDock/FeatureDock.css";
 import "./GroupFeaturePanel.css";
-import { API_BASE, fetchViolinGlobal, fetchViolinSelection, fetchViolinGlobalKDE, fetchViolinSelectionKDE } from "../api/api";
+import { API_BASE, fetchViolinGlobal, fetchViolinSelection, fetchViolinGlobalKDE, fetchViolinSelectionKDE } from "../../api/api";
+import { kde1d } from "../../utils";
 
 export default function GroupFeaturePanel({
   data,
@@ -524,28 +524,6 @@ export default function GroupFeaturePanel({
     ctx.beginPath();
     ctx.arc(cx, cy, R, 0, Math.PI*2);
     ctx.fill();
-
-    const kde1d = (vals01, bandwidth = 0.08, samples = 192) => {
-      if (!vals01 || vals01.length === 0) return { xs: [], ys: [] };
-      const xs = new Array(samples);
-      const ys = new Array(samples).fill(0);
-      const twoSigma2 = 2 * bandwidth * bandwidth;
-      const norm = 1 / (Math.sqrt(Math.PI * twoSigma2) * vals01.length);
-      for (let i = 0; i < samples; i++) {
-        const x = i / (samples - 1);
-        xs[i] = x;
-        let acc = 0;
-        for (let j = 0; j < vals01.length; j++) {
-          const d = x - vals01[j];
-          acc += Math.exp(-(d * d) / twoSigma2);
-        }
-        ys[i] = acc * norm;
-      }
-
-      const maxY = Math.max(1e-6, ...ys);
-      for (let i = 0; i < samples; i++) ys[i] /= maxY;
-      return { xs, ys };
-    };
 
     const sClip = sims.map(v => Math.max(-1, Math.min(1, v)));
     const rVals = sClip.map(v => 1 - v);

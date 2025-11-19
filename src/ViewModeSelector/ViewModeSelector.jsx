@@ -1,8 +1,9 @@
 import React from "react";
+import { VIEW_SINGLE, VIEW_DUAL } from "../constants/view";
 import "./ViewModeSelector.css";
 
 export default function ViewModeSelector({ viewMode, setViewMode, useUMAP, setUseUMAP }) {
-  const isDual = viewMode === "dual";
+  const isDual = viewMode === VIEW_DUAL;
   return (
     <div className="viewmode-section">
       <div className="viewmode-title">Viewer</div>
@@ -13,9 +14,9 @@ export default function ViewModeSelector({ viewMode, setViewMode, useUMAP, setUs
             <input
               type="radio"
               name="viewerMode"
-              value="single"
-              checked={viewMode === "single"}
-              onChange={() => setViewMode("single")}
+              value={VIEW_SINGLE}
+              checked={viewMode === VIEW_SINGLE}
+              onChange={() => setViewMode(VIEW_SINGLE)}
             />
             <span className="radio-custom"></span>
             Single
@@ -24,9 +25,9 @@ export default function ViewModeSelector({ viewMode, setViewMode, useUMAP, setUs
             <input
               type="radio"
               name="viewerMode"
-              value="dual"
-              checked={viewMode === "dual"}
-              onChange={() => setViewMode("dual")}
+              value={VIEW_DUAL}
+              checked={viewMode === VIEW_DUAL}
+              onChange={() => setViewMode(VIEW_DUAL)}
             />
             <span className="radio-custom"></span>
             Side by side
