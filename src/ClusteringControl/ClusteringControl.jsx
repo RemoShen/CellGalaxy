@@ -30,21 +30,7 @@ export default function ClusteringControl({
           轮廓
         </button>
       </div>
-      {colorOn && (
-        <div className="clu-row">
-          <label className="clu-label">Opacity</label>
-          <input
-            className="clu-range"
-            type="range"
-            min="0"
-            max="1"
-            step="0.01"
-            value={opacity}
-            onChange={(e) => setOpacity(parseFloat(e.target.value))}
-          />
-          <div className="clu-val">{(opacity * 100).toFixed(0)}%</div>
-        </div>
-      )}
+      
       {outlineOn && (
         <div className="clu-row">
           <label className="clu-label">Width</label>

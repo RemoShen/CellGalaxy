@@ -10,6 +10,7 @@ export default class WindowedIconLayer extends IconLayer {
     const uniforms = super.getUniforms();
     uniforms.windowMin = this.props.windowMin || DEFAULT_MIN;
     uniforms.windowMax = this.props.windowMax || DEFAULT_MAX;
+    uniforms.flatColor = this.props.flatColor ? 1.0 : 0.0;
     return uniforms;
   }
   getShaders() {
@@ -21,15 +22,21 @@ export default class WindowedIconLayer extends IconLayer {
         'fs:#decl': `
 uniform float windowMin;
 uniform float windowMax;
+uniform float flatColor;
 `,
         // Apply color and intensity before final output
         'fs:DECKGL_FILTER_COLOR': `
 // Use stored window intensity
 float t = color.a;
-// Multiply color by window intensity to achieve grayscale to color mapping
-if (t < windowMin) {
-  t = 0.0;
-} else if (t > windowMax) {
+// Optionally ignore texture intensity to render flat solid color
+if (flatColor < 0.5) {
+  // Multiply color by window intensity to achieve grayscale to color mapping
+  if (t < windowMin) {
+    t = 0.0;
+  } else if (t > windowMax) {
+    t = 1.0;
+  }
+} else {
   t = 1.0;
 }
 color.rgb *= t;
@@ -46,13 +53,14 @@ color.a = 1.0;
       model.setUniforms({
         windowMin: props.windowMin ?? DEFAULT_MIN,
         windowMax: props.windowMax ?? DEFAULT_MAX,
+        flatColor: props.flatColor ? 1.0 : 0.0,
       });
     }
   }
 
   draw(opts) {
     const { uniforms = {} } = opts;
-    const { windowMin = DEFAULT_MIN, windowMax = DEFAULT_MAX } = this.props;
+    const { windowMin = DEFAULT_MIN, windowMax = DEFAULT_MAX, flatColor = false } = this.props;
 
     super.draw({
       ...opts,
@@ -60,6 +68,7 @@ color.a = 1.0;
         ...uniforms,
         windowMin,
         windowMax,
+        flatColor: flatColor ? 1.0 : 0.0,
       }
     });
   }

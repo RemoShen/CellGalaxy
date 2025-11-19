@@ -254,76 +254,81 @@ const Viewer = ({
         const baseConfig = createBaseLayerConfig(chunkId, arr, mapping);
         let addedGray = false;
 
-        // Overlay by channel
-        for (const ch of channels) {
-          const atlasGray = atlasByChannel?.[chunkId]?.[ch];
-          if (!atlasGray) continue;
-          addedGray = true;
+        // 当 cluster 颜色开启时，不再绘制通道叠加，避免与 cluster 颜色混合
+        if (!clusterColorOn) {
+          // Overlay by channel
+          for (const ch of channels) {
+            const atlasGray = atlasByChannel?.[chunkId]?.[ch];
+            if (!atlasGray) continue;
+            addedGray = true;
 
-          const col = colors?.[ch] || [255, 255, 255];
-          const alpha01 = Math.min(1, Math.max(0, alphas?.[ch] ?? 1));
-          const a = Math.round(alpha01 * 255);
+            const col = colors?.[ch] || [255, 255, 255];
+            const alpha01 = Math.min(1, Math.max(0, alphas?.[ch] ?? 1));
+            const a = Math.round(alpha01 * 255);
 
-          const w = windows?.[ch];
-          const wMin = w && Number.isFinite(w.min) ? w.min : 0;
-          const wMax = w && Number.isFinite(w.max) ? w.max : 65535;
-          const winMin01 = Math.max(0, Math.min(1, wMin / 65535));
-          const winMax01 = Math.max(0, Math.min(1, wMax / 65535));
+            const w = windows?.[ch];
+            const wMin = w && Number.isFinite(w.min) ? w.min : 0;
+            const wMax = w && Number.isFinite(w.max) ? w.max : 65535;
+            const winMin01 = Math.max(0, Math.min(1, wMin / 65535));
+            const winMax01 = Math.max(0, Math.min(1, wMax / 65535));
 
-          all.push(
-            new WindowedIconLayer({
-              ...baseConfig,
-              id: `icon-ch${ch}-${chunkId}`,
-              iconAtlas: String(atlasGray),
-              parameters: { depthTest: false, blend: true, blendFunc: [1, 1], blendEquation: 32774 },
-              windowMin: winMin01,
-              windowMax: winMax01,
-              premultiply: true,
-              getColor: (d) => {
-                const rIdx = getRegionIndexForId(d.id);
-                if (rIdx >= 0) return regionColors[Math.min(rIdx, regionColors.length - 1)];
-                const activeFilter = filteredIds && filteredIds.size > 0;
-                if (activeFilter && !filteredIds.has(d.id)) {
-                  const dimA = Math.min(a, 24);
-                  return [col[0] ?? 255, col[1] ?? 255, col[2] ?? 255, dimA];
+            all.push(
+              new WindowedIconLayer({
+                ...baseConfig,
+                id: `icon-ch${ch}-${chunkId}`,
+                iconAtlas: String(atlasGray),
+                parameters: { depthTest: false, blend: true, blendFunc: [1, 1], blendEquation: 32774 },
+                windowMin: winMin01,
+                windowMax: winMax01,
+                premultiply: true,
+                getColor: (d) => {
+                  const rIdx = getRegionIndexForId(d.id);
+                  if (rIdx >= 0) return regionColors[Math.min(rIdx, regionColors.length - 1)];
+                  const activeFilter = filteredIds && filteredIds.size > 0;
+                  if (activeFilter && !filteredIds.has(d.id)) {
+                    const dimA = Math.min(a, 24);
+                    return [col[0] ?? 255, col[1] ?? 255, col[2] ?? 255, dimA];
+                  }
+                  return [col[0] ?? 255, col[1] ?? 255, col[2] ?? 255, a];
+                },
+                updateTriggers: {
+                  ...baseConfig.updateTriggers,
+                  getColor: [selectedIds, selectedRegions, filteredIds, colors, alphas, windows],
                 }
-                return [col[0] ?? 255, col[1] ?? 255, col[2] ?? 255, a];
-              },
-              updateTriggers: {
-                ...baseConfig.updateTriggers,
-                getColor: [selectedIds, selectedRegions, filteredIds, colors, alphas, windows],
-              }
-            })
-          );
+              })
+            );
+          }
         }
 
         // Compatible with old approach
-        const atlasMerged = !addedGray ? atlasURL?.[chunkId] : null;
-        if (atlasMerged) {
-          all.push(
-            new WindowedIconLayer({
-              ...baseConfig,
-              id: `icon-merged-${chunkId}`,
-              iconAtlas: String(atlasMerged),
-              parameters: { depthTest: true, blend: true, blendFunc: [1, 1], blendEquation: 32774 },
-              windowMin: 0.0,
-              windowMax: 1.0,
-              getColor: (d) => {
-                const rIdx = getRegionIndexForId(d.id);
-                if (rIdx >= 0) return regionColors[Math.min(rIdx, regionColors.length - 1)];
-                const activeFilter = filteredIds && filteredIds.size > 0;
-                if (activeFilter && !filteredIds.has(d.id)) return [255,255,255,30];
-                return [255,255,255,255];
-              },
-              updateTriggers: {
-                ...baseConfig.updateTriggers,
-                getColor: [selectedIds, selectedRegions, filteredIds],
-              }
-            })
-          );
+        if (!clusterColorOn) {
+          const atlasMerged = !addedGray ? atlasURL?.[chunkId] : null;
+          if (atlasMerged) {
+            all.push(
+              new WindowedIconLayer({
+                ...baseConfig,
+                id: `icon-merged-${chunkId}`,
+                iconAtlas: String(atlasMerged),
+                parameters: { depthTest: true, blend: true, blendFunc: [1, 1], blendEquation: 32774 },
+                windowMin: 0.0,
+                windowMax: 1.0,
+                getColor: (d) => {
+                  const rIdx = getRegionIndexForId(d.id);
+                  if (rIdx >= 0) return regionColors[Math.min(rIdx, regionColors.length - 1)];
+                  const activeFilter = filteredIds && filteredIds.size > 0;
+                  if (activeFilter && !filteredIds.has(d.id)) return [255,255,255,30];
+                  return [255,255,255,255];
+                },
+                updateTriggers: {
+                  ...baseConfig.updateTriggers,
+                  getColor: [selectedIds, selectedRegions, filteredIds],
+                }
+              })
+            );
+          }
         }
 
-        // Clustering color overlay on top of sprites
+        // Clustering 颜色：直接以 cluster 颜色重绘（不与通道混合）
         if (clusterColorOn) {
           // Prefer to render with the same atlas to avoid any seam/gap (perfect square coverage)
           const atlasAny =
@@ -335,9 +340,10 @@ const Viewer = ({
                 ...baseConfig,
                 id: `cluster-color-atlas-${chunkId}`,
                 iconAtlas: String(atlasAny),
-                parameters: { depthTest: false, blend: true, blendFunc: [1, 1], blendEquation: 32774 },
+                parameters: { depthTest: false, blend: false },
                 windowMin: 0.0,
                 windowMax: 1.0,
+                flatColor: true,
                 premultiply: true,
                 getColor: (d) => {
                   const activeFilter = filteredIds && filteredIds.size > 0;
@@ -370,7 +376,7 @@ const Viewer = ({
                 getRadius: computedImageSize * 0.76,
                 radiusUnits: "pixels",
                 pickable: false,
-                parameters: { depthTest: false, blend: true, blendFunc: [1, 1], blendEquation: 32774 },
+                parameters: { depthTest: false, blend: false },
                 updateTriggers: { getFillColor: [filteredIds, clusterOpacity], getRadius: [computedImageSize] }
               })
             );
@@ -398,41 +404,13 @@ const Viewer = ({
       }
       return all;
     } else {
-      const base = [
-        new ScatterplotLayer({
-          id: "scatter",
-          data: points ?? [],
-          getPosition: (d) => [d.x, d.y, d.z ?? 0],
-          getFillColor: (d) => {
-            const rIdx = getRegionIndexForId(d.id);
-            if (rIdx >= 0) return regionColors[Math.min(rIdx, regionColors.length - 1)];
-            const activeFilter = filteredIds && filteredIds.size > 0;
-            if (activeFilter && !filteredIds.has(d.id)) return [255,255,255,30];
-            return [255,255,255,255];
-          },
-          stroked: false,
-          // Sync point radius with zoom the same way
-          getRadius: computedImageSize*0.75,
-          radiusScale: 1,
-          radiusUnits: "pixels",
-          pickable: true,
-          autoHighlight: true,
-          parameters: { depthTest: true },
-          transitions: {
-            getPosition: { duration: 600, easing: ease },
-            getRadius: { duration: 300, easing: ease },
-          },
-          updateTriggers: {
-            getFillColor: [selectedIds, selectedRegions, filteredIds],
-            getRadius: [computedImageSize]
-          },
-        })
-      ];
+      const base = [];
       if (clusterColorOn) {
+        // 仅以 cluster 颜色渲染点，不叠加白色底点
         const a = Math.round(Math.min(1, Math.max(0, clusterOpacity)) * 255);
         base.push(
           new ScatterplotLayer({
-            id: "scatter-cluster-color",
+            id: "scatter-cluster-only",
             data: points ?? [],
             getPosition: (d) => [d.x, d.y, d.z ?? 0],
             stroked: false,
@@ -444,9 +422,45 @@ const Viewer = ({
             },
             getRadius: computedImageSize*0.72,
             radiusUnits: "pixels",
-            pickable: false,
-            parameters: { depthTest: false, blend: true, blendFunc: [1, 1], blendEquation: 32774 },
+            pickable: true,
+            autoHighlight: true,
+            parameters: { depthTest: true, blend: false },
+            transitions: {
+              getPosition: { duration: 600, easing: ease },
+              getRadius: { duration: 300, easing: ease },
+            },
             updateTriggers: { getFillColor: [filteredIds, clusterOpacity], getRadius: [computedImageSize] }
+          })
+        );
+      } else {
+        base.push(
+          new ScatterplotLayer({
+            id: "scatter",
+            data: points ?? [],
+            getPosition: (d) => [d.x, d.y, d.z ?? 0],
+            getFillColor: (d) => {
+              const rIdx = getRegionIndexForId(d.id);
+              if (rIdx >= 0) return regionColors[Math.min(rIdx, regionColors.length - 1)];
+              const activeFilter = filteredIds && filteredIds.size > 0;
+              if (activeFilter && !filteredIds.has(d.id)) return [255,255,255,30];
+              return [255,255,255,255];
+            },
+            stroked: false,
+            // Sync point radius with zoom the same way
+            getRadius: computedImageSize*0.75,
+            radiusScale: 1,
+            radiusUnits: "pixels",
+            pickable: true,
+            autoHighlight: true,
+            parameters: { depthTest: true },
+            transitions: {
+              getPosition: { duration: 600, easing: ease },
+              getRadius: { duration: 300, easing: ease },
+            },
+            updateTriggers: {
+              getFillColor: [selectedIds, selectedRegions, filteredIds],
+              getRadius: [computedImageSize]
+            },
           })
         );
       }

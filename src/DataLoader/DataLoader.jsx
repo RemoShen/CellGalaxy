@@ -42,7 +42,7 @@ export default function useDataLoader() {
   const [clusterColorOn, setClusterColorOn] = useState(false);
   const [clusterOutlineOn, setClusterOutlineOn] = useState(false);
   // opacity for color overlay [0..1]
-  const [clusterOpacity, setClusterOpacity] = useState(0.25);
+  const [clusterOpacity, setClusterOpacity] = useState(1.0);
   // line width (px) for outline mode
   const [clusterLineWidth, setClusterLineWidth] = useState(1.5);
   
