@@ -21,11 +21,19 @@
   background: transparent;
   color: #e2e8f0;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .clu-btn:hover { background: rgba(255,255,255,0.12); }
 .clu-btn.on {
   background: rgba(99,102,241,0.22);
   border-color: rgba(99,102,241,0.55);
+}
+.clu-btn .icon {
+  width: 18px;
+  height: 18px;
+  display: block;
 }
 .clu-row {
   display: grid;

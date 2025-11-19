@@ -6,9 +6,6 @@ export default function ClusteringControl({
   setColorOn = () => {},
   outlineOn = false,
   setOutlineOn = () => {},
-  opacity = 0.25,
-  setOpacity = () => {},
-  lineWidth = 1.5,
   setLineWidth = () => {},
 }) {
   return (
@@ -18,34 +15,51 @@ export default function ClusteringControl({
         <button
           className={`clu-btn ${colorOn ? "on" : ""}`}
           onClick={() => setColorOn(!colorOn)}
-          title="用颜色叠加显示各个 clustering"
+          title="color overlay for each clustering"
         >
-          颜色
+          {/* color icon */}
+          <svg
+            className="icon icon-color"
+            width="18"
+            height="18"
+            viewBox="0 0 20 20"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <rect x="2.5" y="2.5" width="15" height="15" rx="3.5" stroke="currentColor" opacity="0.35"/>
+            <circle cx="7" cy="7" r="3" fill="#ef4444"/>
+            <circle cx="13" cy="7" r="3" fill="#3b82f6"/>
+            <circle cx="7" cy="13" r="3" fill="#22c55e"/>
+            <circle cx="13" cy="13" r="3" fill="#eab308"/>
+          </svg>
         </button>
         <button
           className={`clu-btn ${outlineOn ? "on" : ""}`}
-          onClick={() => setOutlineOn(!outlineOn)}
-          title="用大轮廓框住每个 clustering"
+          onClick={() => {
+            const next = !outlineOn;
+            setOutlineOn(next);
+            if (next) setLineWidth(1.5);
+          }}
+          title="outline for each clustering"
         >
-          轮廓
+          {/* outline icon */}
+          <svg
+            className="icon icon-outline"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <circle cx="12" cy="12" r="7.5" stroke="currentColor" strokeWidth="1.5"/>
+            <circle cx="12" cy="12" r="3.5" stroke="currentColor" strokeWidth="1.5" opacity="0.6"/>
+          </svg>
         </button>
       </div>
-      
-      {outlineOn && (
-        <div className="clu-row">
-          <label className="clu-label">Width</label>
-          <input
-            className="clu-range"
-            type="range"
-            min="0"
-            max="6"
-            step="0.1"
-            value={lineWidth}
-            onChange={(e) => setLineWidth(parseFloat(e.target.value))}
-          />
-          <div className="clu-val">{lineWidth.toFixed(1)} px</div>
-        </div>
-      )}
     </div>
   );
 }
