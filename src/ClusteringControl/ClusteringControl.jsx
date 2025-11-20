@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import "./ClusteringControl.css";
+import { runLLMClusterChannelAvg } from "../api/api";
 
 export default function ClusteringControl({
   colorOn = false,
@@ -7,11 +8,11 @@ export default function ClusteringControl({
   outlineOn = false,
   setOutlineOn = () => {},
   setLineWidth = () => {},
-  onRunLargeModel = () => {},
 }) {
   const [showModelPanel, setShowModelPanel] = useState(false);
   const [selectedModel, setSelectedModel] = useState("Biomni");
   const [isRunning, setIsRunning] = useState(false);
+  const [isLLMRunning, setIsLLMRunning] = useState(false);
 
   const handleRun = () => {
     if (!selectedModel || isRunning) return;
@@ -82,8 +83,15 @@ export default function ClusteringControl({
         <button
           className="clu-btn model"
           onClick={() => {
-            // 仅创建按钮：后续处理与请求逻辑由上层传入
-            onRunLargeModel();
+            if (isLLMRunning) return;
+            setIsLLMRunning(true);
+            // 调用后端计算均值的接口
+            const ac = new AbortController();
+            runLLMClusterChannelAvg(ac.signal)
+              .catch(() => ({}))
+              .finally(() => {
+                setIsLLMRunning(false);
+              });
           }}
           title="run large model from scratch"
         >
@@ -128,6 +136,7 @@ export default function ClusteringControl({
           </svg>
         </button>
       </div>
+      {isLLMRunning && <div className="clu-tip">Running...</div>}
       {showModelPanel && (
         <div className="clu-panel">
           <div className="clu-row">

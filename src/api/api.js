@@ -138,6 +138,22 @@ export async function fetchViolinSelectionKDE(ids, max = 100000, perc = 99.0, th
     return { error: "Failed to fetch violin selection KDE" };
   }
 }
+
+// ===== LLM / 预计算 =====
+export async function runLLMClusterChannelAvg(signal) {
+  try {
+    const res = await fetch(`${API_BASE}/llm/compute_cluster_channel_avg`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal,
+    });
+    if (!res.ok) throw new Error(await safeReadText(res));
+    return await res.json();
+  } catch (e) {
+    console.error("runLLMClusterChannelAvg failed", e);
+    return { error: "Failed to run LLM precompute" };
+  }
+}
 async function safeReadText(res) {
   try {
     return await res.text();

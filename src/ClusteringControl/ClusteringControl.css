@@ -45,6 +45,12 @@
 .clu-panel {
   margin-top: 6px;
 }
+.clu-tip {
+  margin-top: 6px;
+  color: #93c5fd;
+  font-size: 12px;
+  opacity: 0.9;
+}
 .clu-row {
   display: grid;
   grid-template-columns: 72px 1fr;

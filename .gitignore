@@ -9,6 +9,7 @@ public/raw.json
 public/raw.csv
 public/features.npy
 public/channel_list.csv
+public/cluster_channel_avg.csv
 public/__MACOSX/
 server/__pycache__/
 .cache/
