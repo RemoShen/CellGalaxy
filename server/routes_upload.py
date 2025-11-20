@@ -7,7 +7,7 @@ from fastapi import APIRouter, File, UploadFile, HTTPException, Request
 
 from .config import DATA_DIR, ZARR_DIR, remove_path
 from .zarr_utils import reset_zarr_handle
-from .data_utils import generate_json_files, generate_raw_json, generate_channel_info_only
+from .data_utils import generate_json_files, generate_raw_json
 
 
 router = APIRouter()

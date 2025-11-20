@@ -38,7 +38,7 @@
 .clu-btn.model {
   padding: 8px 12px;
 }
-.clu-btn.model .icon {
+.clu-btn.model .icon, .clu-btn.annotate .icon {
   width: 22px;
   height: 22px;
 }

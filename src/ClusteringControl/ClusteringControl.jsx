@@ -7,6 +7,7 @@ export default function ClusteringControl({
   outlineOn = false,
   setOutlineOn = () => {},
   setLineWidth = () => {},
+  onRunLargeModel = () => {},
 }) {
   const [showModelPanel, setShowModelPanel] = useState(false);
   const [selectedModel, setSelectedModel] = useState("Biomni");
@@ -77,10 +78,14 @@ export default function ClusteringControl({
             <circle cx="12" cy="12" r="3.5" stroke="currentColor" strokeWidth="1.5" opacity="0.6"/>
           </svg>
         </button>
+        {/* New: Large Model trigger button (runs the whole pipeline) */}
         <button
-          className={`clu-btn model ${showModelPanel ? "on" : ""}`}
-          onClick={() => setShowModelPanel((v) => !v)}
-          title="select and run large model"
+          className="clu-btn model"
+          onClick={() => {
+            // 仅创建按钮：后续处理与请求逻辑由上层传入
+            onRunLargeModel();
+          }}
+          title="run large model from scratch"
         >
           {/* model icon (robot head) */}
           <svg
@@ -97,6 +102,29 @@ export default function ClusteringControl({
             <circle cx="9" cy="12" r="1.75" fill="currentColor" />
             <circle cx="15" cy="12" r="1.75" fill="currentColor" />
             <path d="M12 6.5V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        </button>
+        <button
+          className={`clu-btn annotate ${showModelPanel ? "on" : ""}`}
+          onClick={() => setShowModelPanel((v) => !v)}
+          title="open annotation panel"
+        >
+          {/* annotation icon (chat bubble with dots) */}
+          <svg
+            className="icon icon-annotate"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <rect x="3.5" y="5" width="17" height="12" rx="3.5" stroke="currentColor" strokeWidth="1.5"/>
+            <circle cx="9" cy="11" r="1.25" fill="currentColor"/>
+            <circle cx="12" cy="11" r="1.25" fill="currentColor" opacity="0.9"/>
+            <circle cx="15" cy="11" r="1.25" fill="currentColor" opacity="0.8"/>
+            <path d="M8 17.5l-2.5 3v-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
       </div>
