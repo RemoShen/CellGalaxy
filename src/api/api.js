@@ -121,6 +121,22 @@ export async function fetchT2(ids, signal) {
   }
 }
 
+export async function fetchRegionRepresentatives(regions, metric = "cosine_centered", signal) {
+  try {
+    const res = await fetch(`${API_BASE}/features/representatives`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ regions, metric }),
+      signal,
+    });
+    if (!res.ok) throw new Error(await safeReadText(res));
+    return await res.json();
+  } catch (e) {
+    console.error("fetchRegionRepresentatives failed", e);
+    return { error: "Failed to fetch region representatives" };
+  }
+}
+
 export async function fetchViolinSelectionKDE(ids, max = 100000, perc = 99.0, thr = 0.1, channels = null, grid = 256, signal) {
   try {
     const body = { ids, max, perc, thr, grid };
@@ -188,5 +204,4 @@ async function safeReadText(res) {
     return "";
   }
 }
-
 

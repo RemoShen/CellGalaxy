@@ -329,6 +329,7 @@ const Viewer = ({
               viewerId={viewerId}
               isSelecting={isSelecting}
               selectedIds={selectedIds}
+              selectedRegions={selectedRegions}
               points={points}
               deckRef={deckRef}
               containerRef={containerRef}

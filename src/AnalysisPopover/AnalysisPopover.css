@@ -1,7 +1,7 @@
 .analysis-popover {
   position: absolute;
-  width: 560px;
-  max-width: 60vw;
+  width: 640px;
+  max-width: 72vw;
   max-height: 75vh;
   overflow-y: auto;
   overflow-x: hidden;
@@ -55,5 +55,4 @@
   background: rgba(127,179,255,0.16);
   border-color: rgba(127,179,255,0.4);
 }
-
 

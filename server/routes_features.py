@@ -447,6 +447,71 @@ def features_t2(payload: Dict = Body(...)):
         raise HTTPException(status_code=500, detail=f"T2 computation failed: {e}")
 
 
+@router.post("/features/representatives")
+def features_representatives(payload: Dict = Body(...)):
+    """
+    Return representative cells (closest to centroid in feature space) for multiple regions.
+    Input: { regions: number[][], metric?: str }
+    Output: { regions: [{ size, representative, representative_similarity, compactness }], metric }
+    """
+    try:
+        regions = payload.get("regions")
+        metric = payload.get("metric", "cosine_centered")
+        if not isinstance(regions, list) or len(regions) == 0:
+            raise HTTPException(status_code=400, detail="regions must be a non-empty list")
+        feats_repr = _get_repr(metric)
+        n = feats_repr.shape[0]
+        out = []
+        for reg in regions:
+            if not isinstance(reg, list):
+                out.append(
+                    {
+                        "size": 0,
+                        "representative": None,
+                        "representative_similarity": None,
+                        "compactness": None,
+                    }
+                )
+                continue
+            ids_arr = np.array([int(x) for x in reg], dtype=np.int64)
+            ids_arr = ids_arr[(ids_arr >= 0) & (ids_arr < n)]
+            ids_arr = np.unique(ids_arr)
+            if ids_arr.size == 0:
+                out.append(
+                    {
+                        "size": 0,
+                        "representative": None,
+                        "representative_similarity": None,
+                        "compactness": None,
+                    }
+                )
+                continue
+            X = feats_repr[ids_arr]
+            c = X.mean(axis=0)
+            cn = np.linalg.norm(c)
+            c = c / cn if cn != 0 else np.zeros_like(c)
+            dists = np.linalg.norm(X - c, axis=1).astype(np.float32)
+            rep_idx_local = int(np.argmin(dists))
+            rep_id = int(ids_arr[rep_idx_local])
+            rep_sim = float(np.clip(float(np.dot(X[rep_idx_local], c)), -1.0, 1.0)) if cn != 0 else None
+            comp = float(dists.mean()) if dists.size > 0 else None
+            out.append(
+                {
+                    "size": int(ids_arr.size),
+                    "representative": rep_id,
+                    "representative_similarity": rep_sim,
+                    "compactness": comp,
+                }
+            )
+        if len(out) == 0:
+            raise HTTPException(status_code=400, detail="no valid regions found")
+        return JSONResponse({"metric": metric, "regions": out})
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"features_representatives failed: {e}")
+
+
 def _compute_global_histogram(bins: int, sample_pairs: int) -> Dict[str, object]:
     """
     Approximate global cosine similarity distribution by random pair sampling.
@@ -573,5 +638,4 @@ def features_validate(q: int = Query(0)):
             "top_ids_q": [int(i) for i in neigh.tolist()],
         }
     )
-
 

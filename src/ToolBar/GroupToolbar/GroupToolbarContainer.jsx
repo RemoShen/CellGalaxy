@@ -1,11 +1,12 @@
 import React from "react";
 import GroupToolbar from "./GroupToolbar";
-import { ANALYSIS_GROUP } from "../../constants/analysis";
+import { ANALYSIS_GROUP, ANALYSIS_COMPARE } from "../../constants/analysis";
 
 export default function GroupToolbarContainer({
   viewerId,
   isSelecting,
   selectedIds,
+  selectedRegions = [],
   points,
   deckRef,
   containerRef,
@@ -15,6 +16,11 @@ export default function GroupToolbarContainer({
   setPopoverOpen,
   clearSelection,
 }) {
+  const regions = Array.isArray(selectedRegions)
+    ? selectedRegions.filter((r) => r && r.size > 0)
+    : [];
+  const regionCount = regions.length;
+  const mode = regionCount >= 2 ? ANALYSIS_COMPARE : ANALYSIS_GROUP;
   const show =
     !isSelecting &&
     selectedIds &&
@@ -50,7 +56,13 @@ export default function GroupToolbarContainer({
         } else {
           setPopoverPos({ x: toolbar.x || 20, y: toolbar.y || 20 });
         }
-        setPopoverCmd({ type: ANALYSIS_GROUP, ids });
+        if (mode === ANALYSIS_COMPARE && regionCount >= 2) {
+          const idsA = Array.from(regions[regionCount - 2] || []);
+          const idsB = Array.from(regions[regionCount - 1] || []);
+          setPopoverCmd({ type: ANALYSIS_COMPARE, regions: [idsA, idsB] });
+        } else {
+          setPopoverCmd({ type: ANALYSIS_GROUP, ids });
+        }
         setPopoverOpen(true);
       }
     } catch {}
@@ -59,10 +71,10 @@ export default function GroupToolbarContainer({
   return (
     <GroupToolbar
       show={show}
+       mode={mode}
       onAnalyze={onAnalyze}
       onClear={() => clearSelection()}
     />
   );
 }
-
 

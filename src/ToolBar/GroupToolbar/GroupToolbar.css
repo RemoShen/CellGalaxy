@@ -13,6 +13,10 @@
   z-index: 6;
   backdrop-filter: blur(4px);
 }
+.group-toolbar.compare {
+  border-color: rgba(0,200,255,0.35);
+  box-shadow: 0 8px 28px rgba(0,180,255,0.22);
+}
 .gtb-btn {
   appearance: none;
   border: none;
@@ -20,6 +24,12 @@
   color: #e8eaed;
   cursor: pointer;
   padding: 6px 8px;
+}
+.group-toolbar.compare .gtb-btn {
+  color: #a7e8ff;
+}
+.group-toolbar.compare .gtb-btn:hover {
+  color: #63d0ff;
 }
 .gtb-btn:hover {
   color: #7fb3ff;
@@ -36,5 +46,4 @@
 .gtb-close:hover {
   color: #ff6b7d;
 }
-
 
