@@ -15,8 +15,8 @@ export default function ClusteringControl({
   const handleRun = () => {
     if (!selectedModel || isRunning) return;
     setIsRunning(true);
-    // 占位：此处未来对接调用具体大模型的逻辑
-    // 现阶段仅模拟完成回调
+    // placeholder: here we will call the specific large model logic in the future
+    // currently only simulate the callback completion
     window.requestAnimationFrame(() => {
       setTimeout(() => {
         // eslint-disable-next-line no-console
@@ -80,7 +80,7 @@ export default function ClusteringControl({
         <button
           className={`clu-btn model ${showModelPanel ? "on" : ""}`}
           onClick={() => setShowModelPanel((v) => !v)}
-          title="选择并运行大模型"
+          title="select and run large model"
         >
           {/* model icon (robot head) */}
           <svg
@@ -124,7 +124,7 @@ export default function ClusteringControl({
                 onClick={handleRun}
                 disabled={!selectedModel || isRunning}
               >
-                {isRunning ? "Running..." : "Run"}
+                {isRunning ? "Running..." : "Annotate"}
               </button>
             </div>
           </div>

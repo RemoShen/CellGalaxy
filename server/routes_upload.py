@@ -7,7 +7,7 @@ from fastapi import APIRouter, File, UploadFile, HTTPException, Request
 
 from .config import DATA_DIR, ZARR_DIR, remove_path
 from .zarr_utils import reset_zarr_handle
-from .data_utils import generate_json_files, generate_raw_json
+from .data_utils import generate_json_files, generate_raw_json, generate_channel_info_only
 
 
 router = APIRouter()
@@ -30,12 +30,18 @@ def _raw_paths() -> tuple[str, str]:
 def _feat_path() -> str:
     return os.path.join(DATA_DIR, "features.npy")
 
+def _channels_path() -> str:
+    return os.path.join(DATA_DIR, "channel_list.csv")
+
+def _gen_marker_path() -> str:
+    return os.path.join(DATA_DIR, ".generating")
+
 
 @router.api_route("/upload/{file_type}", methods=["POST", "DELETE"])
 async def upload_or_delete(
     file_type: str, request: Request, file: UploadFile | None = File(None)
 ):
-    if file_type not in ["zarr", "csv", "raw", "feat"]:
+    if file_type not in ["zarr", "csv", "raw", "feat", "channels"]:
         raise HTTPException(status_code=400, detail="Unsupported file type")
 
     # delete file
@@ -61,6 +67,10 @@ async def upload_or_delete(
         if file_type == "feat":
             remove_path(_feat_path())
             return {"message": "Features cleared"}
+        
+        if file_type == "channels":
+            remove_path(_channels_path())
+            return {"message": "Channel list cleared"}
 
     # upload file
     if file is None:
@@ -72,7 +82,7 @@ async def upload_or_delete(
         else (
             "raw.csv"
             if file_type == "raw"
-            else ("features.npy" if file_type == "feat" else "data.csv")
+            else ("features.npy" if file_type == "feat" else ("channel_list.csv" if file_type == "channels" else "data.csv"))
         )
     )
     file_path = os.path.join(DATA_DIR, target_name)
@@ -89,7 +99,8 @@ async def upload_or_delete(
         os.remove(file_path)
         reset_zarr_handle()
     elif file_type == "csv":
-        await generate_json_files()
+        # Do not generate here; generation will be triggered by uploading channel_list.csv
+        pass
     elif file_type == "raw":
         raw_csv, raw_json = _raw_paths()
         try:
@@ -101,6 +112,20 @@ async def upload_or_delete(
     elif file_type == "feat":
         # no post-processing for features
         pass
+    elif file_type == "channels":
+        # After channel list uploaded, regenerate both channel_info.json and coords.json (if data.csv exists)
+        # Mark generating during the process so frontend can show running overlay
+        marker = _gen_marker_path()
+        try:
+            with open(marker, "w", encoding="utf-8") as f:
+                f.write("generating")
+            await generate_json_files()
+        finally:
+            try:
+                if os.path.exists(marker):
+                    os.remove(marker)
+            except Exception:
+                pass
 
     return {"message": f"{file.filename} uploaded successfully"}
 

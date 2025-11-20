@@ -5,7 +5,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
 from .config import DATA_DIR, ZARR_DIR
-from .data_utils import get_channel_info, process_coord_row
+from .data_utils import get_channel_info, process_coord_row, generate_channel_info_only
 from .zarr_utils import open_zarr, meta_from_img, grid_for_count, get_default_tile
 
 
@@ -24,6 +24,12 @@ def _raw_paths() -> tuple[str, str]:
 
 def _feat_path() -> str:
     return os.path.join(DATA_DIR, "features.npy")
+
+def _channels_path() -> str:
+    return os.path.join(DATA_DIR, "channel_list.csv")
+
+def _gen_marker_path() -> str:
+    return os.path.join(DATA_DIR, ".generating")
 
 
 def _has_zarr() -> bool:
@@ -46,21 +52,38 @@ async def upload_status():
         "csv": os.path.exists(csv_path),
         "raw": os.path.exists(raw_csv) and os.path.exists(raw_json),
         "feat": os.path.exists(_feat_path()),
+        "channels": os.path.exists(_channels_path()),
+        "generating": os.path.exists(_gen_marker_path()),
     }
 
 
 @router.get("/channels")
 async def get_channels():
-    csv_path = _csv_path()
-    if not os.path.exists(csv_path):
-        return {"channels": [], "total_channels": 0}
     try:
+        # Prefer pre-generated file if present
+        ch_json = os.path.join(DATA_DIR, "channel_info.json")
+        if os.path.exists(ch_json):
+            try:
+                import json
+                with open(ch_json, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                channels = data.get("channels", [])
+                return {"channels": channels, "total_channels": len(channels)}
+            except Exception:
+                pass
+        # Else, try to generate on the fly (prefers channel_list.csv)
+        channels = generate_channel_info_only()
+        if channels is not None:
+            return {"channels": channels, "total_channels": len(channels)}
+        # Finally, fallback to data.csv direct computation
+        csv_path = _csv_path()
+        if not os.path.exists(csv_path):
+            return {"channels": [], "total_channels": 0}
         df = pd.read_csv(csv_path)
-        # assume Zarr is always available
         img = open_zarr()
         channels = get_channel_info(df, img)
         return {"channels": channels, "total_channels": len(channels)}
-    except Exception:
+    except Exception as e:
         return {"channels": [], "total_channels": 0}
 
 

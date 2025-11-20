@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import "./FileUpload.css";
 
 export default function FileUpload({ onRefresh = async () => {} }) {
-  const [status, setStatus] = useState({ zarr: false, csv: false, raw: false, feat: false });
+  const [status, setStatus] = useState({ zarr: false, csv: false, raw: false, feat: false, channels: false, generating: false });
   const [busy, setBusy] = useState(false);
-  const [processing, setProcessing] = useState({ zarr: false, csv: false, raw: false, feat: false });
+  const [processing, setProcessing] = useState({ zarr: false, csv: false, raw: false, feat: false, channels: false });
   const [open, setOpen] = useState(false);
+  const [waitingForJson, setWaitingForJson] = useState(false);
+  const [jsonReady, setJsonReady] = useState({ coords: false, channelInfo: false });
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -20,16 +22,85 @@ export default function FileUpload({ onRefresh = async () => {} }) {
         csv: Boolean(data?.csv),
         raw: Boolean(data?.raw),
         feat: Boolean(data?.feat),
+        channels: Boolean(data?.channels),
+        generating: Boolean(data?.generating),
       });
     } catch (err) {
       console.error("status fetch failed", err);
-      setStatus({ zarr: false, csv: false, raw: false, feat: false });
+      setStatus({ zarr: false, csv: false, raw: false, feat: false, channels: false, generating: false });
     }
   }, []);
 
   useEffect(() => {
     fetchStatus();
   }, [fetchStatus]);
+
+  // Polling while generating or processing channels to keep UI in sync until fully done
+  const pollRef = useRef(null);
+  useEffect(() => {
+    const shouldPoll = processing.channels || status.generating || waitingForJson;
+    if (shouldPoll && !pollRef.current) {
+      pollRef.current = setInterval(() => {
+        fetchStatus();
+      }, 1000);
+    } else if (!shouldPoll && pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, [processing.channels, status.generating, waitingForJson, fetchStatus]);
+
+  // local polling: only when waiting for JSON, check static files with HEAD
+  useEffect(() => {
+    if (!waitingForJson) return;
+    let aborted = false;
+    const headOk = async (path) => {
+      try {
+        const res = await fetch(`${path}?ts=${Date.now()}`, { method: 'HEAD', cache: 'no-store' });
+        return res.ok || res.status === 304;
+      } catch {
+        return false;
+      }
+    };
+    const tick = async () => {
+      const needCoords = status.csv;
+      const [chOk, coOk] = await Promise.all([
+        headOk('/public/channel_info.json'),
+        needCoords ? headOk('/public/coords.json') : Promise.resolve(true),
+      ]);
+      if (aborted) return;
+      setJsonReady({ coords: coOk, channelInfo: chOk });
+      if (chOk && coOk) {
+        setWaitingForJson(false);
+        // refresh global status
+        await fetchStatus();
+        await onRefresh();
+      }
+    };
+    const id = setInterval(tick, 800);
+    // check immediately to avoid waiting for the first cycle
+    tick();
+    return () => { aborted = true; clearInterval(id); };
+  }, [waitingForJson, status.csv, fetchStatus, onRefresh]);
+
+  // When generating switches from true -> false, refresh once to pick up new files
+  const prevGeneratingRef = useRef(false);
+  useEffect(() => {
+    const prev = prevGeneratingRef.current;
+    if (prev && !status.generating) {
+      // generation just finished
+      (async () => {
+        await fetchStatus();
+        await onRefresh();
+      })();
+    }
+    prevGeneratingRef.current = status.generating;
+  }, [status.generating, fetchStatus, onRefresh]);
 
   // close menu on outside click
   useEffect(() => {
@@ -46,6 +117,11 @@ export default function FileUpload({ onRefresh = async () => {} }) {
     if (!file) return;
     setBusy(true);
     setProcessing(prev => ({ ...prev, [fileType]: true }));
+    if (fileType === 'channels') {
+      // start waiting for two JSON files to be ready
+      setWaitingForJson(true);
+      setJsonReady({ coords: false, channelInfo: false });
+    }
     
     try {
       const formData = new FormData();
@@ -60,7 +136,7 @@ export default function FileUpload({ onRefresh = async () => {} }) {
         console.log(`${fileType} file uploaded successfully`);
         
         // If it's a CSV file, show processing status
-        if (fileType === 'csv') {
+        if (fileType === 'csv' || fileType === 'channels') {
           // Wait for a while to let user see processing status
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
@@ -95,6 +171,10 @@ export default function FileUpload({ onRefresh = async () => {} }) {
 
   const handleClear = async (fileType) => {
     setBusy(true);
+    // delete channels will trigger rebuild of channel_info.json and coords.json
+    if (fileType !== 'channels') {
+      setProcessing(prev => ({ ...prev, [fileType]: true }));
+    }
     try {
       const response = await fetch(`/upload/${fileType}`, { method: 'DELETE' });
       if (response.ok) {
@@ -108,12 +188,15 @@ export default function FileUpload({ onRefresh = async () => {} }) {
       console.error(`${fileType} file clear error:`, error);
     } finally {
       setBusy(false);
+      if (fileType !== 'channels') {
+        setProcessing(prev => ({ ...prev, [fileType]: false }));
+      }
     }
   };
 
   return (
     <>
-      {(processing.csv || processing.zarr || processing.raw || processing.feat) && (
+      {(processing.csv || processing.zarr || processing.raw || processing.feat || processing.channels || status.generating || (waitingForJson && !(jsonReady.channelInfo && (status.csv ? jsonReady.coords : true)))) && (
         <div className="fullscreen-processing-overlay">
           <div className="processing-content">
             <div className="processing-spinner"></div>
@@ -121,6 +204,7 @@ export default function FileUpload({ onRefresh = async () => {} }) {
             {processing.zarr && <div className="processing-text">uploading Image Data...</div>}
             {processing.raw && <div className="processing-text">uploading Meta Data...</div>}
             {processing.feat && <div className="processing-text">uploading Features...</div>}
+            {(processing.channels || status.generating || (waitingForJson && !(jsonReady.channelInfo && (status.csv ? jsonReady.coords : true)))) && <div className="processing-text">Generating channel_info.json and coords.json...</div>}
           </div>
         </div>
       )}
@@ -134,7 +218,7 @@ export default function FileUpload({ onRefresh = async () => {} }) {
             aria-haspopup="menu"
             aria-expanded={open}
           >
-            {processing.csv || processing.zarr || processing.raw || processing.feat ? 'Uploading...' : 'Upload'}
+            {processing.csv || processing.zarr || processing.raw || processing.feat || processing.channels ? 'Uploading...' : 'Upload'}
           </button>
           {open && (
             <div className="upload-menu" role="menu">
@@ -160,6 +244,18 @@ export default function FileUpload({ onRefresh = async () => {} }) {
                   disabled={busy}
                   title="Clear CSV"
                   aria-label="Clear CSV"
+                />
+              </div>
+              <div className="upload-menu-item" role="menuitem">
+                <button className="upload-menu-action" onClick={() => { setOpen(false); handleFileSelect('channels'); }} disabled={busy || status.channels}>
+                  Channel List (csv)
+                </button>
+                <button
+                  className={`upload-menu-clear${status.channels ? ' has-file' : ''}`}
+                  onClick={() => handleClear('channels')}
+                  disabled={busy}
+                  title="Clear Channels"
+                  aria-label="Clear Channels"
                 />
               </div>
               <div className="upload-menu-item" role="menuitem">

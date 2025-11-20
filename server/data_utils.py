@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, List, Dict
+from typing import Any, List, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -154,34 +154,188 @@ def get_channel_info(df: pd.DataFrame, img):
     return channels
 
 
-async def generate_json_files() -> None:
-    """generate coords.json and channel_info.json from data.csv"""
-    csv_path = os.path.join(DATA_DIR, "data.csv")
-    if not os.path.exists(csv_path):
-        return
+def _channel_list_csv_path() -> str:
+    return os.path.join(DATA_DIR, "channel_list.csv")
+
+
+def _read_channel_names_from_csv(path: str) -> List[str]:
+    """Read channel names from a CSV file.
+
+    Supported formats:
+      - Prefer column header 'channel_name' (case-insensitive)
+      - Fallbacks: 'name', 'channel', 'marker'
+      - If an id column exists (e.g., 'channel_id', 'id', 'index'), map names by id
+      - If no id column, keep file order
+    """
+    if not os.path.exists(path):
+        return []
+    df = pd.read_csv(path)
+    if df is None or df.empty:
+        return []
+    # normalize column names
+    original_cols = list(df.columns)
+    lower_map = {str(c).strip().lower(): c for c in original_cols}
+    # pick name column
+    name_key_candidates = ["channel_name", "name", "channel", "marker", "label"]
+    name_col = None
+    for k in name_key_candidates:
+        if k in lower_map:
+            name_col = lower_map[k]
+            break
+    if name_col is None:
+        # fall back: if there's more than one column, prefer the last column (often the name),
+        # otherwise use the first column
+        name_col = original_cols[-1] if len(original_cols) > 1 else original_cols[0]
+
+    # pick id column if any
+    id_key_candidates = ["channel_id", "id", "index"]
+    id_col = None
+    for k in id_key_candidates:
+        if k in lower_map:
+            id_col = lower_map[k]
+            break
+
+    # build names
+    def _clean_str(v: Any) -> str:
+        s = str(v).strip()
+        return "" if s.lower() == "nan" else s
+
+    if id_col is not None:
+        pairs = []
+        for _, row in df.iterrows():
+            try:
+                rid = int(row[id_col])
+            except Exception:
+                continue
+            nm = _clean_str(row.get(name_col, ""))
+            if nm:
+                pairs.append((rid, nm))
+        if not pairs:
+            return []
+        max_id = max(r for r, _ in pairs)
+        out = ["" for _ in range(max_id + 1)]
+        for rid, nm in pairs:
+            if 0 <= rid < len(out):
+                out[rid] = nm
+        # remove trailing empty names if any
+        while len(out) > 0 and out[-1] == "":
+            out.pop()
+        # fill empty slots with default names like ch_{i}
+        for i in range(len(out)):
+            if not out[i]:
+                out[i] = f"ch_{i}"
+        return out
+    else:
+        names: List[str] = []
+        for v in df[name_col].tolist():
+            s = _clean_str(v)
+            if s:
+                names.append(s)
+        return names
+
+
+def get_channel_info_from_names(names: List[str], img) -> List[Dict[str, Any]]:
+    """Build channel info from an ordered name list and Zarr image statistics."""
+    channels: List[Dict[str, Any]] = []
+    if img is None:
+        return [
+            {
+                "id": i,
+                "name": (names[i] if i < len(names) else f"ch_{i}"),
+                "pixel_value_range": {"min": 0.0, "max": 0.0},
+            }
+            for i in range(len(names))
+        ]
     try:
-        df = pd.read_csv(csv_path)
-        # assume Zarr is always available
-        img = open_zarr()
         C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
-        N = min(len(df), N)
-        coords = [process_coord_row(df.iloc[idx], idx, n_per_chunk) for idx in range(N)]
-        channels = get_channel_info(df, img)
-        with open(os.path.join(DATA_DIR, "coords.json"), "w", encoding="utf-8") as f:
-            json.dump(coords, f, ensure_ascii=False, indent=2)
-        with open(
-            os.path.join(DATA_DIR, "channel_info.json"), "w", encoding="utf-8"
-        ) as f:
-            json.dump(
-                {"channels": channels, "total_channels": len(channels)},
-                f,
-                ensure_ascii=False,
-                indent=2,
-            )
-        print(
-            f"Generated JSON files: coords.json ({len(coords)} points), "
-            f"channel_info.json ({len(channels)} channels)"
-        )
+    except Exception:
+        C = len(names)
+    limit = min(len(names), int(C))
+    for i in range(limit):
+        ch_name = names[i] if i < len(names) else f"ch_{i}"
+        try:
+            channel_data = img[i, :, :, :]
+            vmin, vmax = _pixel_range_from_array(channel_data)
+        except Exception:
+            vmin, vmax = 0.0, 0.0
+        channels.append({
+            "id": i,
+            "name": ch_name,
+            "pixel_value_range": {"min": vmin, "max": vmax},
+        })
+    return channels
+
+
+def generate_channel_info_only() -> Optional[List[Dict[str, Any]]]:
+    """Generate channel_info.json prioritizing channel_list.csv if present.
+
+    Returns the channels list if generated, else None.
+    """
+    try:
+        img = open_zarr()
+    except Exception:
+        img = None
+    # 1) Prefer explicit channel_list.csv
+    ch_list_path = _channel_list_csv_path()
+    if os.path.exists(ch_list_path):
+        names = _read_channel_names_from_csv(ch_list_path)
+        channels = get_channel_info_from_names(names, img)
+        with open(os.path.join(DATA_DIR, "channel_info.json"), "w", encoding="utf-8") as f:
+            json.dump({"channels": channels, "total_channels": len(channels)}, f, ensure_ascii=False, indent=2)
+        return channels
+
+    # 2) Fallback to data.csv column names (if available)
+    csv_path = os.path.join(DATA_DIR, "data.csv")
+    if os.path.exists(csv_path):
+        try:
+            df = pd.read_csv(csv_path)
+            if img is None:
+                try:
+                    img = open_zarr()
+                except Exception:
+                    img = None
+            channels = get_channel_info(df, img) if img is not None else []
+            with open(os.path.join(DATA_DIR, "channel_info.json"), "w", encoding="utf-8") as f:
+                json.dump({"channels": channels, "total_channels": len(channels)}, f, ensure_ascii=False, indent=2)
+            return channels
+        except Exception:
+            return None
+    return None
+
+
+async def generate_json_files() -> None:
+    """generate coords.json and channel_info.json.
+
+    - coords.json: from data.csv (if exists)
+    - channel_info.json: prefer channel_list.csv; fallback to data.csv
+    """
+    csv_path = os.path.join(DATA_DIR, "data.csv")
+    try:
+        # coords.json generation (requires data.csv + zarr)
+        coords_generated = False
+        if os.path.exists(csv_path):
+            df = pd.read_csv(csv_path)
+            try:
+                img = open_zarr()
+                C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
+                N = min(len(df), N)
+            except Exception:
+                # If zarr not available, skip coords generation
+                img = None
+                n_per_chunk = 1
+                N = len(df)
+            coords = [process_coord_row(df.iloc[idx], idx, n_per_chunk) for idx in range(N)]
+            with open(os.path.join(DATA_DIR, "coords.json"), "w", encoding="utf-8") as f:
+                json.dump(coords, f, ensure_ascii=False, indent=2)
+            coords_generated = True
+
+        # channel_info.json generation (prefer explicit channel list)
+        channels = generate_channel_info_only()
+
+        # Log
+        coords_msg = f"coords.json ({len(coords) if os.path.exists(csv_path) else 0} points)" if coords_generated else "coords.json (skipped)"
+        ch_msg = f"channel_info.json ({len(channels) if channels is not None else 0} channels)" if channels is not None else "channel_info.json (skipped)"
+        print(f"Generated JSON files: {coords_msg}, {ch_msg}")
     except Exception as e:
         print(f"Generated JSON files failed: {str(e)}")
 
@@ -190,6 +344,8 @@ __all__ = [
     "generate_raw_json",
     "process_coord_row",
     "get_channel_info",
+    "get_channel_info_from_names",
+    "generate_channel_info_only",
     "generate_json_files",
 ]
 
