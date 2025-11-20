@@ -17,6 +17,45 @@ DEFAULT_TILE = 16
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(CACHE_DIR, exist_ok=True)
 
+#
+# LLM settings
+#
+# Token file default location   
+LLM_TOKEN_FILE = os.environ.get(
+    "LLM_TOKEN_FILE",
+    os.path.join(os.getcwd(), "server", "secrets", "llm_token.txt"),
+)
+LLM_API_BASE = os.environ.get("LLM_API_BASE", "https://api.openai.com/v1")
+LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini")
+LLM_TEMPERATURE = float(os.environ.get("LLM_TEMPERATURE", "0.2"))
+CLUSTER_LABELS_JSON = os.path.join(DATA_DIR, "cluster_labels.json")
+
+HF_TOKEN_FILE = os.environ.get(
+    "HF_TOKEN_FILE",
+    os.path.join(os.getcwd(), "server", "secrets", "hf_token.txt"),
+)
+
+LLM_MODELS_REGISTRY = {
+    "Biomni": {
+        "provider": os.environ.get("BIOMNI_PROVIDER", "hf-local"),
+        "hf_model": os.environ.get("HF_MODEL_BIOMNI", ""),
+        "api_base": os.environ.get("LLM_API_BASE_BIOMNI", LLM_API_BASE),
+        "model": os.environ.get("LLM_MODEL_BIOMNI", LLM_MODEL),
+    },
+    "MedGamma": {
+        "provider": os.environ.get("MEDGAMMA_PROVIDER", "hf-local"),
+        "hf_model": os.environ.get("HF_MODEL_MEDGAMMA", "google/medgemma-4b-it"),
+        "api_base": os.environ.get("LLM_API_BASE_MEDGAMMA", LLM_API_BASE),
+        "model": os.environ.get("LLM_MODEL_MEDGAMMA", LLM_MODEL),
+    },
+    "Biomistral": {
+        "provider": os.environ.get("BIOMISTRAL_PROVIDER", "hf-local"),
+        "hf_model": os.environ.get("HF_MODEL_BIOMISTRAL", "BioMistral/BioMistral-7B-DARE"),
+        "api_base": os.environ.get("LLM_API_BASE_BIOMISTRAL", LLM_API_BASE),
+        "model": os.environ.get("LLM_MODEL_BIOMISTRAL", LLM_MODEL),
+    },
+}
+
 
 def remove_path(path: str) -> None:
     """remove file or directory, silently fail on error"""

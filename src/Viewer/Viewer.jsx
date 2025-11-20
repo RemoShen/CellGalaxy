@@ -28,6 +28,7 @@ import DeckViewState from "./DeckViewState";
 import ImageLayers from "../layers/ImageLayers";
 import ClusterOutlines from "../ClusterHoverMask/ClusterOutlines";
 import useClusterSelection from "./useClusterSelection";
+import useClusterAnnotations from "./useClusterAnnotations";
 
 const Viewer = ({
   viewerId = "viewer",
@@ -60,6 +61,9 @@ const Viewer = ({
   clusterOpacity = 0.25,
   clusterLineWidth = 1.5,
   clusterOutlineOn = false,
+  // Cluster annotation (LLM titles/descriptions)
+  clusterAnnotationOn = false,
+  clusterAnnotationModel = "MedGamma",
   // Shared zoom (optional): when provided, viewers sync zoom level
   sharedZoom,
   setSharedZoom,
@@ -132,6 +136,14 @@ const Viewer = ({
     if (is3D || !points || points.length < 3) return [];
     return buildOutlineData2D(points);
   }, [is3D, points]);
+  
+  // Cluster annotation (text layer + tooltip data), derived from outlineData
+  const { annotationLayer, clusterAnnotationByLabel } = useClusterAnnotations({
+    clusterAnnotationOn,
+    clusterAnnotationModel,
+    outlineData,
+    viewState,
+  });
 
   const screenOutlines = ClusterOutlines({
     is3D,
@@ -164,7 +176,6 @@ const Viewer = ({
     getRegionIndexForId,
     regionColors,
   });
-
 
   const controller =
     selectionMode === SELECTION_NONE
@@ -237,36 +248,64 @@ const Viewer = ({
                   controller={controller}
                   viewState={{ ...viewState, zoom: typeof sharedZoom === 'number' ? sharedZoom : viewState.zoom }}
                   onViewStateChange={handleViewStateChange}
-                  layers={layers.concat(hoverLayers)}
+                  layers={layers
+                    .concat(annotationLayer ? [annotationLayer] : [])
+                    .concat(hoverLayers)}
                   onClick={onClick}
                   onHover={onHover}
                   onDragStart={onDragStart}
                   onDrag={onDrag}
                   onDragEnd={onDragEnd}
-                  getTooltip={({ object }) => {
-                if (altPressed) return null;
-                if (!object) return null;
-                const activeFilter = filteredIds && filteredIds.size > 0;
-                if (activeFilter && !filteredIds.has(object.id)) return null;
+                  getTooltip={(info) => {
+                    const { object } = info || {};
+                    if (altPressed) return null;
+                    if (!object) return null;
 
-                const previewHtml = buildTooltipHTML({
-                  object,
-                  iconMappingsByChunk,
-                  chunkUV,
-                  atlasByChannel,
-                  atlasURL,
-                  channels,
-                  colors,
-                  alphas,
-                  previewSize: 128,
-                });
+                    // Cluster-level annotation (used for text layer and point hover)
+                    let annotation = null;
+                    if (object.kind === "cluster-annotation") {
+                      annotation = object;
+                    } else if (clusterAnnotationOn && clusterAnnotationByLabel.size > 0) {
+                      const lbl = object.label;
+                      if (Number.isFinite(lbl)) {
+                        annotation = clusterAnnotationByLabel.get(lbl);
+                      }
+                    }
 
-                const textHtml = `id: ${object.id}<br/>label: ${object.label ?? object.id % 11}`;
-                return {
-                  html: `${textHtml}${previewHtml ? "<br/>" + previewHtml : ""}`,
-                  className: "deck-tooltip",
-                };
-              }}
+                    if (annotation && (annotation.title || annotation.description)) {
+                      const titleHtml = annotation.title
+                        ? `<div><b>${annotation.title}</b></div>`
+                        : "";
+                      const descHtml = annotation.description
+                        ? `<div style="max-width:260px;white-space:normal;text-align:left;">${annotation.description}</div>`
+                        : "";
+                      return {
+                        html: `${titleHtml}${descHtml}`,
+                        className: "deck-tooltip",
+                      };
+                    }
+
+                    const activeFilter = filteredIds && filteredIds.size > 0;
+                    if (activeFilter && !filteredIds.has(object.id)) return null;
+
+                    const previewHtml = buildTooltipHTML({
+                      object,
+                      iconMappingsByChunk,
+                      chunkUV,
+                      atlasByChannel,
+                      atlasURL,
+                      channels,
+                      colors,
+                      alphas,
+                      previewSize: 128,
+                    });
+
+                    const textHtml = `id: ${object.id}<br/>label: ${object.label ?? object.id % 11}`;
+                    return {
+                      html: `${textHtml}${previewHtml ? "<br/>" + previewHtml : ""}`,
+                      className: "deck-tooltip",
+                    };
+                  }}
                   getCursor={() => "default"}
                   pickingRadius={6}
                 />

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import "./ClusteringControl.css";
-import { runLLMClusterChannelAvg } from "../api/api";
+import { runLLMClusterChannelAvg, runLLMGenerateClusterLabels } from "../api/api";
 
 export default function ClusteringControl({
   colorOn = false,
@@ -8,25 +8,14 @@ export default function ClusteringControl({
   outlineOn = false,
   setOutlineOn = () => {},
   setLineWidth = () => {},
+  annotationOn = false,
+  setAnnotationOn = () => {},
+  annotationModel = "MedGamma",
+  setAnnotationModel = () => {},
 }) {
   const [showModelPanel, setShowModelPanel] = useState(false);
-  const [selectedModel, setSelectedModel] = useState("Biomni");
-  const [isRunning, setIsRunning] = useState(false);
+  const [selectedModel, setSelectedModel] = useState(annotationModel || "Biomni");
   const [isLLMRunning, setIsLLMRunning] = useState(false);
-
-  const handleRun = () => {
-    if (!selectedModel || isRunning) return;
-    setIsRunning(true);
-    // placeholder: here we will call the specific large model logic in the future
-    // currently only simulate the callback completion
-    window.requestAnimationFrame(() => {
-      setTimeout(() => {
-        // eslint-disable-next-line no-console
-        console.log("[Model Run]", selectedModel);
-        setIsRunning(false);
-      }, 300);
-    });
-  };
 
   return (
     <div className="clu-block">
@@ -79,15 +68,18 @@ export default function ClusteringControl({
             <circle cx="12" cy="12" r="3.5" stroke="currentColor" strokeWidth="1.5" opacity="0.6"/>
           </svg>
         </button>
-        {/* New: Large Model trigger button (runs the whole pipeline) */}
+        {/* New: Large Model trigger button (runs the whole pipeline: precompute -> multi-model annotate) */}
         <button
           className="clu-btn model"
           onClick={() => {
             if (isLLMRunning) return;
             setIsLLMRunning(true);
-            // 调用后端计算均值的接口
             const ac = new AbortController();
             runLLMClusterChannelAvg(ac.signal)
+              .then(() => {
+                const ac2 = new AbortController();
+                return runLLMGenerateClusterLabels({ top_k: 6, models: ["Biomni","MedGamma","Biomistral"] }, ac2.signal);
+              })
               .catch(() => ({}))
               .finally(() => {
                 setIsLLMRunning(false);
@@ -114,7 +106,20 @@ export default function ClusteringControl({
         </button>
         <button
           className={`clu-btn annotate ${showModelPanel ? "on" : ""}`}
-          onClick={() => setShowModelPanel((v) => !v)}
+          onClick={() =>
+            setShowModelPanel((v) => {
+              const next = !v;
+              if (next) {
+                if (selectedModel) {
+                  setAnnotationModel(selectedModel);
+                  setAnnotationOn(true);
+                }
+              } else {
+                setAnnotationOn(false);
+              }
+              return next;
+            })
+          }
           title="open annotation panel"
         >
           {/* annotation icon (chat bubble with dots) */}
@@ -145,24 +150,16 @@ export default function ClusteringControl({
               <select
                 className="clu-select"
                 value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedModel(val);
+                  setAnnotationModel(val);
+                }}
               >
                 <option value="Biomni">Biomni</option>
                 <option value="MedGamma">MedGamma</option>
-                <option value="Bimistral">Bimistral</option>
+                <option value="Biomistral">Biomistral</option>
               </select>
-            </div>
-          </div>
-          <div className="clu-row">
-            <div className="clu-label">Action</div>
-            <div className="clu-actions">
-              <button
-                className="clu-run-btn"
-                onClick={handleRun}
-                disabled={!selectedModel || isRunning}
-              >
-                {isRunning ? "Running..." : "Annotate"}
-              </button>
             </div>
           </div>
         </div>
@@ -170,5 +167,3 @@ export default function ClusteringControl({
     </div>
   );
 }
-
-

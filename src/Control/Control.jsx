@@ -47,6 +47,10 @@ export default function Control({
   setClusterOpacity = () => {},
   clusterLineWidth = 1.5,
   setClusterLineWidth = () => {},
+  clusterAnnotationOn = false,
+  setClusterAnnotationOn = () => {},
+  clusterAnnotationModel = "MedGamma",
+  setClusterAnnotationModel = () => {},
 }) {
   const [collapsed, setCollapsed] = useState(false);
   return (
@@ -115,6 +119,10 @@ export default function Control({
         setOpacity={setClusterOpacity}
         lineWidth={clusterLineWidth}
         setLineWidth={setClusterLineWidth}
+        annotationOn={clusterAnnotationOn}
+        setAnnotationOn={setClusterAnnotationOn}
+        annotationModel={clusterAnnotationModel}
+        setAnnotationModel={setClusterAnnotationModel}
       />
     
       </div>

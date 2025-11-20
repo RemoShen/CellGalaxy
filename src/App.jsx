@@ -11,6 +11,8 @@ export default function App() {
     pointsUMAP,
     clusterColorOn,
     clusterOutlineOn,
+    clusterAnnotationOn,
+    clusterAnnotationModel,
     // pass-through for other props
     ...rest
   } = dataLoader;
@@ -38,6 +40,8 @@ export default function App() {
               hoverMaskEnabled={false}
               clusterColorOn={clusterColorOn}
               clusterOutlineOn={false}
+              clusterAnnotationOn={false}
+              clusterAnnotationModel={clusterAnnotationModel}
               transitionsEnabled={!disableTransitions}
             />
           </div>
@@ -51,6 +55,8 @@ export default function App() {
               hoverMaskEnabled={true}
               clusterColorOn={clusterColorOn}
               clusterOutlineOn={clusterOutlineOn}
+              clusterAnnotationOn={clusterAnnotationOn}
+              clusterAnnotationModel={clusterAnnotationModel}
               transitionsEnabled={!disableTransitions}
             />
           </div>
@@ -66,6 +72,8 @@ export default function App() {
               hoverMaskEnabled={!!rest.useUMAP}
               clusterColorOn={rest.useUMAP ? clusterColorOn : clusterColorOn}
               clusterOutlineOn={rest.useUMAP ? clusterOutlineOn : false}
+              clusterAnnotationOn={rest.useUMAP ? clusterAnnotationOn : false}
+              clusterAnnotationModel={clusterAnnotationModel}
               transitionsEnabled={!disableTransitions}
             />
           </div>

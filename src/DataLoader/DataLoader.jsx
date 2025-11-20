@@ -45,6 +45,9 @@ export default function useDataLoader() {
   const [clusterOpacity, setClusterOpacity] = useState(1.0);
   // line width (px) for outline mode
   const [clusterLineWidth, setClusterLineWidth] = useState(1.5);
+  // cluster text annotation (LLM titles/descriptions)
+  const [clusterAnnotationOn, setClusterAnnotationOn] = useState(false);
+  const [clusterAnnotationModel, setClusterAnnotationModel] = useState("MedGamma");
   
   // UMAP mode settings (kept for compatibility, side-by-side uses both)
   const [useUMAP, setUseUMAP] = useState(false);
@@ -392,6 +395,10 @@ export default function useDataLoader() {
     setClusterOpacity,
     clusterLineWidth,
     setClusterLineWidth,
+    clusterAnnotationOn,
+    setClusterAnnotationOn,
+    clusterAnnotationModel,
+    setClusterAnnotationModel,
     
     // UMAP mode (kept for compatibility)
     useUMAP,

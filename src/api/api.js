@@ -154,6 +154,33 @@ export async function runLLMClusterChannelAvg(signal) {
     return { error: "Failed to run LLM precompute" };
   }
 }
+
+export async function runLLMGenerateClusterLabels(options = {}, signal) {
+  try {
+    const res = await fetch(`${API_BASE}/llm/generate_cluster_labels`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(options || {}),
+      signal,
+    });
+    if (!res.ok) throw new Error(await safeReadText(res));
+    return await res.json();
+  } catch (e) {
+    console.error("runLLMGenerateClusterLabels failed", e);
+    return { error: "Failed to generate cluster labels" };
+  }
+}
+
+export async function fetchClusterLabels(signal) {
+  try {
+    const res = await fetch(`${API_BASE}/llm/cluster_labels`, { method: "GET", signal, cache: "no-store" });
+    if (!res.ok) throw new Error(await safeReadText(res));
+    return await res.json();
+  } catch (e) {
+    console.error("fetchClusterLabels failed", e);
+    return { levels: {} };
+  }
+}
 async function safeReadText(res) {
   try {
     return await res.text();

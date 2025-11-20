@@ -25,10 +25,20 @@ export function buildOutlineData2D(points) {
     const hull = computeConvexHull2D(arr);
     if (!hull || hull.length < 3) continue;
     const rgb = clusterColor(label);
+    // simple centroid estimate based on all points in this cluster (in projection space)
+    let sumX = 0;
+    let sumY = 0;
+    for (const p of arr) {
+      sumX += p.x ?? 0;
+      sumY += p.y ?? 0;
+    }
+    const n = arr.length || 1;
+    const centroid = [sumX / n, sumY / n, 0];
     out.push({
       path: hull.map(([x, y]) => [x, y, 0]),
       color: [rgb[0], rgb[1], rgb[2], 255],
       label,
+      centroid,
     });
   }
   return out;
@@ -62,5 +72,4 @@ export function projectOutlines3D(viewport, points, filteredIds) {
   }
   return paths;
 }
-
 
