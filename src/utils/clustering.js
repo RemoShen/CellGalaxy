@@ -51,15 +51,62 @@ export function projectOutlines3D(viewport, points, filteredIds) {
   for (const p of points) {
     if (activeFilter && !filteredIds.has(p.id)) continue;
     const [sx, sy] = viewport.project([p.x, p.y, p.z ?? 0]);
-    const arr = byLabel.get(p.label) || [];
-    arr.push({ x: sx, y: sy });
-    byLabel.set(p.label, arr);
+    const entry = byLabel.get(p.label) || {
+      screen: [],
+      sumX: 0,
+      sumY: 0,
+      sumZ: 0,
+      count: 0,
+    };
+    entry.screen.push({ x: sx, y: sy });
+    entry.sumX += p.x ?? 0;
+    entry.sumY += p.y ?? 0;
+    entry.sumZ += p.z ?? 0;
+    entry.count += 1;
+    byLabel.set(p.label, entry);
   }
   const paths = [];
-  for (const [label, arr] of byLabel.entries()) {
-    if (arr.length < 3) continue;
+  for (const [label, entry] of byLabel.entries()) {
+    const arr = entry.screen;
+    if (!arr || arr.length < 3) continue;
     const hull = computeConvexHull2D(arr);
     if (!hull || hull.length < 3) continue;
+
+    // Screen-space bounding box (for dynamic annotation placement)
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const [x, y] of hull) {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    const bbox = {
+      minX,
+      maxX,
+      minY,
+      maxY,
+      width: maxX - minX,
+      height: maxY - minY,
+      cx: (minX + maxX) / 2,
+      cy: (minY + maxY) / 2,
+    };
+
+    // 3D centroid in world space (average of cluster points)
+    const denom = entry.count > 0 ? entry.count : 1;
+    const centroidWorld = [
+      entry.sumX / denom,
+      entry.sumY / denom,
+      entry.sumZ / denom,
+    ];
+    const projectedCentroid = viewport.project(centroidWorld);
+    const pixelOffset = [
+      bbox.cx - (projectedCentroid?.[0] ?? bbox.cx),
+      bbox.cy - (projectedCentroid?.[1] ?? bbox.cy),
+    ];
+
     const rgb = clusterColor(label);
     const d = hull.map(([x, y], i) => `${i ? "L" : "M"}${x},${y}`).join(" ") + " Z";
     paths.push({
@@ -68,8 +115,11 @@ export function projectOutlines3D(viewport, points, filteredIds) {
       color: `rgba(${rgb[0]},${rgb[1]},${rgb[2]},1)`,
       rgb,
       label,
+      bbox,
+      centroidWorld,
+      projectedCentroid: [projectedCentroid?.[0] ?? 0, projectedCentroid?.[1] ?? 0],
+      pixelOffset,
     });
   }
   return paths;
 }
-

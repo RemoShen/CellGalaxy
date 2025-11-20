@@ -136,22 +136,25 @@ const Viewer = ({
     if (is3D || !points || points.length < 3) return [];
     return buildOutlineData2D(points);
   }, [is3D, points]);
-  
-  // Cluster annotation (text layer + tooltip data), derived from outlineData
+
+  const screenOutlines = ClusterOutlines({
+    is3D,
+    clusterOutlineOn,
+    forceCompute: clusterAnnotationOn,
+    points,
+    filteredIds,
+    deckRef,
+    viewDeps: [viewState.zoom, viewState.rotationX, viewState.rotationOrbit, viewState.target],
+  });
+
+  // Cluster annotation (text layer + tooltip data), derived from outlineData (2D) or projected screen outlines (3D)
   const { annotationLayer, clusterAnnotationByLabel } = useClusterAnnotations({
     clusterAnnotationOn,
     clusterAnnotationModel,
     outlineData,
     viewState,
-  });
-
-  const screenOutlines = ClusterOutlines({
     is3D,
-    clusterOutlineOn,
-    points,
-    filteredIds,
-    deckRef,
-    viewDeps: [viewState.zoom, viewState.rotationX, viewState.rotationOrbit, viewState.target],
+    screenOutlines3D: screenOutlines,
   });
 
   const layers = ImageLayers({

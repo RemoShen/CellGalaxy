@@ -4,6 +4,7 @@ import { projectOutlines3D } from "../utils/clustering";
 export default function ClusterOutlines({
   is3D = false,
   clusterOutlineOn = false,
+  forceCompute = false,
   points = [],
   filteredIds = new Set(),
   deckRef,
@@ -12,7 +13,7 @@ export default function ClusterOutlines({
   const [screenOutlines, setScreenOutlines] = useState([]);
 
   useEffect(() => {
-    if (!is3D || !clusterOutlineOn) {
+    if (!is3D || (!clusterOutlineOn && !forceCompute)) {
       setScreenOutlines([]);
       return;
     }
@@ -29,9 +30,8 @@ export default function ClusterOutlines({
       setScreenOutlines([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [is3D, clusterOutlineOn, points, filteredIds, deckRef, ...viewDeps]);
+  }, [is3D, clusterOutlineOn, forceCompute, points, filteredIds, deckRef, ...viewDeps]);
 
   return screenOutlines;
 }
-
 

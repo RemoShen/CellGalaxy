@@ -12,6 +12,8 @@ export default function useClusterAnnotations({
   clusterAnnotationModel = "MedGamma",
   outlineData = [],
   viewState,
+  is3D = false,
+  screenOutlines3D = [],
 }) {
   // Load static JSON once when annotation is enabled
   const [clusterLabelsJson, setClusterLabelsJson] = useState(null);
@@ -47,22 +49,37 @@ export default function useClusterAnnotations({
   // Build annotation data (cluster centroid + title/description for selected model)
   const clusterAnnotationData = useMemo(() => {
     if (!clusterAnnotationOn) return [];
-    if (!clusterLabelsJson || !outlineData || outlineData.length === 0) return [];
+    if (!clusterLabelsJson) return [];
+    const source = is3D ? screenOutlines3D : outlineData;
+    if (!source || source.length === 0) return [];
     const levels = clusterLabelsJson.levels || {};
     const levelKey = Object.keys(levels)[0] ?? "0";
     const levelData = levels[levelKey] || {};
     if (!clusterAnnotationModel) return [];
 
     const result = [];
-    for (const outline of outlineData) {
+    for (const outline of source) {
       const labelKey = String(outline.label);
       const clusterEntry = levelData[labelKey];
       const modelInfo =
         clusterEntry && clusterEntry.models && clusterEntry.models[clusterAnnotationModel];
       if (!modelInfo || !modelInfo.title) continue;
-      const c = outline.centroid || (outline.path && outline.path[0]) || [0, 0, 0];
+      const c = is3D
+        ? outline.centroidWorld || [0, 0, 0]
+        : outline.centroid || (outline.path && outline.path[0]) || [0, 0, 0];
+      const pixelOffset = is3D && Array.isArray(outline.pixelOffset)
+        ? outline.pixelOffset.map((v) => (Number.isFinite(v) ? v : 0))
+        : [0, 0];
+      const bboxCenter =
+        outline.bbox &&
+        Number.isFinite(outline.bbox.cx) &&
+        Number.isFinite(outline.bbox.cy)
+          ? [outline.bbox.cx, outline.bbox.cy]
+          : null;
       result.push({
         position: [c[0], c[1], c[2] ?? 0],
+        pixelOffset,
+        screenPosition: bboxCenter,
         label: outline.label,
         title: modelInfo.title,
         description: modelInfo.description || "",
@@ -71,7 +88,14 @@ export default function useClusterAnnotations({
       });
     }
     return result;
-  }, [clusterAnnotationOn, clusterLabelsJson, outlineData, clusterAnnotationModel]);
+  }, [
+    clusterAnnotationOn,
+    clusterLabelsJson,
+    outlineData,
+    clusterAnnotationModel,
+    is3D,
+    screenOutlines3D,
+  ]);
 
   // Quick lookup: label -> annotation entry
   const clusterAnnotationByLabel = useMemo(() => {
@@ -93,6 +117,7 @@ export default function useClusterAnnotations({
       getText: (d) => d.title,
       getSize: () => clusterTextSize,
       sizeUnits: "pixels",
+      getPixelOffset: (d) => d.pixelOffset || [0, 0],
       getColor: [255, 255, 255, 255],
       getBackgroundColor: (d) => {
         const rgb = clusterColor(d.label);
@@ -110,4 +135,3 @@ export default function useClusterAnnotations({
 
   return { annotationLayer, clusterAnnotationByLabel };
 }
-
