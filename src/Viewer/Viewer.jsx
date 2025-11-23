@@ -466,13 +466,10 @@ const Viewer = ({
 
                     // Cluster-level annotation (used for text layer and point hover)
                     let annotation = null;
+                    // 只有真正的 cluster-annotation 对象才使用 LLM 文本；
+                    // 普通细胞 hover 仍然显示自身 preview。
                     if (object.kind === "cluster-annotation") {
                       annotation = object;
-                    } else if (clusterAnnotationOn && clusterAnnotationByLabel.size > 0) {
-                      const lbl = object.label;
-                      if (Number.isFinite(lbl)) {
-                        annotation = clusterAnnotationByLabel.get(lbl);
-                      }
                     }
 
                     if (annotation && (annotation.title || annotation.description)) {
@@ -501,7 +498,11 @@ const Viewer = ({
                       previewSize: 128,
                     });
 
-                    const textHtml = `id: ${object.id}<br/>label: ${object.label ?? object.id % 11}`;
+                    const clusterVal = object?.[clusterLabelKey];
+                    const effectiveLabel = Number.isFinite(clusterVal)
+                      ? clusterVal
+                      : (object.label ?? object.id % 11);
+                    const textHtml = `id: ${object.id}<br/>label: ${effectiveLabel}`;
                     return {
                       html: `${textHtml}${previewHtml ? "<br/>" + previewHtml : ""}`,
                       className: "deck-tooltip",
