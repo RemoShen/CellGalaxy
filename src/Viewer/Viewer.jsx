@@ -282,6 +282,8 @@ const Viewer = ({
         point: p,
         x: sx + offsetX,
         y: sy + offsetY,
+        canvasX: sx,
+        canvasY: sy,
       };
     });
     setClusterPreviewScreens(result);
@@ -352,6 +354,37 @@ const Viewer = ({
 
   const [hoveredAnnotationLabel, setHoveredAnnotationLabel] = useState(null);
   const descriptionRefs = useRef({});
+
+  // Canvas-space bounding boxes for each representative preview image,
+  // used to suppress DeckGL cell tooltips when hovering over the preview.
+  const clusterPreviewBoxes = useMemo(() => {
+    if (
+      !isUMAPView ||
+      !clusterPreviewOn ||
+      !clusterPreviewScreens ||
+      clusterPreviewScreens.length === 0
+    ) {
+      return [];
+    }
+    const z = typeof viewState?.zoom === "number" ? viewState.zoom : 8;
+    const baseSize = 60;
+    const scale = 1 + (z - 8) * 0.25;
+    const size = Math.max(30, Math.min(120, baseSize * scale));
+    const half = size / 2;
+    return clusterPreviewScreens.map(({ point, canvasX, canvasY }) => {
+      const top = canvasY - size * 1.3;
+      const bottom = canvasY - size * 0.3;
+      const left = canvasX - half;
+      const right = canvasX + half;
+      return {
+        id: point?.id,
+        left,
+        right,
+        top,
+        bottom,
+      };
+    });
+  }, [isUMAPView, clusterPreviewOn, clusterPreviewScreens, viewState]);
 
   const layers = ImageLayers({
     meta,
@@ -462,6 +495,21 @@ const Viewer = ({
                   getTooltip={(info) => {
                     const { object } = info || {};
                     if (altPressed) return null;
+                    // 如果当前鼠标位于任何代表图 preview 的区域内，就不要显示 DeckGL 的 tooltip，
+                    // 这样既不会挡住代表图，也不会影响滚轮缩放。
+                    if (
+                      info &&
+                      typeof info.x === "number" &&
+                      typeof info.y === "number" &&
+                      clusterPreviewBoxes &&
+                      clusterPreviewBoxes.length > 0
+                    ) {
+                      const { x, y } = info;
+                      const overPreview = clusterPreviewBoxes.some(
+                        (b) => x >= b.left && x <= b.right && y >= b.top && y <= b.bottom
+                      );
+                      if (overPreview) return null;
+                    }
                     if (!object) return null;
 
                     // Cluster-level annotation (used for text layer and point hover)
@@ -587,6 +635,8 @@ const Viewer = ({
                 top: y,
                 // 稍微把图片抬高一点，让图片和文字之间有一点间距
                 transform: "translate(-50%, -125%)",
+                // 不拦截鼠标事件，让滚轮缩放仍然作用在 DeckGL 上
+                //（cell tooltip 已在 getTooltip 中根据代表点 ID 屏蔽）
                 pointerEvents: "none",
                 // 让外框紧贴图片：去掉 padding，仅保留细边框
                 padding: 0,
@@ -626,10 +676,20 @@ const Viewer = ({
                 left: x,
                 top: y,
                 transform: "translate(-50%, -50%)",
-                pointerEvents: "auto",
+                // 只有在按住 Option 时才需要响应 hover，从而显示 description；
+                // 其他情况下把事件透传给 DeckGL，让滚轮缩放始终生效。
+                pointerEvents: altPressed ? "auto" : "none",
                 zIndex: hoveredAnnotationLabel === label ? 100 : 10,
+                // 显示普通鼠标光标，但不出现文字插入光标
+                cursor: "default",
+                userSelect: "none",
               }}
-              onMouseEnter={() => setHoveredAnnotationLabel(label)}
+              onMouseEnter={(e) => {
+                // 只有在按住 Option(Alt) 时才显示 description
+                if (altPressed || e.altKey) {
+                  setHoveredAnnotationLabel(label);
+                }
+              }}
               onMouseLeave={() =>
                 setHoveredAnnotationLabel((cur) => (cur === label ? null : cur))
               }
@@ -658,7 +718,7 @@ const Viewer = ({
               >
                 {title}
               </div>
-              {hoveredAnnotationLabel === label && description && (
+              {hoveredAnnotationLabel === label && description && altPressed && (
                 <div
                   className="deck-tooltip"
                   style={{
