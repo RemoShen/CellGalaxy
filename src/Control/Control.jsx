@@ -51,6 +51,8 @@ export default function Control({
   setClusterAnnotationOn = () => {},
   clusterAnnotationModel = "MedGamma",
   setClusterAnnotationModel = () => {},
+  clusterPreviewOn = true,
+  setClusterPreviewOn = () => {},
 }) {
   const [collapsed, setCollapsed] = useState(false);
   return (
@@ -123,6 +125,8 @@ export default function Control({
         setAnnotationOn={setClusterAnnotationOn}
         annotationModel={clusterAnnotationModel}
         setAnnotationModel={setClusterAnnotationModel}
+        previewOn={clusterPreviewOn}
+        setPreviewOn={setClusterPreviewOn}
       />
     
       </div>

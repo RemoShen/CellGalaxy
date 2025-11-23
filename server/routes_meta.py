@@ -28,6 +28,9 @@ def _feat_path() -> str:
 def _channels_path() -> str:
     return os.path.join(DATA_DIR, "channel_list.csv")
 
+def _zooming_path() -> str:
+    return os.path.join(DATA_DIR, "cluster_multilevel_hierarchy.csv")
+
 def _gen_marker_path() -> str:
     return os.path.join(DATA_DIR, ".generating")
 
@@ -53,6 +56,7 @@ async def upload_status():
         "raw": os.path.exists(raw_csv) and os.path.exists(raw_json),
         "feat": os.path.exists(_feat_path()),
         "channels": os.path.exists(_channels_path()),
+        "zooming": os.path.exists(_zooming_path()),
         "generating": os.path.exists(_gen_marker_path()),
     }
 

@@ -18,9 +18,15 @@ def compute_cluster_channel_avg() -> Dict[str, object]:
     """
     Read from the public directory:
       - output.zarr (shape [C, N, H, W])
-      - data.csv (must contain column 'clustering')
+      - data.csv (supports either:
+          * legacy single-level column 'clustering', or
+          * multi-level columns 'cluster_L0'..'cluster_Lk')
       - channel_list.csv (must contain channel_id, channel_name)
-    Compute average intensity per cluster for each channel and save to public/cluster_channel_avg.csv.
+
+    Compute average intensity per (level, cluster) for each channel and save to
+    public/cluster_channel_avg.csv.
+    - For multi-level data: each 'cluster_Lx' column becomes level_id=x.
+    - For legacy data: use 'clustering' as level_id=0.
     Chunk size is read from Zarr metadata (use chunk size along the N dimension).
     """
     try:
@@ -42,10 +48,31 @@ def compute_cluster_channel_avg() -> Dict[str, object]:
         except Exception:
             pass
 
-        # 1) clustering series
-        df = pd.read_csv(csv_path, usecols=["clustering"])
-        clustering = df["clustering"].to_numpy()
-        n_cells = clustering.shape[0]
+        # 1) Load clustering assignments (support multi-level)
+        df = pd.read_csv(csv_path)
+
+        level_labels: dict[int, np.ndarray] = {}
+
+        # Prefer explicit hierarchical columns: cluster_L0 .. cluster_Lk
+        for col in df.columns:
+            if not str(col).startswith("cluster_L"):
+                continue
+            try:
+                lvl = int(str(col).replace("cluster_L", ""))
+            except Exception:
+                continue
+            # Convert to numeric, NaN for invalid
+            series = pd.to_numeric(df[col], errors="coerce")
+            level_labels[lvl] = series.to_numpy(dtype=np.float64)
+
+        if not level_labels:
+            # Fallback: legacy single-level 'clustering'
+            if "clustering" not in df.columns:
+                raise ValueError("data.csv must contain either 'clustering' or 'cluster_L0'.. columns.")
+            series = pd.to_numeric(df["clustering"], errors="coerce")
+            level_labels[0] = series.to_numpy(dtype=np.float64)
+
+        n_cells = len(df)
 
         # 2) open zarr, read metadata and chunk size
         img = open_zarr()
@@ -53,55 +80,108 @@ def compute_cluster_channel_avg() -> Dict[str, object]:
         if N != n_cells:
             raise ValueError(f"Zarr N={N} does not match data.csv rows N={n_cells}")
 
-        # 3) prepare clusters
-        unique_clusters = np.sort(np.unique(clustering))
-        n_clusters = unique_clusters.shape[0]
-        cluster_to_idx = {cl: i for i, cl in enumerate(unique_clusters)}
+        # 3) prepare clusters for each level
+        unique_clusters_by_level: dict[int, np.ndarray] = {}
+        cluster_to_idx_by_level: dict[int, dict[int, int]] = {}
+        sum_pixels_by_level: dict[int, np.ndarray] = {}
+        num_pixels_by_level: dict[int, np.ndarray] = {}
 
-        # Use float64 accumulation to avoid overflow
-        sum_pixels_per_cluster_channel = np.zeros((n_clusters, C), dtype=np.float64)
-        num_pixels_per_cluster = np.zeros(n_clusters, dtype=np.int64)
+        for lvl, arr in level_labels.items():
+            # finite cluster ids only
+            finite_mask = np.isfinite(arr)
+            if not np.any(finite_mask):
+                continue
+            uniq = np.sort(np.unique(arr[finite_mask]))
+            uniq_int = uniq.astype(int)
+            unique_clusters_by_level[lvl] = uniq_int
+            cluster_to_idx_by_level[lvl] = {int(cl): i for i, cl in enumerate(uniq_int)}
+            # Use float64 accumulation to avoid overflow
+            sum_pixels_by_level[lvl] = np.zeros((uniq_int.shape[0], C), dtype=np.float64)
+            num_pixels_by_level[lvl] = np.zeros(uniq_int.shape[0], dtype=np.int64)
+
+        if not unique_clusters_by_level:
+            raise ValueError("No valid clusters found in data.csv for any level.")
+
         total_pixels_per_image = int(H) * int(W)
 
-        # 4) iterate by N-dimension chunk
+        # 4) iterate by N-dimension chunk, reuse the same image chunk for all levels
         for start in range(0, N, n_per_chunk):
             end = min(start + n_per_chunk, N)
             slc = slice(start, end)
-            chunk_clusters = clustering[slc]
             # read (C, M, H, W)
             chunk_data = np.asarray(img[:, slc, :, :])
-            # accumulate for clusters appearing in this chunk
-            for cl in np.unique(chunk_clusters):
-                mask = chunk_clusters == cl
-                if not np.any(mask):
+
+            for lvl, labels in level_labels.items():
+                if lvl not in unique_clusters_by_level:
                     continue
-                idx_cluster = cluster_to_idx[int(cl)]
-                selected = chunk_data[:, mask, :, :]
-                sum_per_channel = selected.sum(axis=(1, 2, 3))
-                sum_pixels_per_cluster_channel[idx_cluster] += sum_per_channel
-                num_pixels_per_cluster[idx_cluster] += int(mask.sum()) * total_pixels_per_image
+                chunk_clusters = labels[slc]
+                # clusters present in this chunk (finite only)
+                finite = np.isfinite(chunk_clusters)
+                if not np.any(finite):
+                    continue
+                present = np.unique(chunk_clusters[finite])
+                for cl in present:
+                    if not np.isfinite(cl):
+                        continue
+                    cl_int = int(cl)
+                    idx_cluster = cluster_to_idx_by_level[lvl].get(cl_int)
+                    if idx_cluster is None:
+                        continue
+                    mask = chunk_clusters == cl
+                    if not np.any(mask):
+                        continue
+                    selected = chunk_data[:, mask, :, :]
+                    sum_per_channel = selected.sum(axis=(1, 2, 3))
+                    sum_pixels_by_level[lvl][idx_cluster] += sum_per_channel
+                    num_pixels_by_level[lvl][idx_cluster] += int(mask.sum()) * total_pixels_per_image
 
-        # 5) averages
-        avg_per_cluster_channel = sum_pixels_per_cluster_channel / num_pixels_per_cluster[:, None]
-
-        # 6) column names from channel_list.csv
+        # 5) Build output rows: averages per (level_id, cluster_id)
         ch_df = pd.read_csv(channels_csv)
         ch_df = ch_df.sort_values("channel_id")
         channel_names = ch_df["channel_name"].tolist()
         if len(channel_names) != C:
-            raise ValueError(f"Number of channels in channel_list.csv ({len(channel_names)}) "
-                             f"does not match channels in Zarr ({C})")
+            raise ValueError(
+                f"Number of channels in channel_list.csv ({len(channel_names)}) "
+                f"does not match channels in Zarr ({C})"
+            )
 
-        out_df = pd.DataFrame(avg_per_cluster_channel, columns=channel_names)
-        out_df.insert(0, "cluster_id", unique_clusters)
-        out_df.insert(0, "level_id", 0)  # single level for now
+        records: list[dict[str, object]] = []
+        total_clusters = 0
+
+        for lvl in sorted(unique_clusters_by_level.keys()):
+            uniq_int = unique_clusters_by_level[lvl]
+            sums = sum_pixels_by_level[lvl]
+            nums = num_pixels_by_level[lvl]
+            # avoid division by zero
+            valid = nums > 0
+            if not np.any(valid):
+                continue
+            avg = np.zeros_like(sums, dtype=np.float64)
+            avg[valid] = sums[valid] / nums[valid][:, None]
+
+            for i, cl in enumerate(uniq_int):
+                if nums[i] <= 0:
+                    continue
+                rec: dict[str, object] = {
+                    "level_id": int(lvl),
+                    "cluster_id": int(cl),
+                }
+                for j, ch_name in enumerate(channel_names):
+                    rec[ch_name] = float(avg[i, j])
+                records.append(rec)
+            total_clusters += int(uniq_int.shape[0])
+
+        if not records:
+            raise ValueError("No valid (level, cluster) averages could be computed.")
+
+        out_df = pd.DataFrame.from_records(records)
         out_df.to_csv(out_csv, index=False)
 
         return JSONResponse(
             {
                 "message": "ok",
                 "output": os.path.relpath(out_csv, DATA_DIR),
-                "n_clusters": int(n_clusters),
+                "n_clusters": int(total_clusters),
                 "n_channels": int(C),
             }
         )

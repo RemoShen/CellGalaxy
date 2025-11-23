@@ -12,6 +12,8 @@ export default function ClusteringControl({
   setAnnotationOn = () => {},
   annotationModel = "MedGamma",
   setAnnotationModel = () => {},
+  previewOn = true,
+  setPreviewOn = () => {},
 }) {
   const [showModelPanel, setShowModelPanel] = useState(false);
   const [selectedModel, setSelectedModel] = useState(annotationModel || "Biomni");
@@ -66,6 +68,30 @@ export default function ClusteringControl({
           >
             <circle cx="12" cy="12" r="7.5" stroke="currentColor" strokeWidth="1.5"/>
             <circle cx="12" cy="12" r="3.5" stroke="currentColor" strokeWidth="1.5" opacity="0.6"/>
+          </svg>
+        </button>
+        {/* New: Large Model trigger button (runs the whole pipeline: precompute -> multi-model annotate) */}
+        {/* Cluster preview toggle: control whether representative images are shown on UMAP */}
+        <button
+          className={`clu-btn preview ${previewOn ? "on" : ""}`}
+          onClick={() => setPreviewOn(!previewOn)}
+          title="show representative image for each cluster"
+        >
+          {/* preview icon (mini image tile) */}
+          <svg
+            className="icon icon-preview"
+            width="20"
+            height="20"
+            viewBox="0 0 20 20"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <rect x="2.5" y="2.5" width="15" height="15" rx="3" stroke="currentColor" opacity="0.6" />
+            <rect x="5" y="6" width="4.5" height="4.5" rx="1" fill="currentColor" opacity="0.85" />
+            <rect x="10.5" y="5" width="3.5" height="3.5" rx="1" fill="currentColor" opacity="0.55" />
+            <rect x="9" y="10.5" width="4.5" height="4.5" rx="1" fill="currentColor" opacity="0.35" />
           </svg>
         </button>
         {/* New: Large Model trigger button (runs the whole pipeline: precompute -> multi-model annotate) */}

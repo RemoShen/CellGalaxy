@@ -14,6 +14,8 @@ export function buildTooltipHTML({
   colors,
   alphas,
   previewSize = 128,
+  // 用于嵌入式显示（如 cluster 固定 preview），取消额外的 margin / 阴影等
+  compact = false,
 }) {
   if (!object) return "";
   const chunkId = object.chunk_id;
@@ -40,12 +42,12 @@ export function buildTooltipHTML({
     `width:${dispW}px`,
     `height:${dispH}px`,
     `border-radius:8px`,
-    `margin-top:6px`,
+    `margin-top:${compact ? 0 : 6}px`,
     `overflow:hidden`,
     `position:relative`,
     `background:#000`,
     `isolation:isolate`,
-    `box-shadow:0 2px 8px rgba(0,0,0,0.35)`,
+    compact ? `` : `box-shadow:0 2px 8px rgba(0,0,0,0.35)`,
   ].join(";");
 
   const layers = [];

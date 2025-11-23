@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { ScatterplotLayer, PathLayer } from "@deck.gl/layers";
+import { DataFilterExtension } from "@deck.gl/extensions";
 import WindowedIconLayer from "./WindowedIconLayer";
 import { clusterColor } from "../utils/clustering";
 import { ease } from "../utils/utils";
@@ -29,6 +30,18 @@ export default function ImageLayers({
   // selection coloring
   getRegionIndexForId,
   regionColors,
+  // semantic zoom
+  semanticLevel = 5.0,
+  labelKey = "label",
+  // rankKey unused
+  rankKey = null,
+  // 是否启用基于 semanticLevel 的尺寸调节
+  semanticSizeOn = false,
+  // GPU Sampling
+  samplingThreshold = 1.0,
+  selectedIds = null, // Set of IDs that should always be shown
+  // 是否启用点位/尺寸的过渡动画
+  transitionsEnabled = true,
 }) {
 
   const selectedPoints = useMemo(() => {
@@ -64,10 +77,48 @@ export default function ImageLayers({
           iconMapping: mapping,
           getIcon: (d) => d.icon,
           getPosition: (d) => [d.x, d.y, d.z ?? 0],
+          
+          // --- GPU Filtering for Sampling ---
+          extensions: [new DataFilterExtension({ filterSize: 1 })],
+          getFilterValue: (d) => {
+            // Always show selected items
+            if (selectedIds && selectedIds.has(d.id)) return 0;
+            // Uniform hash
+            return (d.id * 0.6180339887) % 1;
+          },
+          filterRange: [0, samplingThreshold],
+          // ----------------------------------
           getSize: (d) => {
             const rIdx = getRegionIndexForId?.(d.id);
             const scale = typeof rIdx === "number" && rIdx >= 0 ? 1.2 : 1.0;
-            return computedImageSize * scale;
+
+            // —— Semantic Zoom 尺寸调节 ——
+            // Raw 视图：semanticSizeOn=false，直接使用原始大小逻辑。
+            if (!semanticSizeOn) {
+              return computedImageSize * scale;
+            }
+
+            // UMAP 视图：根据 semanticLevel 分段缩放。
+            // 调整后规则（略缩小整体，但在 Level<1.7 时再放大一点）：
+            //   Level∈[0,1)    →  sizeFactor = 4.8  （更大的代表图）
+            //   Level∈[1,1.7)  →  线性从 4.8 过渡到 2.4
+            //   Level∈[1.7,3)  →  线性从 2.4 过渡到 0.9 （点数迅速增多，size 快速减小到略小于原始）
+            //   Level≥3       →  sizeFactor = 0.9
+            const lvl = Math.max(0, Math.min(5, semanticLevel));
+            let sizeFactor;
+            if (lvl < 1.0) {
+              sizeFactor = 4.8;
+            } else if (lvl < 1.7) {
+              const t = (lvl - 1.0) / 0.7;              // 0 → 1
+              sizeFactor = 4.8 + (2.4 - 4.8) * t;      // 4.8 → 2.4
+            } else if (lvl < 3.0) {
+              const t = (lvl - 1.7) / (3.0 - 1.7);      // 0 → 1
+              sizeFactor = 2.4 + (0.9 - 2.4) * t;      // 2.4 → 0.9
+            } else {
+              sizeFactor = 0.9;
+            }
+
+            return computedImageSize * sizeFactor * scale;
           },
           sizeScale: 1,
           fovy: 45,
@@ -79,12 +130,15 @@ export default function ImageLayers({
           pickable: true,
           autoHighlight: true,
           loadOptions: { image: { type: "imagebitmap" } },
-          transitions: {
-            getPosition: { duration: 600, easing: ease },
-            getSize: { duration: 300, easing: ease },
-          },
+          // 只对位置做过渡动画，大小变化（缩放导致的 computedImageSize 变化）不做插值
+          transitions: transitionsEnabled
+            ? {
+                getPosition: { duration: 600, easing: ease },
+              }
+            : undefined,
           updateTriggers: {
-            getSize: [computedImageSize, selectedPoints.length],
+            getSize: [computedImageSize, selectedPoints.length, semanticLevel, semanticSizeOn],
+            getFilterValue: [selectedPoints.length], // re-eval if selection changes
           },
         };
         let addedGray = false;
@@ -129,10 +183,11 @@ export default function ImageLayers({
                   }
                   return [col[0] ?? 255, col[1] ?? 255, col[2] ?? 255, a];
                 },
-                updateTriggers: {
-                  ...baseConfig.updateTriggers,
-                  getColor: [filteredIds, colors, alphas, windows],
-                },
+          updateTriggers: {
+            ...baseConfig.updateTriggers,
+            getColor: [filteredIds, colors, alphas, windows],
+            getFilterValue: [selectedPoints.length],
+          },
               })
             );
           }
@@ -157,10 +212,11 @@ export default function ImageLayers({
                   if (activeFilter && !filteredIds.has(d.id)) return [255, 255, 255, 30];
                   return [255, 255, 255, 255];
                 },
-                updateTriggers: {
-                  ...baseConfig.updateTriggers,
-                  getColor: [filteredIds, selectedPoints.length],
-                },
+        updateTriggers: {
+            ...baseConfig.updateTriggers,
+            getColor: [filteredIds, selectedPoints.length],
+            getFilterValue: [selectedPoints.length],
+          },
               })
             );
           }
@@ -186,14 +242,20 @@ export default function ImageLayers({
                   }
                   const activeFilter = filteredIds && filteredIds.size > 0;
                   if (activeFilter && !filteredIds.has(d.id)) return [0, 0, 0, 0];
-                  const rgb = clusterColor(d.label);
+
+                  // 使用当前语义层级对应的 labelKey，而不是始终使用原始 d.label，
+                  // 这样在 semantic zoom 时颜色会随层级聚类一起变化。
+                  const val = d[labelKey];
+                  const l = Number.isFinite(val) ? val : (d.label ?? 0);
+                  const rgb = clusterColor(l);
                   const a = Math.round(Math.min(1, Math.max(0, clusterOpacity)) * 255);
                   return [rgb[0], rgb[1], rgb[2], a];
                 },
-                updateTriggers: {
-                  ...baseConfig.updateTriggers,
-                  getColor: [filteredIds, clusterOpacity, selectedPoints.length],
-                },
+          updateTriggers: {
+            ...baseConfig.updateTriggers,
+            getColor: [filteredIds, clusterOpacity, selectedPoints.length, labelKey],
+            getFilterValue: [selectedPoints.length],
+          },
               })
             );
           } else {
@@ -204,12 +266,24 @@ export default function ImageLayers({
                 data: arr,
                 getPosition: (d) => [d.x, d.y, d.z ?? 0],
                 stroked: false,
+                // --- GPU Filtering ---
+                extensions: [new DataFilterExtension({ filterSize: 1 })],
+                getFilterValue: (d) => {
+                  if (selectedIds && selectedIds.has(d.id)) return 0;
+                  return (d.id * 0.6180339887) % 1;
+                },
+                filterRange: [0, samplingThreshold],
+                // ---------------------
                 getFillColor: (d) => {
                   const rIdx = getRegionIndexForId?.(d.id);
                   if (hasSelection && !(typeof rIdx === "number" && rIdx >= 0)) return [0, 0, 0, 0];
                   const activeFilter = filteredIds && filteredIds.size > 0;
                   if (activeFilter && !filteredIds.has(d.id)) return [0, 0, 0, 0];
-                  const rgb = clusterColor(d.label);
+                  
+                  // Dynamic cluster coloring based on current level
+                  const val = d[labelKey];
+                  const l = Number.isFinite(val) ? val : (d.label ?? 0);
+                  const rgb = clusterColor(l);
                   return [rgb[0], rgb[1], rgb[2], a];
                 },
                 getRadius: (d) => {
@@ -221,8 +295,9 @@ export default function ImageLayers({
                 pickable: false,
                 parameters: { depthTest: false, blend: false },
                 updateTriggers: {
-                  getFillColor: [filteredIds, clusterOpacity, selectedPoints.length],
+                  getFillColor: [filteredIds, clusterOpacity, selectedPoints.length, labelKey],
                   getRadius: [computedImageSize, selectedPoints.length],
+                  getFilterValue: [selectedPoints.length],
                 },
               })
             );
@@ -244,6 +319,8 @@ export default function ImageLayers({
             rounded: true,
             jointRounded: true,
             miterLimit: 2,
+            // 让 PathLayer 自动首尾相连，避免轮廓出现断口
+            loop: true,
             updateTriggers: { getColor: [outlineData.length], getWidth: [clusterLineWidth] },
           })
         );
@@ -255,18 +332,31 @@ export default function ImageLayers({
     const base = [];
     if (clusterColorOn) {
       const a = Math.round(Math.min(1, Math.max(0, clusterOpacity)) * 255);
-      base.push(
+          base.push(
         new ScatterplotLayer({
           id: "scatter-cluster-only",
           data: points ?? [],
           getPosition: (d) => [d.x, d.y, d.z ?? 0],
           stroked: false,
+          // --- GPU Filtering ---
+          extensions: [new DataFilterExtension({ filterSize: 1 })],
+          getFilterValue: (d) => {
+            if (selectedIds && selectedIds.has(d.id)) return 0;
+            return (d.id * 0.6180339887) % 1;
+          },
+          filterRange: [0, samplingThreshold],
+          // ---------------------
           getFillColor: (d) => {
             const rIdx = getRegionIndexForId?.(d.id);
             if (hasSelection && !(typeof rIdx === "number" && rIdx >= 0)) return [0, 0, 0, 0];
             const activeFilter = filteredIds && filteredIds.size > 0;
             if (activeFilter && !filteredIds.has(d.id)) return [0, 0, 0, 0];
-            const rgb = clusterColor(d.label);
+
+            // Dynamic cluster coloring
+            const val = d[labelKey];
+            const l = Number.isFinite(val) ? val : (d.label ?? 0);
+            const rgb = clusterColor(l);
+            
             return [rgb[0], rgb[1], rgb[2], a];
           },
           getRadius: (d) => {
@@ -278,11 +368,17 @@ export default function ImageLayers({
           pickable: true,
           autoHighlight: true,
           parameters: { depthTest: true, blend: false },
-          transitions: {
-            getPosition: { duration: 600, easing: ease },
-            getRadius: { duration: 300, easing: ease },
+          // 只对位置做过渡动画，半径变化（缩放或参数调整）不插值
+          transitions: transitionsEnabled
+            ? {
+                getPosition: { duration: 600, easing: ease },
+              }
+            : undefined,
+          updateTriggers: { 
+            getFillColor: [filteredIds, clusterOpacity, selectedPoints.length, labelKey], 
+            getRadius: [computedImageSize, selectedPoints.length],
+            getFilterValue: [selectedPoints.length],
           },
-          updateTriggers: { getFillColor: [filteredIds, clusterOpacity, selectedPoints.length], getRadius: [computedImageSize, selectedPoints.length] },
         })
       );
     } else {
@@ -291,6 +387,14 @@ export default function ImageLayers({
           id: "scatter",
           data: points ?? [],
           getPosition: (d) => [d.x, d.y, d.z ?? 0],
+          // --- GPU Filtering ---
+          extensions: [new DataFilterExtension({ filterSize: 1 })],
+          getFilterValue: (d) => {
+            if (selectedIds && selectedIds.has(d.id)) return 0;
+            return (d.id * 0.6180339887) % 1;
+          },
+          filterRange: [0, samplingThreshold],
+          // ---------------------
           getFillColor: (d) => {
             const rIdx = getRegionIndexForId?.(d.id);
             if (typeof rIdx === "number" && rIdx >= 0)
@@ -311,11 +415,17 @@ export default function ImageLayers({
           pickable: true,
           autoHighlight: true,
           parameters: { depthTest: true },
-          transitions: {
-            getPosition: { duration: 600, easing: ease },
-            getRadius: { duration: 300, easing: ease },
+          // 只对位置做过渡动画，半径变化不做插值
+          transitions: transitionsEnabled
+            ? {
+                getPosition: { duration: 600, easing: ease },
+              }
+            : undefined,
+          updateTriggers: { 
+            getFillColor: [filteredIds, selectedPoints.length], 
+            getRadius: [computedImageSize, selectedPoints.length],
+            getFilterValue: [selectedPoints.length],
           },
-          updateTriggers: { getFillColor: [filteredIds, selectedPoints.length], getRadius: [computedImageSize, selectedPoints.length] },
         })
       );
     }
@@ -333,6 +443,8 @@ export default function ImageLayers({
           rounded: true,
           jointRounded: true,
           miterLimit: 2,
+          // 同样闭合散点模式下的 cluster 轮廓
+          loop: true,
           updateTriggers: { getColor: [outlineData.length], getWidth: [clusterLineWidth] },
         })
       );

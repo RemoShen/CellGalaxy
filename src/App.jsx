@@ -13,6 +13,7 @@ export default function App() {
     clusterOutlineOn,
     clusterAnnotationOn,
     clusterAnnotationModel,
+    clusterPreviewOn,
     // pass-through for other props
     ...rest
   } = dataLoader;
@@ -42,7 +43,9 @@ export default function App() {
               clusterOutlineOn={false}
               clusterAnnotationOn={false}
               clusterAnnotationModel={clusterAnnotationModel}
+              clusterPreviewOn={false}
               transitionsEnabled={!disableTransitions}
+              zoomSpeed={0.8}  // Raw：保持原来的缩放速度
             />
           </div>
           <div className="viewer-pane">
@@ -57,7 +60,9 @@ export default function App() {
               clusterOutlineOn={clusterOutlineOn}
               clusterAnnotationOn={clusterAnnotationOn}
               clusterAnnotationModel={clusterAnnotationModel}
+              clusterPreviewOn={clusterPreviewOn}
               transitionsEnabled={!disableTransitions}
+              // 不传 zoomSpeed，使用 Viewer 默认值（现在是 0.1），缩放更慢
             />
           </div>
         </div>
@@ -74,7 +79,10 @@ export default function App() {
               clusterOutlineOn={rest.useUMAP ? clusterOutlineOn : false}
               clusterAnnotationOn={rest.useUMAP ? clusterAnnotationOn : false}
               clusterAnnotationModel={clusterAnnotationModel}
+              clusterPreviewOn={rest.useUMAP ? clusterPreviewOn : false}
               transitionsEnabled={!disableTransitions}
+              // 单视图：Raw 用 0.8，UMAP 用 Viewer 默认的 0.1（不额外指定）
+              zoomSpeed={rest.useUMAP ? undefined : 0.8}
             />
           </div>
         </div>

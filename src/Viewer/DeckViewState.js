@@ -9,6 +9,8 @@ export default function DeckViewState({
   setSharedZoom,
   initialZoom = 8,
   imageSize = 4,
+  // 是否启用视图状态过渡动画
+  transitionsEnabled = true,
 }) {
   const center = useMemo(() => computeCenter(points), [points]);
 
@@ -41,11 +43,13 @@ export default function DeckViewState({
     setViewState((prev) => ({
       ...prev,
       rotationX: is3D ? 45 : 0,
-      transitionDuration: 600,
-      transitionEasing: ease,
-      transitionInterpolator: new LinearInterpolator(["rotationX", "rotationOrbit", "target"]),
+      transitionDuration: transitionsEnabled ? 600 : 0,
+      transitionEasing: transitionsEnabled ? ease : undefined,
+      transitionInterpolator: transitionsEnabled
+        ? new LinearInterpolator(["rotationX", "rotationOrbit", "target"])
+        : undefined,
     }));
-  }, [is3D]);
+  }, [is3D, transitionsEnabled]);
 
   const [altPressed, setAltPressed] = useState(false);
   useEffect(() => {
@@ -78,6 +82,7 @@ export default function DeckViewState({
   const handleViewStateChange = ({ viewState: next }) => {
     const isZoomChange = next.zoom !== viewState.zoom;
     setViewState((prev) => ({
+      ...prev,
       ...next,
       transitionDuration: isZoomChange ? 0 : next.transitionDuration ?? prev.transitionDuration,
     }));

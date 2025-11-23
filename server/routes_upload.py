@@ -33,6 +33,9 @@ def _feat_path() -> str:
 def _channels_path() -> str:
     return os.path.join(DATA_DIR, "channel_list.csv")
 
+def _zooming_path() -> str:
+    return os.path.join(DATA_DIR, "cluster_multilevel_hierarchy.csv")
+
 def _gen_marker_path() -> str:
     return os.path.join(DATA_DIR, ".generating")
 
@@ -41,7 +44,7 @@ def _gen_marker_path() -> str:
 async def upload_or_delete(
     file_type: str, request: Request, file: UploadFile | None = File(None)
 ):
-    if file_type not in ["zarr", "csv", "raw", "feat", "channels"]:
+    if file_type not in ["zarr", "csv", "raw", "feat", "channels", "zooming"]:
         raise HTTPException(status_code=400, detail="Unsupported file type")
 
     # delete file
@@ -72,6 +75,10 @@ async def upload_or_delete(
             remove_path(_channels_path())
             return {"message": "Channel list cleared"}
 
+        if file_type == "zooming":
+            remove_path(_zooming_path())
+            return {"message": "Zooming data cleared"}
+
     # upload file
     if file is None:
         raise HTTPException(status_code=400, detail="No file provided")
@@ -82,7 +89,7 @@ async def upload_or_delete(
         else (
             "raw.csv"
             if file_type == "raw"
-            else ("features.npy" if file_type == "feat" else ("channel_list.csv" if file_type == "channels" else "data.csv"))
+            else ("features.npy" if file_type == "feat" else ("channel_list.csv" if file_type == "channels" else ("cluster_multilevel_hierarchy.csv" if file_type == "zooming" else "data.csv")))
         )
     )
     file_path = os.path.join(DATA_DIR, target_name)
@@ -111,6 +118,9 @@ async def upload_or_delete(
             )
     elif file_type == "feat":
         # no post-processing for features
+        pass
+    elif file_type == "zooming":
+        # no post-processing for zooming data
         pass
     elif file_type == "channels":
         # After channel list uploaded, regenerate both channel_info.json and coords.json (if data.csv exists)

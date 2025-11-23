@@ -16,6 +16,8 @@
   flex: 1 1 50%;
   min-width: 0; /* allow DeckGL canvas to shrink */
   border-right: 1px solid rgba(255,255,255,0.2);
+  /* 把每个 viewer-pane 当成裁剪容器，防止 tooltip / 代表图跨过中线 */
+  overflow: hidden;
 }
 
 .viewer-pane:last-child {

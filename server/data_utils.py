@@ -106,7 +106,24 @@ def process_coord_row(row: pd.Series, idx: int, n_per_chunk: int) -> Dict[str, A
     """process a single coordinate row"""
     x_raw = float(row.get("X_centroid", 0))
     y_raw = float(row.get("Y_centroid", 0))
-    return {
+    
+    # Extract hierarchical clustering fields if present
+    extra = {}
+    for level in range(5):
+        rank_key = f"rank_L{level}"
+        if rank_key in row:
+            # Handle potential NaN or float/int conversion
+            val = row[rank_key]
+            if pd.notna(val):
+                extra[rank_key] = int(val)
+        
+        cluster_key = f"cluster_L{level}"
+        if cluster_key in row:
+            val = row[cluster_key]
+            if pd.notna(val):
+                extra[cluster_key] = int(val)
+
+    base = {
         "id": idx,
         "chunk_id": int(idx // n_per_chunk),
         "local_index": int(idx % n_per_chunk),
@@ -123,6 +140,8 @@ def process_coord_row(row: pd.Series, idx: int, n_per_chunk: int) -> Dict[str, A
         },
         "label": int(row.get("label", row.get("clustering", stable_label(idx)))),
     }
+    base.update(extra)
+    return base
 
 
 def _pixel_range_from_array(channel_data: np.ndarray) -> tuple[float, float]:

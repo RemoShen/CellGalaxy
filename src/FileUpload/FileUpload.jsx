@@ -2,9 +2,9 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import "./FileUpload.css";
 
 export default function FileUpload({ onRefresh = async () => {} }) {
-  const [status, setStatus] = useState({ zarr: false, csv: false, raw: false, feat: false, channels: false, generating: false });
+  const [status, setStatus] = useState({ zarr: false, csv: false, raw: false, feat: false, channels: false, zooming: false, generating: false });
   const [busy, setBusy] = useState(false);
-  const [processing, setProcessing] = useState({ zarr: false, csv: false, raw: false, feat: false, channels: false });
+  const [processing, setProcessing] = useState({ zarr: false, csv: false, raw: false, feat: false, channels: false, zooming: false });
   const [open, setOpen] = useState(false);
   const [waitingForJson, setWaitingForJson] = useState(false);
   const [jsonReady, setJsonReady] = useState({ coords: false, channelInfo: false });
@@ -23,11 +23,12 @@ export default function FileUpload({ onRefresh = async () => {} }) {
         raw: Boolean(data?.raw),
         feat: Boolean(data?.feat),
         channels: Boolean(data?.channels),
+        zooming: Boolean(data?.zooming),
         generating: Boolean(data?.generating),
       });
     } catch (err) {
       console.error("status fetch failed", err);
-      setStatus({ zarr: false, csv: false, raw: false, feat: false, channels: false, generating: false });
+      setStatus({ zarr: false, csv: false, raw: false, feat: false, channels: false, zooming: false, generating: false });
     }
   }, []);
 
@@ -196,7 +197,7 @@ export default function FileUpload({ onRefresh = async () => {} }) {
 
   return (
     <>
-      {(processing.csv || processing.zarr || processing.raw || processing.feat || processing.channels || status.generating || (waitingForJson && !(jsonReady.channelInfo && (status.csv ? jsonReady.coords : true)))) && (
+      {(processing.csv || processing.zarr || processing.raw || processing.feat || processing.channels || processing.zooming || status.generating || (waitingForJson && !(jsonReady.channelInfo && (status.csv ? jsonReady.coords : true)))) && (
         <div className="fullscreen-processing-overlay">
           <div className="processing-content">
             <div className="processing-spinner"></div>
@@ -204,6 +205,7 @@ export default function FileUpload({ onRefresh = async () => {} }) {
             {processing.zarr && <div className="processing-text">uploading Image Data...</div>}
             {processing.raw && <div className="processing-text">uploading Meta Data...</div>}
             {processing.feat && <div className="processing-text">uploading Features...</div>}
+            {processing.zooming && <div className="processing-text">uploading Zooming Data...</div>}
             {(processing.channels || status.generating || (waitingForJson && !(jsonReady.channelInfo && (status.csv ? jsonReady.coords : true)))) && <div className="processing-text">Generating channel_info.json and coords.json...</div>}
           </div>
         </div>
@@ -218,7 +220,7 @@ export default function FileUpload({ onRefresh = async () => {} }) {
             aria-haspopup="menu"
             aria-expanded={open}
           >
-            {processing.csv || processing.zarr || processing.raw || processing.feat || processing.channels ? 'Uploading...' : 'Upload'}
+            {processing.csv || processing.zarr || processing.raw || processing.feat || processing.channels || processing.zooming ? 'Uploading...' : 'Upload'}
           </button>
           {open && (
             <div className="upload-menu" role="menu">
@@ -244,6 +246,18 @@ export default function FileUpload({ onRefresh = async () => {} }) {
                   disabled={busy}
                   title="Clear CSV"
                   aria-label="Clear CSV"
+                />
+              </div>
+              <div className="upload-menu-item" role="menuitem">
+                <button className="upload-menu-action" onClick={() => { setOpen(false); handleFileSelect('zooming'); }} disabled={busy || status.zooming}>
+                  Zooming Cluster (csv)
+                </button>
+                <button
+                  className={`upload-menu-clear${status.zooming ? ' has-file' : ''}`}
+                  onClick={() => handleClear('zooming')}
+                  disabled={busy}
+                  title="Clear Zooming Data"
+                  aria-label="Clear Zooming Data"
                 />
               </div>
               <div className="upload-menu-item" role="menuitem">

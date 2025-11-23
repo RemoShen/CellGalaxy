@@ -9,6 +9,7 @@ export default function ClusterOutlines({
   filteredIds = new Set(),
   deckRef,
   viewDeps = [],
+  labelKey = "label",
 }) {
   const [screenOutlines, setScreenOutlines] = useState([]);
 
@@ -24,13 +25,13 @@ export default function ClusterOutlines({
         setScreenOutlines([]);
         return;
       }
-      const paths = projectOutlines3D(viewport, points, filteredIds);
+      const paths = projectOutlines3D(viewport, points, filteredIds, labelKey);
       setScreenOutlines(paths);
     } catch {
       setScreenOutlines([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [is3D, clusterOutlineOn, forceCompute, points, filteredIds, deckRef, ...viewDeps]);
+  }, [is3D, clusterOutlineOn, forceCompute, points, filteredIds, deckRef, labelKey, ...viewDeps]);
 
   return screenOutlines;
 }

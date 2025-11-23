@@ -14,6 +14,7 @@ export default function useClusterAnnotations({
   viewState,
   is3D = false,
   screenOutlines3D = [],
+  level = 0,
 }) {
   // Load static JSON once when annotation is enabled
   const [clusterLabelsJson, setClusterLabelsJson] = useState(null);
@@ -53,7 +54,7 @@ export default function useClusterAnnotations({
     const source = is3D ? screenOutlines3D : outlineData;
     if (!source || source.length === 0) return [];
     const levels = clusterLabelsJson.levels || {};
-    const levelKey = Object.keys(levels)[0] ?? "0";
+    const levelKey = String(level - 1);
     const levelData = levels[levelKey] || {};
     if (!clusterAnnotationModel) return [];
 
@@ -95,6 +96,7 @@ export default function useClusterAnnotations({
     clusterAnnotationModel,
     is3D,
     screenOutlines3D,
+    level,
   ]);
 
   // Quick lookup: label -> annotation entry
@@ -133,5 +135,5 @@ export default function useClusterAnnotations({
     });
   }, [clusterAnnotationOn, clusterAnnotationData, clusterTextSize]);
 
-  return { annotationLayer, clusterAnnotationByLabel };
+  return { annotationLayer, clusterAnnotationByLabel, clusterAnnotationData };
 }

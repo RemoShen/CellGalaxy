@@ -10,11 +10,12 @@ export function clusterColor(label) {
   return [c[0], c[1], c[2]];
 }
 
-export function buildOutlineData2D(points) {
+export function buildOutlineData2D(points, labelKey = "label") {
   if (!Array.isArray(points) || points.length < 3) return [];
   const groups = new Map();
   for (const p of points) {
-    const k = Number.isFinite(p?.label) ? p.label : 0;
+    const val = p?.[labelKey];
+    const k = Number.isFinite(val) ? val : (p?.label ?? 0);
     const arr = groups.get(k) || [];
     arr.push(p);
     groups.set(k, arr);
@@ -34,8 +35,13 @@ export function buildOutlineData2D(points) {
     }
     const n = arr.length || 1;
     const centroid = [sumX / n, sumY / n, 0];
+    // 为了确保可视化上的闭合，这里显式把首点再追加到末尾，形成一个封闭路径
+    const closedPath = hull
+      .map(([x, y]) => [x, y, 0])
+      .concat([[hull[0][0], hull[0][1], 0]]);
+
     out.push({
-      path: hull.map(([x, y]) => [x, y, 0]),
+      path: closedPath,
       color: [rgb[0], rgb[1], rgb[2], 255],
       label,
       centroid,
@@ -44,14 +50,17 @@ export function buildOutlineData2D(points) {
   return out;
 }
 
-export function projectOutlines3D(viewport, points, filteredIds) {
+export function projectOutlines3D(viewport, points, filteredIds, labelKey = "label") {
   if (!viewport || !Array.isArray(points) || points.length < 3) return [];
   const byLabel = new Map();
   const activeFilter = filteredIds && filteredIds.size > 0;
   for (const p of points) {
     if (activeFilter && !filteredIds.has(p.id)) continue;
+    const val = p?.[labelKey];
+    const label = Number.isFinite(val) ? val : (p?.label ?? 0);
+
     const [sx, sy] = viewport.project([p.x, p.y, p.z ?? 0]);
-    const entry = byLabel.get(p.label) || {
+    const entry = byLabel.get(label) || {
       screen: [],
       sumX: 0,
       sumY: 0,
@@ -63,7 +72,7 @@ export function projectOutlines3D(viewport, points, filteredIds) {
     entry.sumY += p.y ?? 0;
     entry.sumZ += p.z ?? 0;
     entry.count += 1;
-    byLabel.set(p.label, entry);
+    byLabel.set(label, entry);
   }
   const paths = [];
   for (const [label, entry] of byLabel.entries()) {
