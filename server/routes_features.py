@@ -235,6 +235,38 @@ def _load_coords_df() -> pd.DataFrame | None:
         return None
 
 
+def _safe_int_label(value, fallback: int) -> int:
+    """
+    Robustly cast label-like values to int.
+    - NaN/None/invalid → fallback
+    - float/str numbers → converted safely
+    """
+    try:
+        import pandas as _pd  # local import to avoid hard dependency at import time
+
+        if _pd.isna(value):
+            return int(fallback)
+    except Exception:
+        # if pandas is not available or check fails, continue with generic logic
+        pass
+    # already an int
+    if isinstance(value, int):
+        return value
+    # direct int cast
+    try:
+        return int(value)
+    except Exception:
+        pass
+    # try via float (e.g. "1.0")
+    try:
+        f = float(value)
+        if not (f == f):  # NaN check without importing math
+            return int(fallback)
+        return int(f)
+    except Exception:
+        return int(fallback)
+
+
 def _coords_for_ids(ids: List[int]) -> List[Dict]:
     """Return lightweight coord info for the given ids, if csv exists."""
     df = _load_coords_df()
@@ -246,14 +278,19 @@ def _coords_for_ids(ids: List[int]) -> List[Dict]:
     for i in ids:
         if 0 <= i < n:
             row = df.iloc[int(i)]
+            # label / chunk_id / local_index 字段里如果有 NaN 或非法值，避免直接 int() 抛错
+            base_label = row.get("label", row.get("clustering", int(i) % 11))
+            label_val = _safe_int_label(base_label, fallback=int(i) % 11)
+            chunk_id_val = _safe_int_label(row.get("chunk_id", int(i)), fallback=int(i))
+            local_index_val = _safe_int_label(row.get("local_index", int(i)), fallback=int(i))
             out.append(
                 {
                     "id": int(i),
                     "raw": {"x": float(row.get("X_centroid", 0)), "y": float(row.get("Y_centroid", 0))},
                     "umap2": {"x": float(row.get("umap2_x", 0)), "y": float(row.get("umap2_y", 0))},
-                    "label": int(row.get("label", row.get("clustering", int(i) % 11))),
-                    "chunk_id": int(row.get("chunk_id", int(i))),  # optional, best-effort
-                    "local_index": int(row.get("local_index", int(i))),
+                    "label": label_val,
+                    "chunk_id": chunk_id_val,  # optional, best-effort
+                    "local_index": local_index_val,
                 }
             )
         else:

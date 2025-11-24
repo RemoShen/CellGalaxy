@@ -28,6 +28,37 @@ def _to_native(val: Any) -> Any:
         return str(val)
 
 
+def _safe_int(val: Any) -> Optional[int]:
+    """
+    尝试将任意值安全地转换为 int。
+    - NaN/空值 -> None
+    - "1.0" 这类字符串会先转 float 再取 int
+    - 非法字符串（如 "NA"）返回 None，而不是抛异常
+    """
+    try:
+        import pandas as _pd  # 局部导入以避免循环引用问题
+
+        if _pd.isna(val):
+            return None
+    except Exception:
+        # 如果无法使用 pandas 判断，就继续后面的逻辑
+        pass
+    # 已经是 int 的情况
+    if isinstance(val, int):
+        return val
+    # 尝试直接 int()
+    try:
+        return int(val)
+    except Exception:
+        pass
+    # 再尝试经由 float 转换，例如 "1.0"
+    try:
+        f = float(val)
+        return int(f)
+    except Exception:
+        return None
+
+
 def _parse_col_descriptor(name: str):
     """parse descriptor from column name, e.g. 'CD3 (marker: T cells)'"""
     s = str(name or "").strip()
@@ -114,14 +145,16 @@ def process_coord_row(row: pd.Series, idx: int, n_per_chunk: int) -> Dict[str, A
         if rank_key in row:
             # Handle potential NaN or float/int conversion
             val = row[rank_key]
-            if pd.notna(val):
-                extra[rank_key] = int(val)
+            iv = _safe_int(val)
+            if iv is not None:
+                extra[rank_key] = iv
         
         cluster_key = f"cluster_L{level}"
         if cluster_key in row:
             val = row[cluster_key]
-            if pd.notna(val):
-                extra[cluster_key] = int(val)
+            iv = _safe_int(val)
+            if iv is not None:
+                extra[cluster_key] = iv
 
     base = {
         "id": idx,
@@ -138,7 +171,12 @@ def process_coord_row(row: pd.Series, idx: int, n_per_chunk: int) -> Dict[str, A
             "y": float(row.get("umap3_y", y_raw)),
             "z": float(row.get("umap3_z", 0)),
         },
-        "label": int(row.get("label", row.get("clustering", stable_label(idx)))),
+        # label 也使用安全转换，防止 "NA" 等非法值导致整体失败
+        "label": (
+            _safe_int(row.get("label"))
+            if row.get("label") is not None
+            else _safe_int(row.get("clustering"))
+        ) or stable_label(idx),
     }
     base.update(extra)
     return base
