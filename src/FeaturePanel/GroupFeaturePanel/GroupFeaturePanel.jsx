@@ -143,8 +143,9 @@ export default function GroupFeaturePanel({
       const nonlin = Math.pow(u, gammaY);
       return marginT + (1 - nonlin) * plotH;
     };
-    const colorGlobal = "rgba(255,184,76,0.85)"; // orange (global/left)
-    const colorSel = "rgba(0,200,255,0.85)";     // blue (selection/right)
+    // use grayscale for violin plots to avoid conflicting with per-channel colors
+    const colorGlobal = "rgba(200,200,200,0.95)"; // global (left): lighter gray
+    const colorSel = "rgba(120,120,120,0.95)";    // selection (right): darker gray
 
     ctx.lineWidth = 1;
 
@@ -705,11 +706,6 @@ export default function GroupFeaturePanel({
         </div>
 
         <canvas ref={violinRef} className="gfp-violin-canvas" />
-      </div>
-
-      <div className="feature-section">
-        <div className="feature-title">High-dimensional Similarity Field</div>
-        <canvas ref={fieldRef} className="gfp-field-canvas" />
       </div>
     </div>
   );

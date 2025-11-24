@@ -66,7 +66,7 @@ const Viewer = ({
   clusterOutlineOn = false,
   // Cluster annotation (LLM titles/descriptions)
   clusterAnnotationOn = false,
-  clusterAnnotationModel = "MedGamma",
+  clusterAnnotationModel = "MedGemma",
   // Cluster preview (representative image per cluster, on UMAP view)
   clusterPreviewOn = true,
   // Shared zoom (optional): when provided, viewers sync zoom level

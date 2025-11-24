@@ -42,17 +42,17 @@ LLM_MODELS_REGISTRY = {
         "api_base": os.environ.get("LLM_API_BASE_BIOMNI", LLM_API_BASE),
         "model": os.environ.get("LLM_MODEL_BIOMNI", LLM_MODEL),
     },
-    "MedGamma": {
-        "provider": os.environ.get("MEDGAMMA_PROVIDER", "hf-local"),
-        "hf_model": os.environ.get("HF_MODEL_MEDGAMMA", "google/medgemma-4b-it"),
-        "api_base": os.environ.get("LLM_API_BASE_MEDGAMMA", LLM_API_BASE),
-        "model": os.environ.get("LLM_MODEL_MEDGAMMA", LLM_MODEL),
+    "MedGemma": {
+        "provider": os.environ.get("MedGemma_PROVIDER", "hf-local"),
+        "hf_model": os.environ.get("HF_MODEL_MedGemma", "google/medgemma-4b-it"),
+        "api_base": os.environ.get("LLM_API_BASE_MedGemma", LLM_API_BASE),
+        "model": os.environ.get("LLM_MODEL_MedGemma", LLM_MODEL),
     },
-    "Biomistral": {
-        "provider": os.environ.get("BIOMISTRAL_PROVIDER", "hf-local"),
-        "hf_model": os.environ.get("HF_MODEL_BIOMISTRAL", "BioMistral/BioMistral-7B-DARE"),
-        "api_base": os.environ.get("LLM_API_BASE_BIOMISTRAL", LLM_API_BASE),
-        "model": os.environ.get("LLM_MODEL_BIOMISTRAL", LLM_MODEL),
+    "BioMistral": {
+        "provider": os.environ.get("BioMistral_PROVIDER", "hf-local"),
+        "hf_model": os.environ.get("HF_MODEL_BioMistral", "BioMistral/BioMistral-7B-DARE"),
+        "api_base": os.environ.get("LLM_API_BASE_BioMistral", LLM_API_BASE),
+        "model": os.environ.get("LLM_MODEL_BioMistral", LLM_MODEL),
     },
 }
 

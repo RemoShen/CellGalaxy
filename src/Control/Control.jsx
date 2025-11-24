@@ -49,7 +49,7 @@ export default function Control({
   setClusterLineWidth = () => {},
   clusterAnnotationOn = false,
   setClusterAnnotationOn = () => {},
-  clusterAnnotationModel = "MedGamma",
+  clusterAnnotationModel = "MedGemma",
   setClusterAnnotationModel = () => {},
   clusterPreviewOn = true,
   setClusterPreviewOn = () => {},

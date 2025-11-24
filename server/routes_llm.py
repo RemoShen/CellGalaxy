@@ -316,7 +316,7 @@ def generate_cluster_labels(body: Dict[str, Any] | None = None):
         context_by_level_cluster = _load_data_csv_context_required()
         models_req = body.get("models") if isinstance(body, dict) else None
         if not models_req:
-            models_req = ["Biomni", "MedGamma", "Biomistral"]
+            models_req = ["Biomni", "MedGemma", "BioMistral"]
         models_to_run: list[dict[str, str]] = []
         for item in models_req:
             if isinstance(item, str):

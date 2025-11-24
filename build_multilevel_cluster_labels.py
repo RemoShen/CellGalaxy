@@ -120,12 +120,12 @@ def make_meta_models_for_upper_level(
     level3_labels: Dict[int, Dict[str, Dict[str, str]]],
 ) -> Dict[str, Dict[str, str]]:
     """
-    为 level<3 的节点生成汇总性的 MedGamma/Biomistral 文本。
+    为 level<3 的节点生成汇总性的 MedGemma/BioMistral 文本。
     """
     child_titles: List[str] = []
     for c3 in level3_ids:
         models = level3_labels.get(c3, {})
-        mg = models.get("MedGamma") or {}
+        mg = models.get("MedGemma") or {}
         t = str(mg.get("title", "")).strip()
         if t:
             child_titles.append(f"{c3}: {t}")
@@ -145,8 +145,8 @@ def make_meta_models_for_upper_level(
     )
 
     return {
-        "MedGamma": {"title": med_title, "description": med_desc},
-        "Biomistral": {"title": bio_title, "description": bio_desc},
+        "MedGemma": {"title": med_title, "description": med_desc},
+        "BioMistral": {"title": bio_title, "description": bio_desc},
     }
 
 
@@ -162,8 +162,8 @@ def make_subcluster_models_for_level4(
     parent_level, parent_cid = parent_key
 
     parent_models = level3_labels.get(parent_cid, {})
-    mg_parent = parent_models.get("MedGamma") or {}
-    bio_parent = parent_models.get("Biomistral") or {}
+    mg_parent = parent_models.get("MedGemma") or {}
+    bio_parent = parent_models.get("BioMistral") or {}
 
     parent_title = str(mg_parent.get("title", "Parent cluster")).strip()
     parent_desc = str(mg_parent.get("description", "")).strip()
@@ -184,8 +184,8 @@ def make_subcluster_models_for_level4(
     )
 
     return {
-        "MedGamma": {"title": med_title, "description": med_desc},
-        "Biomistral": {"title": bio_title, "description": bio_desc},
+        "MedGemma": {"title": med_title, "description": med_desc},
+        "BioMistral": {"title": bio_title, "description": bio_desc},
     }
 
 
@@ -224,14 +224,14 @@ def main() -> None:
                 if not models:
                     # 防御：如果旧 JSON 中缺失，给一个占位
                     models = {
-                        "MedGamma": {
+                        "MedGemma": {
                             "title": f"Cluster {cid} (level 3)",
                             "description": (
                                 "Cluster label placeholder: original level-3 label not found in the old JSON. "
                                 "Please regenerate with the LLM pipeline if more detail is needed."
                             ),
                         },
-                        "Biomistral": {
+                        "BioMistral": {
                             "title": f"Phenotype cluster {cid}",
                             "description": (
                                 "This cluster represents a coherent phenotypic population at hierarchy level 3."
@@ -251,14 +251,14 @@ def main() -> None:
                 if parent is None or parent[0] != 3:
                     # 理论上不会发生，但防御一下
                     models = {
-                        "MedGamma": {
+                        "MedGemma": {
                             "title": f"Cluster {cid} (level {lv})",
                             "description": (
                                 "Fine-grained subcluster at a deep hierarchy level. "
                                 "Parent cluster metadata could not be resolved from the hierarchy file."
                             ),
                         },
-                        "Biomistral": {
+                        "BioMistral": {
                             "title": f"Fine subcluster {cid}",
                             "description": (
                                 "Subcluster at the finest hierarchy level. "

@@ -10,7 +10,7 @@ export default function ClusteringControl({
   setLineWidth = () => {},
   annotationOn = false,
   setAnnotationOn = () => {},
-  annotationModel = "MedGamma",
+  annotationModel = "MedGemma",
   setAnnotationModel = () => {},
   previewOn = true,
   setPreviewOn = () => {},
@@ -104,7 +104,7 @@ export default function ClusteringControl({
             runLLMClusterChannelAvg(ac.signal)
               .then(() => {
                 const ac2 = new AbortController();
-                return runLLMGenerateClusterLabels({ top_k: 6, models: ["Biomni","MedGamma","Biomistral"] }, ac2.signal);
+                return runLLMGenerateClusterLabels({ top_k: 6, models: ["Biomni","MedGemma","BioMistral"] }, ac2.signal);
               })
               .catch(() => ({}))
               .finally(() => {
@@ -183,8 +183,8 @@ export default function ClusteringControl({
                 }}
               >
                 <option value="Biomni">Biomni</option>
-                <option value="MedGamma">MedGamma</option>
-                <option value="Biomistral">Biomistral</option>
+                <option value="MedGemma">MedGemma</option>
+                <option value="BioMistral">BioMistral</option>
               </select>
             </div>
           </div>

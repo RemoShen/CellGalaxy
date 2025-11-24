@@ -9,7 +9,7 @@ import { clusterColor } from "../utils/clustering";
  */
 export default function useClusterAnnotations({
   clusterAnnotationOn = false,
-  clusterAnnotationModel = "MedGamma",
+  clusterAnnotationModel = "MedGemma",
   outlineData = [],
   viewState,
   is3D = false,

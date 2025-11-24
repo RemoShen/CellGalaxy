@@ -4,8 +4,9 @@ import "./CompareFeaturePanel.css";
 import { buildTooltipHTML } from "../../TooltipPreview/TooltipPreview";
 import { API_BASE } from "../../api/api";
 
-const COLOR_GLOBAL = "rgba(255,184,76,0.85)";
-const COLOR_SEL = "rgba(0,200,255,0.85)";
+// Use grayscale colors for violin plots (avoid conflicting with per-channel colors)
+const COLOR_GLOBAL = "rgba(200,200,200,0.95)"; // global: lighter gray
+const COLOR_SEL = "rgba(120,120,120,0.95)";    // selection: darker gray
 
 function RegionThumb({
   label,
@@ -52,11 +53,6 @@ function RegionThumb({
         <div className="compare-meta">
           <div className="compare-meta-line">cells: {size ?? 0}</div>
           <div className="compare-meta-line">rep id: {repId ?? "N/A"}</div>
-          {typeof similarity === "number" ? (
-            <div className="compare-meta-line">
-              sim. to centroid: {(similarity ?? 0).toFixed(3)}
-            </div>
-          ) : null}
           {typeof compactness === "number" ? (
             <div className="compare-meta-line">compactness: {compactness.toFixed(3)}</div>
           ) : null}
