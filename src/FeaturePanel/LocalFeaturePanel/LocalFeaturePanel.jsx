@@ -39,8 +39,7 @@ export default function LocalFeaturePanel({
   points = [],
 }) {
   const [view, setView] = useState("all"); // 'all' | 'gallery' | 'compact' | 'hist' | 'diff'
-  // X axis range interaction: right end always fixed at 1.0, left end can be adjusted by wheel (default 0.6)
-  const [axisMin, setAxisMin] = useState(0.6);
+  // Similarity histogram x-axis: fix left end at 0.9, right end at 1.0
   const mapById = useMemo(() => {
     const m = new Map();
     for (const p of points) m.set(p.id, p);
@@ -75,7 +74,7 @@ export default function LocalFeaturePanel({
     ctx.clearRect(0, 0, w, h);
     if (!sims.length) return;
 
-    const X_MIN = Math.max(0.0, Math.min(1.0 - 1e-6, axisMin));
+    const X_MIN = 0.9;
     const X_MAX = 1.0;
     const X_SPAN = Math.max(1e-6, X_MAX - X_MIN);
 
@@ -269,29 +268,7 @@ export default function LocalFeaturePanel({
       medianVal: median,
       band: { bl, br, top: y0 - plotH, bottom: y0 },
     };
-  }, [data, view, axisMin]);
-
-  // —— interaction: wheel zoom X axis range; double click reset; hold Shift + wheel pan ——
-  const handleWheel = (e) => {
-    if (view !== "all" && view !== "hist") return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    e.preventDefault();
-    // fix right end at 1.0, zoom around right end (change left end)
-    const span = Math.max(1e-6, 1.0 - axisMin);
-    const zoom = Math.exp(-e.deltaY * 0.0012); // zoom in when scroll up
-    let newSpan = span / zoom; // zoom in → span smaller
-    const MIN_SPAN = 0.005;
-    if (newSpan < MIN_SPAN) newSpan = MIN_SPAN;
-    if (newSpan > 1.0) newSpan = 1.0;
-    let nMin = 1.0 - newSpan;
-    if (nMin < 0) nMin = 0;
-    setAxisMin(nMin);
-  };
-
-  const resetAxis = () => {
-    setAxisMin(0.6);
-  };
+  }, [data, view]);
 
   // Hover tooltip: bar / median / std band
   const wrapperRef = useRef(null);
@@ -476,11 +453,9 @@ export default function LocalFeaturePanel({
       <div className="feature-section">
         <div className="feature-title">Similarity histogram</div>
         <div ref={wrapperRef} className="hist-wrapper">
-          <canvas
+        <canvas
             className="hist-canvas"
             ref={canvasRef}
-            onWheel={handleWheel}
-            onDoubleClick={resetAxis}
             onMouseMove={onMouseMove}
             onMouseLeave={onMouseLeave}
           />
