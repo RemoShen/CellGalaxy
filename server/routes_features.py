@@ -278,7 +278,8 @@ def _coords_for_ids(ids: List[int]) -> List[Dict]:
     for i in ids:
         if 0 <= i < n:
             row = df.iloc[int(i)]
-            # label / chunk_id / local_index 字段里如果有 NaN 或非法值，避免直接 int() 抛错
+            # For label / chunk_id / local_index fields, guard against NaN or invalid
+            # values so that int() does not raise and break the entire response.
             base_label = row.get("label", row.get("clustering", int(i) % 11))
             label_val = _safe_int_label(base_label, fallback=int(i) % 11)
             chunk_id_val = _safe_int_label(row.get("chunk_id", int(i)), fallback=int(i))

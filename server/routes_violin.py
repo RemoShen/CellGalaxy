@@ -186,7 +186,7 @@ def violin_global(
     max_samples_per_channel: int = Query(100000, ge=1000, le=200000),
     perc_for_thr: float = Query(99.0, ge=50.0, le=100.0),
     thr_factor: float = Query(0.1, ge=0.0, le=1.0),
-    channels: str | None = Query(None, description="e.g. '0,1,2'；为空表示全部"),
+    channels: str | None = Query(None, description="e.g. '0,1,2'; empty string means all channels"),
 ):
     try:
         arr = open_zarr()
@@ -222,8 +222,8 @@ def violin_global(
 @router.post("/violin/selection")
 def violin_selection(payload: Dict = Body(...)):
     """
-    input: { ids:number[], max?:int, perc?:float, thr?:float, channels?: number[] }
-    return: { channels:number[], values:number[][] } where values[i] is the sampling array for ch=channels[i]
+    Input:  { ids:number[], max?:int, perc?:float, thr?:float, channels?: number[] }
+    Return: { channels:number[], values:number[][] } where values[i] is the sampling array for ch=channels[i]
     """
     try:
         ids = payload.get("ids")
@@ -265,9 +265,9 @@ def violin_selection(payload: Dict = Body(...)):
 @router.post("/violin/selection_kde")
 def violin_selection_kde(payload: Dict = Body(...)):
     """
-    input: { ids:number[], max?:int, perc?:float, thr?:float, channels?: number[], grid?:int }
-    return: { channels:number[], xs:number[][], ys:number[][], lo:number[], hi:number[], bw:number[] }
-    - same KDE strategy as /violin/global_kde (Gaussian kernel + Scott's bandwidth)
+    Input:  { ids:number[], max?:int, perc?:float, thr?:float, channels?: number[], grid?:int }
+    Return: { channels:number[], xs:number[][], ys:number[][], lo:number[], hi:number[], bw:number[] }
+    - Same KDE strategy as /violin/global_kde (Gaussian kernel + Scott's bandwidth)
     """
     try:
         ids = payload.get("ids")

@@ -9,7 +9,7 @@ export default function DeckViewState({
   setSharedZoom,
   initialZoom = 8,
   imageSize = 4,
-  // 是否启用视图状态过渡动画
+  // Whether to enable view-state transition animations
   transitionsEnabled = true,
 }) {
   const center = useMemo(() => computeCenter(points), [points]);

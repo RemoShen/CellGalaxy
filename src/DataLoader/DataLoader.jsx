@@ -48,7 +48,7 @@ export default function useDataLoader() {
   // cluster text annotation (LLM titles/descriptions)
   const [clusterAnnotationOn, setClusterAnnotationOn] = useState(false);
   const [clusterAnnotationModel, setClusterAnnotationModel] = useState("MedGemma");
-  // 固定 cluster preview 图片的显隐开关（默认关闭，由用户手动打开）
+  // Toggle for the visibility of fixed cluster preview images (off by default, enabled by user)
   const [clusterPreviewOn, setClusterPreviewOn] = useState(false);
   
   // UMAP mode settings (kept for compatibility, side-by-side uses both)

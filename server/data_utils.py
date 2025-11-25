@@ -30,28 +30,28 @@ def _to_native(val: Any) -> Any:
 
 def _safe_int(val: Any) -> Optional[int]:
     """
-    尝试将任意值安全地转换为 int。
-    - NaN/空值 -> None
-    - "1.0" 这类字符串会先转 float 再取 int
-    - 非法字符串（如 "NA"）返回 None，而不是抛异常
+    Safely try to convert any value to an int.
+    - NaN / missing values -> None
+    - Strings like "1.0" are first converted to float and then to int
+    - Invalid strings (e.g. "NA") return None instead of raising an exception
     """
     try:
-        import pandas as _pd  # 局部导入以避免循环引用问题
+        import pandas as _pd  # Local import to avoid potential circular imports
 
         if _pd.isna(val):
             return None
     except Exception:
-        # 如果无法使用 pandas 判断，就继续后面的逻辑
+        # If we cannot rely on pandas for the check, fall back to the logic below
         pass
-    # 已经是 int 的情况
+    # Already an int
     if isinstance(val, int):
         return val
-    # 尝试直接 int()
+    # Try direct int() conversion
     try:
         return int(val)
     except Exception:
         pass
-    # 再尝试经由 float 转换，例如 "1.0"
+    # Then try converting via float first, e.g. "1.0"
     try:
         f = float(val)
         return int(f)
@@ -171,7 +171,7 @@ def process_coord_row(row: pd.Series, idx: int, n_per_chunk: int) -> Dict[str, A
             "y": float(row.get("umap3_y", y_raw)),
             "z": float(row.get("umap3_z", 0)),
         },
-        # label 也使用安全转换，防止 "NA" 等非法值导致整体失败
+        # Safely convert label as well to avoid invalid values like "NA" breaking the whole process
         "label": (
             _safe_int(row.get("label"))
             if row.get("label") is not None

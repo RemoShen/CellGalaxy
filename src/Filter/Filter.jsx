@@ -377,7 +377,7 @@ export default function Filter({ setFilteredIds = () => {} }) {
         const zeros = new Array(uniqueAliases.length).fill(0);
         void fn(...zeros);
       } catch (e) {
-        setError(`表达式不可执行: ${e?.message || e}`);
+        setError(`Expression is not executable: ${e?.message || e}`);
         setFilteredIds(new Set());
         setCount(0);
         return;
@@ -558,9 +558,6 @@ export default function Filter({ setFilteredIds = () => {} }) {
         </div>
       )}
 
-      {/* Simplified UI: no contextual hint below */}
-
-      {/* Simplified: hide footer chips and status */}
     </div>
   );
 }

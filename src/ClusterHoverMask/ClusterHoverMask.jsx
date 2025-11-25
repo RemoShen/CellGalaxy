@@ -23,7 +23,6 @@ export default function ClusterHoverMask({
 
     const altFromEvent = !!(info && info.srcEvent && info.srcEvent.altKey);
     const preferCluster = altPressed || altFromEvent;
-    // 只有在按住 Option（alt）时才启用 cluster hover 填充，否则完全不显示填充色
     if (!preferCluster) { setHoverMask(null); setHoverMask3D(null); return; }
     if (!is3D && (!outlineData || outlineData.length === 0)) { setHoverMask(null); return; }
     if (is3D && (!screenOutlines3D || screenOutlines3D.length === 0)) { setHoverMask3D(null); return; }

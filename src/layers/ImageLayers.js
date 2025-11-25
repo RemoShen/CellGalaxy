@@ -35,7 +35,7 @@ export default function ImageLayers({
   labelKey = "label",
   // rankKey unused
   rankKey = null,
-  // 是否启用基于 semanticLevel 的尺寸调节
+  // Whether to enable size adjustment based on semanticLevel
   semanticSizeOn = false,
   // GPU Sampling
   samplingThreshold = 1.0,
@@ -92,17 +92,17 @@ export default function ImageLayers({
             const rIdx = getRegionIndexForId?.(d.id);
             const scale = typeof rIdx === "number" && rIdx >= 0 ? 1.2 : 1.0;
 
-            // —— Semantic Zoom 尺寸调节 ——
-            // Raw 视图：semanticSizeOn=false，直接使用原始大小逻辑。
+            // —— Semantic zoom size adjustment ——
+            // Raw view: semanticSizeOn=false, use the original size logic directly.
             if (!semanticSizeOn) {
               return computedImageSize * scale;
             }
 
-            // UMAP 视图：根据 semanticLevel 分段缩放。
-            // 调整后规则（略缩小整体，但在 Level<1.7 时再放大一点）：
-            //   Level∈[0,1)    →  sizeFactor = 4.8  （更大的代表图）
-            //   Level∈[1,1.7)  →  线性从 4.8 过渡到 2.4
-            //   Level∈[1.7,3)  →  线性从 2.4 过渡到 0.9 （点数迅速增多，size 快速减小到略小于原始）
+            // UMAP view: scale size piecewise based on semanticLevel.
+            // Adjusted rule (slightly smaller overall, but boost for Level < 1.7):
+            //   Level∈[0,1)    →  sizeFactor = 4.8  (larger representative images)
+            //   Level∈[1,1.7)  →  linear from 4.8 down to 2.4
+            //   Level∈[1.7,3)  →  linear from 2.4 down to 0.9 (rapidly shrinking as point count increases)
             //   Level≥3       →  sizeFactor = 0.9
             const lvl = Math.max(0, Math.min(5, semanticLevel));
             let sizeFactor;
@@ -183,11 +183,11 @@ export default function ImageLayers({
                   }
                   return [col[0] ?? 255, col[1] ?? 255, col[2] ?? 255, a];
                 },
-          updateTriggers: {
-            ...baseConfig.updateTriggers,
-            getColor: [filteredIds, colors, alphas, windows],
-            getFilterValue: [selectedPoints.length],
-          },
+                updateTriggers: {
+                  ...baseConfig.updateTriggers,
+                  getColor: [filteredIds, colors, alphas, windows],
+                  getFilterValue: [selectedPoints.length],
+                },
               })
             );
           }
@@ -212,11 +212,11 @@ export default function ImageLayers({
                   if (activeFilter && !filteredIds.has(d.id)) return [255, 255, 255, 30];
                   return [255, 255, 255, 255];
                 },
-        updateTriggers: {
-            ...baseConfig.updateTriggers,
-            getColor: [filteredIds, selectedPoints.length],
-            getFilterValue: [selectedPoints.length],
-          },
+                updateTriggers: {
+                  ...baseConfig.updateTriggers,
+                  getColor: [filteredIds, selectedPoints.length],
+                  getFilterValue: [selectedPoints.length],
+                },
               })
             );
           }
@@ -243,19 +243,20 @@ export default function ImageLayers({
                   const activeFilter = filteredIds && filteredIds.size > 0;
                   if (activeFilter && !filteredIds.has(d.id)) return [0, 0, 0, 0];
 
-                  // 使用当前语义层级对应的 labelKey，而不是始终使用原始 d.label，
-                  // 这样在 semantic zoom 时颜色会随层级聚类一起变化。
+                  // Use the labelKey corresponding to the current semantic level,
+                  // instead of always using the original d.label, so colors track
+                  // the active semantic clustering level.
                   const val = d[labelKey];
                   const l = Number.isFinite(val) ? val : (d.label ?? 0);
                   const rgb = clusterColor(l);
                   const a = Math.round(Math.min(1, Math.max(0, clusterOpacity)) * 255);
                   return [rgb[0], rgb[1], rgb[2], a];
                 },
-          updateTriggers: {
-            ...baseConfig.updateTriggers,
-            getColor: [filteredIds, clusterOpacity, selectedPoints.length, labelKey],
-            getFilterValue: [selectedPoints.length],
-          },
+                updateTriggers: {
+                  ...baseConfig.updateTriggers,
+                  getColor: [filteredIds, clusterOpacity, selectedPoints.length, labelKey],
+                  getFilterValue: [selectedPoints.length],
+                },
               })
             );
           } else {
@@ -280,7 +281,7 @@ export default function ImageLayers({
                   const activeFilter = filteredIds && filteredIds.size > 0;
                   if (activeFilter && !filteredIds.has(d.id)) return [0, 0, 0, 0];
                   
-                  // Dynamic cluster coloring based on current level
+                // Dynamic cluster coloring based on current level
                   const val = d[labelKey];
                   const l = Number.isFinite(val) ? val : (d.label ?? 0);
                   const rgb = clusterColor(l);
@@ -319,7 +320,7 @@ export default function ImageLayers({
             rounded: true,
             jointRounded: true,
             miterLimit: 2,
-            // 让 PathLayer 自动首尾相连，避免轮廓出现断口
+                // Make PathLayer automatically close paths to avoid outline gaps
             loop: true,
             updateTriggers: { getColor: [outlineData.length], getWidth: [clusterLineWidth] },
           })
@@ -443,7 +444,7 @@ export default function ImageLayers({
           rounded: true,
           jointRounded: true,
           miterLimit: 2,
-          // 同样闭合散点模式下的 cluster 轮廓
+          // Also close cluster outlines in scatter mode
           loop: true,
           updateTriggers: { getColor: [outlineData.length], getWidth: [clusterLineWidth] },
         })

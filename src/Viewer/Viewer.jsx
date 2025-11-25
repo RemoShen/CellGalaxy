@@ -48,7 +48,7 @@ const Viewer = ({
   is3D = false,
   imageSize = 4,
   setImageSize = () => {},
-  // Single-view 模式下：是否当前在显示 UMAP
+  // In single-view mode: whether UMAP is currently shown
   useUMAP = false,
 
   // Selection
@@ -96,16 +96,16 @@ const Viewer = ({
   
   const [semanticLevel, setSemanticLevel] = useState(5); // Default to finest level (adjust as needed)
   const [isSemanticAuto, setIsSemanticAuto] = useState(true);
-  // UMAP 视图：使用多层级 cluster 列（cluster_L0...）, raw 视图：使用原始 label
+  // UMAP view: use multi-level cluster columns (cluster_L0...), raw view: use original label
   const clusterLabelKey = isUMAPView
     ? `cluster_L${semanticLevel - 1}`
     : "label";
-  // UMAP 视图下，对应每一层的代表性细胞排序字段（rank_L0...rank_L4）
+  // In UMAP view, representative cell ranking fields per level (rank_L0...rank_L4)
   const clusterRankKey = isUMAPView
     ? `rank_L${semanticLevel - 1}`
     : null;
 
-  // Auto-update semantic level based on zoom（仅在 UMAP 视图启用）
+  // Auto-update semantic level based on zoom (only enabled in UMAP view)
   React.useEffect(() => {
     if (!isUMAPView || !isSemanticAuto || !viewState) return;
     const z = typeof viewState.zoom === 'number' ? viewState.zoom : 8;
@@ -120,8 +120,8 @@ const Viewer = ({
   }, [isUMAPView, isSemanticAuto, viewState?.zoom]);
 
   // Sampling budget for each semantic level (1..5)
-  // 每一层的最大点数（控制采样密度），数值越小，显示的点越少。
-  // 如果想进一步减少，可以继续把下面几个数字调小。
+  // Maximum number of points per level (controls sampling density); smaller numbers show fewer points.
+  // To reduce further, decrease the values below.
   const SAMPLING_BUDGETS = useMemo(
     () => [1000, 2500, 8000, 20000, Infinity],
     []
@@ -140,9 +140,8 @@ const Viewer = ({
   }, [isUMAPView, semanticLevel, SAMPLING_BUDGETS, points]);
 
   // For outline/selection/interaction logic, we still want a "visible" subset for CPU calculations,
-  // but for Rendering (ImageLayers) we will pass ALL points and use GPU filtering.
-  // However, since ClusterOutlines and Interaction need to know what's visible to match visual,
-  // we keep this visiblePoints subset for them.
+  // but for rendering (ImageLayers) we pass ALL points and use GPU filtering.
+  // ClusterOutlines and interaction still rely on this visiblePoints subset to match visuals.
   const visiblePoints = useMemo(() => {
     if (!points || points.length === 0) return [];
     if (samplingThreshold >= 1.0) return points;
@@ -205,7 +204,7 @@ const Viewer = ({
     setToolbar({ show: true, x, y, object: info.object });
   };
 
-  // Build clustering outlines (convex hulls) lazily
+  // Lazily build clustering outlines (convex hulls)
   const outlineData = useMemo(() => {
     if (is3D || !visiblePoints || visiblePoints.length < 3) return [];
     // Pass dynamic label key
@@ -223,7 +222,7 @@ const Viewer = ({
     labelKey: clusterLabelKey,
   });
 
-  // —— 为每个 cluster 选出一个代表性细胞（rank 最小），用于固定显示的 preview 卡片 ——
+  // —— Choose one representative cell per cluster (minimum rank) for fixed preview cards ——
   const clusterPreviewPoints = useMemo(() => {
     if (!isUMAPView) return [];
     if (!clusterPreviewOn) return [];
@@ -246,7 +245,7 @@ const Viewer = ({
     return Array.from(byLabel.values()).map((v) => v.point);
   }, [isUMAPView, clusterPreviewOn, points, clusterLabelKey, clusterRankKey, semanticLevel]);
 
-  // 将代表性细胞的位置投影到屏幕坐标，用于放置 DOM 预览卡片
+  // Project representative cell positions into screen coordinates for DOM preview card placement
   const [clusterPreviewScreens, setClusterPreviewScreens] = useState([]);
 
   React.useEffect(() => {
@@ -495,8 +494,6 @@ const Viewer = ({
                   getTooltip={(info) => {
                     const { object } = info || {};
                     if (altPressed) return null;
-                    // 如果当前鼠标位于任何代表图 preview 的区域内，就不要显示 DeckGL 的 tooltip，
-                    // 这样既不会挡住代表图，也不会影响滚轮缩放。
                     if (
                       info &&
                       typeof info.x === "number" &&
@@ -514,14 +511,11 @@ const Viewer = ({
 
                     // Cluster-level annotation (used for text layer and point hover)
                     let annotation = null;
-                    // 只有真正的 cluster-annotation 对象才使用 LLM 文本；
-                    // 普通细胞 hover 仍然显示自身 preview。
                     if (object.kind === "cluster-annotation") {
                       annotation = object;
                     }
 
                     if (annotation && (annotation.title || annotation.description)) {
-                      // 在 DeckGL tooltip 中仅展示标题；description 只在标题 DOM hover 时显示
                       const titleHtml = annotation.title
                         ? `<div><b>${annotation.title}</b></div>`
                         : "";
@@ -590,7 +584,7 @@ const Viewer = ({
         )}
       </SelectionOverlay>
 
-      {/* 固定显示的 cluster 代表 preview（level 1–4），样式沿用 hover tooltip */}
+      {/* Fixed cluster representative previews (levels 1–4), reusing hover tooltip styles */}
       {isUMAPView &&
         clusterPreviewOn &&
         semanticLevel >= 1 &&
@@ -599,12 +593,13 @@ const Viewer = ({
         clusterPreviewScreens.length > 0 &&
         clusterPreviewScreens.map(({ point, x, y }) => {
           if (!point) return null;
-          // 根据当前 zoom 动态调整 preview 尺寸：缩小视图时减小，放大视图时增大（并做上下限裁剪）
+          // Dynamically adjust preview size based on current zoom: smaller when zoomed out, larger when zoomed in,
+          // with lower/upper bounds.
           const z = typeof viewState?.zoom === "number" ? viewState.zoom : 8;
-          const baseSize = 60; // 你当前觉得合适的基准大小
-          const scale = 1 + (z - 8) * 0.25; // 每多 1 级 zoom，尺寸增减约 25%
+          const baseSize = 60; // baseline size considered visually reasonable
+          const scale = 1 + (z - 8) * 0.25; // change size by ~25% per zoom level
           const previewSize = Math.max(30, Math.min(120, baseSize * scale));
-          // 计算当前 cluster 的颜色，用作外框颜色及标题背景色
+          // Compute current cluster color for the border and title background
           const val = point?.[clusterLabelKey];
           const lbl = Number.isFinite(val) ? val : (point.label ?? 0);
           const rgb = clusterColor(lbl);
@@ -619,9 +614,9 @@ const Viewer = ({
             channels,
             colors,
             alphas,
-            // 随 zoom 变化的动态 preview 尺寸
+            // Preview size that changes dynamically with zoom
             previewSize,
-            // 嵌入式模式：去掉内部 margin / 阴影，让外边框紧贴图片
+            // Embedded mode: remove internal margin/shadow so border hugs the image
             compact: true,
           });
           if (!previewHtml) return null;
@@ -633,12 +628,11 @@ const Viewer = ({
                 position: "absolute",
                 left: x,
                 top: y,
-                // 稍微把图片抬高一点，让图片和文字之间有一点间距
+                // Lift the image slightly so there is some spacing between image and text
                 transform: "translate(-50%, -125%)",
-                // 不拦截鼠标事件，让滚轮缩放仍然作用在 DeckGL 上
-                //（cell tooltip 已在 getTooltip 中根据代表点 ID 屏蔽）
+                // Do not intercept mouse events so that scroll zoom still works on DeckGL.
+                // (cell tooltip is already suppressed in getTooltip based on representative IDs)
                 pointerEvents: "none",
-                // 让外框紧贴图片：去掉 padding，仅保留细边框
                 padding: 0,
                 background: "transparent",
                 borderRadius: 8,
@@ -652,7 +646,7 @@ const Viewer = ({
           );
         })}
 
-      {/* Cluster titles：在 clustering 中心绘制（DOM），description 仅在 hover 时显示 */}
+      {/* Cluster titles: rendered at cluster centers (DOM); description is only shown on hover */}
       {isUMAPView &&
         clusterAnnotationOn &&
         semanticLevel >= 1 &&
@@ -663,7 +657,7 @@ const Viewer = ({
           const { label, title, description, x, y } = ann;
           if (!title) return null;
           const rgb = clusterColor(label);
-          // 与 useClusterAnnotations 相同的字号逻辑
+          // Same font-size logic as in useClusterAnnotations
           const z = typeof viewState?.zoom === "number" ? viewState.zoom : 8;
           const baseSize = 14;
           const scale = 1 + (z - 8) * 0.1;
@@ -676,16 +670,16 @@ const Viewer = ({
                 left: x,
                 top: y,
                 transform: "translate(-50%, -50%)",
-                // 只有在按住 Option 时才需要响应 hover，从而显示 description；
-                // 其他情况下把事件透传给 DeckGL，让滚轮缩放始终生效。
+                // Only respond to hover when Option is pressed to show the description;
+                // in other cases, let events pass through to DeckGL so scroll zoom always works.
                 pointerEvents: altPressed ? "auto" : "none",
                 zIndex: hoveredAnnotationLabel === label ? 100 : 10,
-                // 显示普通鼠标光标，但不出现文字插入光标
+                // Show default cursor, but no text insertion cursor
                 cursor: "default",
                 userSelect: "none",
               }}
               onMouseEnter={(e) => {
-                // 只有在按住 Option(Alt) 时才显示 description
+                // Only show description when Option (Alt) is pressed
                 if (altPressed || e.altKey) {
                   setHoveredAnnotationLabel(label);
                 }

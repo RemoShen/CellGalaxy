@@ -14,7 +14,7 @@ export function buildTooltipHTML({
   colors,
   alphas,
   previewSize = 128,
-  // 用于嵌入式显示（如 cluster 固定 preview），取消额外的 margin / 阴影等
+  // For embedded display (e.g., fixed cluster preview), remove extra margin/shadow, etc.
   compact = false,
 }) {
   if (!object) return "";

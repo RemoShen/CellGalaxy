@@ -15,12 +15,13 @@ OUT_JSON = os.path.join(PUBLIC, "cluster_labels_multilevel.json")
 
 def load_hierarchy() -> Tuple[List[Dict[str, str]], Dict[Tuple[int, int], List[Tuple[int, int]]], Dict[Tuple[int, int], Tuple[int, int]], List[int]]:
     """
-    读取 cluster_multilevel_hierarchy.csv
-    返回：
-      - rows: 每一行的字典
+    Read cluster_multilevel_hierarchy.csv and build hierarchy helpers.
+
+    Returns:
+      - rows: list of dicts for each CSV row
       - children_map: (level, cluster_id) -> [(level+1, child_cluster_id), ...]
       - parents_map: (level, cluster_id) -> (parent_level, parent_cluster_id)
-      - levels: 所有出现过的 level 列表（去重后排序）
+      - levels: sorted list of all levels that appear in the file
     """
     if not os.path.exists(HIER_CSV):
         raise FileNotFoundError(f"Hierarchy CSV not found: {HIER_CSV}")
@@ -43,7 +44,7 @@ def load_hierarchy() -> Tuple[List[Dict[str, str]], Dict[Tuple[int, int], List[T
         # children
         child_str = (r.get("children_cluster_ids") or "").strip()
         if child_str:
-            # 可能带引号 "0,1,2"
+            # May contain quotes around the list, e.g. "0,1,2"
             if child_str.startswith('"') and child_str.endswith('"'):
                 child_str = child_str[1:-1]
             for x in child_str.split(","):
@@ -65,9 +66,10 @@ def load_hierarchy() -> Tuple[List[Dict[str, str]], Dict[Tuple[int, int], List[T
 
 def load_existing_level3_labels() -> Dict[int, Dict[str, Dict[str, str]]]:
     """
-    读取当前 public/cluster_labels.json，
-    你说里面的 levels["0"] 对应的是层级里的 level=3。
-    返回：cluster_id(int) -> models(dict)
+    Load existing level-3 labels from public/cluster_labels.json.
+
+    In the current format, levels["0"] is treated as hierarchy level=3.
+    Returns: cluster_id(int) -> models(dict)
     """
     if not os.path.exists(OLD_LABELS_JSON):
         raise FileNotFoundError(f"cluster_labels.json not found: {OLD_LABELS_JSON}")
@@ -95,7 +97,7 @@ def collect_level3_descendants(
     cid: int,
 ) -> List[int]:
     """
-    从任意 (level, cid) 开始，向下递归，收集所有 level==3 的 cluster_id。
+    Starting from arbitrary (level, cid), recursively collect all cluster_id where level == 3.
     """
     result: Set[int] = set()
 
@@ -120,7 +122,7 @@ def make_meta_models_for_upper_level(
     level3_labels: Dict[int, Dict[str, Dict[str, str]]],
 ) -> Dict[str, Dict[str, str]]:
     """
-    为 level<3 的节点生成汇总性的 MedGemma/BioMistral 文本。
+    Generate aggregated MedGemma/BioMistral descriptions for nodes with level < 3.
     """
     child_titles: List[str] = []
     for c3 in level3_ids:
@@ -156,7 +158,7 @@ def make_subcluster_models_for_level4(
     level3_labels: Dict[int, Dict[str, Dict[str, str]]],
 ) -> Dict[str, Dict[str, str]]:
     """
-    level4 子簇：用 level3 父簇的文字，加上“子簇”说明。
+    Level-4 subclusters: reuse the parent level-3 text and add a \"subcluster\" explanation.
     """
     _, cid = level4_key
     parent_level, parent_cid = parent_key
@@ -190,12 +192,12 @@ def make_subcluster_models_for_level4(
 
 
 def main() -> None:
-    # 1. 加载层级信息
+    # 1. Load hierarchy information
     _, children_map, parents_map, hierarchy_levels = load_hierarchy()
-    # 2. 读取现有 level3 文本（来自 cluster_labels.json 的 levels["0"]）
+    # 2. Load existing level-3 texts (from cluster_labels.json levels["0"])
     level3_labels = load_existing_level3_labels()
 
-    # 3. 构建新的 levels：key 使用 "0".."4"，和 data.csv 里的 cluster_L0..L4 对齐
+    # 3. Build new levels: keys "0".."4", aligned with cluster_L0..L4 in data.csv
     out_levels: Dict[str, Dict[str, Dict[str, object]]] = {}
 
     for lv in hierarchy_levels:
@@ -203,26 +205,26 @@ def main() -> None:
         out_levels[str(lv)] = {}
 
     for (lv, cid_children) in children_map.keys():
-        # 确保所有节点都初始化（即便某层某簇没有 children 也能出现在输出中）
+        # Ensure all nodes are initialized, even if a node has no children
         out_levels.setdefault(str(lv), {})
         out_levels[str(lv)].setdefault(str(cid_children), {"models": {}})
 
-    # 也要包含最细一层（比如 level=4）里那些没有 children 的节点
+    # Also include finest-level nodes (e.g. level=4) that have no children
     for (lv, cid) in parents_map.keys():
         out_levels.setdefault(str(lv), {})
         out_levels[str(lv)].setdefault(str(cid), {"models": {}})
 
-    # 再根据层级为每个节点填充 models
+    # Then fill in models for each node according to its level
     for lv in hierarchy_levels:
         lv = int(lv)
         for cid_str in list(out_levels.get(str(lv), {}).keys()):
             cid = int(cid_str)
 
             if lv == 3:
-                # 直接使用旧 JSON 里的 level3 文本
+                # Directly use level-3 text from the old JSON
                 models = level3_labels.get(cid)
                 if not models:
-                    # 防御：如果旧 JSON 中缺失，给一个占位
+                    # Defensive fallback: if missing in old JSON, create a placeholder
                     models = {
                         "MedGemma": {
                             "title": f"Cluster {cid} (level 3)",
@@ -241,15 +243,16 @@ def main() -> None:
                 out_levels[str(lv)][cid_str] = {"models": models}
 
             elif lv < 3:
-                # 上层：根据子 level3 簇汇总
+                # Upper levels: aggregate based on child level-3 clusters
                 level3_ids = collect_level3_descendants(children_map, lv, cid)
                 models = make_meta_models_for_upper_level(lv, cid, level3_ids, level3_labels)
                 out_levels[str(lv)][cid_str] = {"models": models}
 
             else:  # lv > 3，例如 level=4
+                # Deeper levels, e.g. level=4
                 parent = parents_map.get((lv, cid))
                 if parent is None or parent[0] != 3:
-                    # 理论上不会发生，但防御一下
+                    # In theory this should not happen; keep a defensive fallback
                     models = {
                         "MedGemma": {
                             "title": f"Cluster {cid} (level {lv})",
@@ -275,7 +278,7 @@ def main() -> None:
         json.dump(out_data, f, ensure_ascii=False, indent=2)
 
     print(f"Written multi-level labels to: {OUT_JSON}")
-    print("检查无误后，可将该文件重命名为 public/cluster_labels.json 覆盖原文件。")
+    print("After verifying the result, you can rename this file to public/cluster_labels.json to overwrite the original.")
 
 
 if __name__ == "__main__":

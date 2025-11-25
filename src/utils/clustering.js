@@ -35,7 +35,8 @@ export function buildOutlineData2D(points, labelKey = "label") {
     }
     const n = arr.length || 1;
     const centroid = [sumX / n, sumY / n, 0];
-    // 为了确保可视化上的闭合，这里显式把首点再追加到末尾，形成一个封闭路径
+    // To ensure a visually closed outline, explicitly append the first point to the end,
+    // forming a closed path.
     const closedPath = hull
       .map(([x, y]) => [x, y, 0])
       .concat([[hull[0][0], hull[0][1], 0]]);

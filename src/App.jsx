@@ -19,7 +19,7 @@ export default function App() {
   } = dataLoader;
   // viewer mode: 'single' | 'dual'
   const [viewMode, setViewMode] = React.useState(VIEW_DUAL);
-  // disable transitions during mode switch
+  // Disable transitions during mode switch for smoother UX
   const [disableTransitions, setDisableTransitions] = React.useState(false);
   React.useEffect(() => {
     setDisableTransitions(true);
@@ -45,7 +45,7 @@ export default function App() {
               clusterAnnotationModel={clusterAnnotationModel}
               clusterPreviewOn={false}
               transitionsEnabled={!disableTransitions}
-              zoomSpeed={0.8}  // Raw：保持原来的缩放速度
+              zoomSpeed={0.8}  // Raw: keep original zoom speed
             />
           </div>
           <div className="viewer-pane">
@@ -62,7 +62,7 @@ export default function App() {
               clusterAnnotationModel={clusterAnnotationModel}
               clusterPreviewOn={clusterPreviewOn}
               transitionsEnabled={!disableTransitions}
-              // 不传 zoomSpeed，使用 Viewer 默认值（现在是 0.1），缩放更慢
+              // Do not pass zoomSpeed: use Viewer default (currently 0.1) for slower zoom
             />
           </div>
         </div>
@@ -81,7 +81,7 @@ export default function App() {
               clusterAnnotationModel={clusterAnnotationModel}
               clusterPreviewOn={rest.useUMAP ? clusterPreviewOn : false}
               transitionsEnabled={!disableTransitions}
-              // 单视图：Raw 用 0.8，UMAP 用 Viewer 默认的 0.1（不额外指定）
+              // Single-view: Raw uses 0.8, UMAP uses Viewer default 0.1 (when not explicitly specified)
               zoomSpeed={rest.useUMAP ? undefined : 0.8}
             />
           </div>
