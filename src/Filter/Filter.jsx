@@ -25,6 +25,7 @@ function aliasOf(name) {
 
 // Guard: only allow safe characters/operators
 function isExpressionSafe(expr) {
+  // eslint-disable-next-line no-useless-escape
   return /^[\s\w\d_"'().,!<>=&|+\-/*%\[\]]+$/.test(expr);
 }
 
@@ -364,6 +365,7 @@ export default function Filter({ setFilteredIds = () => {} }) {
       const uniqueAliases = Object.keys(aliasIndex);
       let fn;
       try {
+        // eslint-disable-next-line no-new-func
         fn = new Function(...uniqueAliases, `return (${exp});`);
       } catch (e) {
         setError(`表达式语法错误: ${e?.message || e}`);
@@ -555,6 +557,33 @@ export default function Filter({ setFilteredIds = () => {} }) {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {columnHint && (
+        <div
+          className="filter-hint"
+          style={{ marginTop: 6, fontSize: 12, color: "#999" }}
+        >
+          {columnHint}
+        </div>
+      )}
+
+      {error && (
+        <div
+          className="filter-error"
+          style={{ marginTop: 4, fontSize: 12, color: "#ff6b6b" }}
+        >
+          {error}
+        </div>
+      )}
+
+      {count != null && (
+        <div
+          className="filter-count"
+          style={{ marginTop: 2, fontSize: 12, color: "#ccc" }}
+        >
+          {count} matched cells
         </div>
       )}
 

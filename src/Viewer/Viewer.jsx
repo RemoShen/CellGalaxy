@@ -289,7 +289,7 @@ const Viewer = ({
   }, [isUMAPView, clusterPreviewOn, clusterPreviewPoints, viewState, deckRef, containerRef]);
 
   // Cluster annotation (text layer + tooltip data), derived from outlineData (2D) or projected screen outlines (3D)
-  const { annotationLayer, clusterAnnotationByLabel, clusterAnnotationData } = useClusterAnnotations({
+  const { annotationLayer, clusterAnnotationData } = useClusterAnnotations({
     clusterAnnotationOn,
     clusterAnnotationModel,
     outlineData,
