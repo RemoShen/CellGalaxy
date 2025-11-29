@@ -164,6 +164,8 @@ export default function ImageLayers({
                 ...baseConfig,
                 id: `icon-ch${ch}-${chunkId}`,
                 iconAtlas: String(atlasGray),
+                // 使用 plus‑lighter（加法混合）：RGB 真正相加，红+蓝→品红、红+绿→黄，
+                // 更接近 preview 中多通道荧光的混色效果。
                 parameters: { depthTest: false, blend: true, blendFunc: [1, 1], blendEquation: 32774 },
                 windowMin: winMin01,
                 windowMax: winMax01,
