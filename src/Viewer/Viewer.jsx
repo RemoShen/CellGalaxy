@@ -176,7 +176,6 @@ const Viewer = ({
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [popoverCmd, setPopoverCmd] = useState(null);
   const [popoverPos, setPopoverPos] = useState({ x: 0, y: 0 });
-  // 当前选区在全局坐标下的大致包围盒，用于自动避让分析弹窗
   const [popoverBounds, setPopoverBounds] = useState(null);
   // Distinct highlight colors for up to two regions
   const regionColors = defaultRegionColors;
@@ -464,7 +463,6 @@ const Viewer = ({
                   onDragStart={onDragStart}
                   onDrag={onDrag}
                   onDragEnd={onDragEnd}
-                  // 我们改用自定义 React tooltip，不再使用 DeckGL 内置 HTML tooltip
                   getTooltip={null}
                   getCursor={() => "default"}
                   pickingRadius={6}
@@ -721,7 +719,6 @@ const Viewer = ({
         setSelectedIds={setSelectedIds}
       />
 
-      {/* 自定义 hover 预览 tooltip（canvas + window-aware） */}
       <HoverPreview
         deckRef={deckRef}
         containerRef={containerRef}
