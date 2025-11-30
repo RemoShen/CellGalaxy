@@ -36,7 +36,8 @@ export async function fetchMeta(signal) {
 }
 
 // ===== Violin density (backend KDE) =====
-export async function fetchViolinGlobalKDE(max = 100000, perc = 99.0, thr = 0.1, channels = null, grid = 256, signal) {
+// NOTE: max/grid kept moderate to avoid heavy I/O when called interactively.
+export async function fetchViolinGlobalKDE(max = 80000, perc = 99.0, thr = 0.1, channels = null, grid = 256, signal) {
   try {
     const chParam = Array.isArray(channels) && channels.length > 0 ? `&channels=${channels.join(",")}` : "";
     return await fetchJSON(`${API_BASE}/violin/global_kde?max_samples_per_channel=${max}&perc_for_thr=${perc}&thr_factor=${thr}&grid=${grid}${chParam}`, { signal });
@@ -137,9 +138,25 @@ export async function fetchRegionRepresentatives(regions, metric = "cosine_cente
   }
 }
 
-export async function fetchViolinSelectionKDE(ids, max = 100000, perc = 99.0, thr = 0.1, channels = null, grid = 256, signal) {
+export async function fetchViolinSelectionKDE(ids, max = 30000, perc = 99.0, thr = 0.1, channels = null, grid = 192, signal) {
   try {
-    const body = { ids, max, perc, thr, grid };
+    // For very large selections, sending and computing on all ids is expensive.
+    // Here we simply cap the number of ids used for intensity KDE to keep it responsive.
+    const ID_LIMIT = 800;
+    let effectiveIds = Array.isArray(ids) ? ids : [];
+    if (effectiveIds.length > ID_LIMIT) {
+      // shuffle a copy and take the first ID_LIMIT items (simple Fisher–Yates)
+      const temp = effectiveIds.slice();
+      for (let i = temp.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const t = temp[i];
+        temp[i] = temp[j];
+        temp[j] = t;
+      }
+      effectiveIds = temp.slice(0, ID_LIMIT);
+    }
+
+    const body = { ids: effectiveIds, max, perc, thr, grid };
     if (Array.isArray(channels) && channels.length > 0) body.channels = channels;
     const res = await fetch(`${API_BASE}/violin/selection_kde`, {
       method: "POST",
@@ -204,4 +221,3 @@ async function safeReadText(res) {
     return "";
   }
 }
-

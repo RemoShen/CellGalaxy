@@ -42,6 +42,12 @@ export default function GroupFeaturePanel({
     const run = async () => {
       try {
         setViolinMsg("Loading...");
+        // Use moderate sampling to keep interaction responsive:
+        // - Global KDE: larger sample for smooth background
+        // - Selection KDE: smaller sample / coarser grid (already downsampled in api.js)
+        const MAX_GLOBAL = 80000;
+        const MAX_SELECTION = 30000;
+        const GRID = 192;
         const activeChs = Array.isArray(channels) && channels.length > 0 ? channels.map((c) => Number(c)) : [];
         if (activeChs.length === 0) {
           setViolinData(null);
@@ -57,8 +63,8 @@ export default function GroupFeaturePanel({
         }
         // fetch global and selection KDE
         const [gkde, skde] = await Promise.all([
-          fetchViolinGlobalKDE(100000, 99.0, 0.1, activeChs, 256, undefined),
-          fetchViolinSelectionKDE(ids, 100000, 99.0, 0.1, activeChs, 256, undefined),
+          fetchViolinGlobalKDE(MAX_GLOBAL, 99.0, 0.1, activeChs, GRID, undefined),
+          fetchViolinSelectionKDE(ids, MAX_SELECTION, 99.0, 0.1, activeChs, GRID, undefined),
         ]);
         if (!abort) {
           if (gkde && skde && !gkde.error && !skde.error && Array.isArray(gkde.channels) && Array.isArray(skde.channels)) {
@@ -137,11 +143,10 @@ export default function GroupFeaturePanel({
     // x-axis layout for each channel (x-axis layout for each channel)
     const colW = plotW / C;
 
-    const gammaY = 4.0; // adjustable: >1 upper more sparse, <1 upper more dense
+    // Linear y-axis mapping: t01 in [0,1] (0 -> low intensity, 1 -> high intensity)
     const toY = (t01) => {
       const u = Math.max(0, Math.min(1, t01));
-      const nonlin = Math.pow(u, gammaY);
-      return marginT + (1 - nonlin) * plotH;
+      return marginT + (1 - u) * plotH;
     };
     // use grayscale for violin plots to avoid conflicting with per-channel colors
     const colorGlobal = "rgba(200,200,200,0.95)"; // global (left): lighter gray
@@ -149,20 +154,20 @@ export default function GroupFeaturePanel({
 
     ctx.lineWidth = 1;
 
+    // Use a fixed 16-bit range [0, 65535] for the intensity axis,
+    // so tick labels are linear and comparable across channels.
     let uLo = 0;
     let uHi = 65535;
     const mapToUnion01 = (v) => (v - uLo) / (uHi - uLo + 1e-6);
-    // left y-axis ticks (real intensity values, considering nonlinear transformation; evenly distributed in display space to avoid crowding)
+    // left y-axis ticks (real intensity values, linearly spaced)
     ctx.textAlign = "right";
     ctx.fillStyle = "rgba(255,255,255,0.55)";
     const numTicks = 4; // display 3~4 ticks
     for (let i = 0; i < numTicks; i++) {
-      // p: 0 top, 1 bottom (evenly distributed in display space)
-      const p = i / (numTicks - 1);
-      const y = marginT + p * plotH;
-      // reverse mapping to get actual intensity: t = (1 - p)^(1/gamma)
-      const t = Math.pow(1 - p, 1 / gammaY);
-      const v = uLo + t * (uHi - uLo);
+      // f: 0 -> bottom (min), 1 -> top (max), evenly spaced in value
+      const f = i / (numTicks - 1);
+      const y = marginT + (1 - f) * plotH;
+      const v = uLo + f * (uHi - uLo);
       // render tick labels as integers (previous behavior), avoid trailing decimals like '0.00'
       const label = Math.round(v).toString();
       ctx.fillText(label, marginL - 6, y + 4);
@@ -710,5 +715,3 @@ export default function GroupFeaturePanel({
     </div>
   );
 }
-
-

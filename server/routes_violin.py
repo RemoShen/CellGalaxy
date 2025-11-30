@@ -21,10 +21,33 @@ def _key_for_global(max_samples: int, perc: float, thr: float, channels: Tuple[i
 
 
 def _foreground_filter(vals: np.ndarray, perc_for_thr: float, thr_factor: float) -> np.ndarray:
-    """simple foreground filter: p{perc} * thr_factor, if too few, return all"""
+    """
+    Simple foreground filter:
+    - First drop extremely low-intensity pixels based on an absolute 0–65535 scale
+      (keep only >=1% of the full range, i.e. >= ~655), to get rid of a huge mass
+      of dark background values.
+    - Then apply the original percentile-based foreground threshold:
+        keep values > (percentile(perc_for_thr) * thr_factor)
+    - If after any filtering we have too few samples, fall back to the unfiltered
+      values to avoid degenerate KDE estimates.
+    """
     if vals.size == 0:
         return vals
     x = vals.astype("float32", copy=False)
+
+    # 1) Absolute lower cut based on 16‑bit range 0..65535:
+    #    keep only values >= 1% * 65535 ≈ 655 to remove the bulk of near‑zero background.
+    #    If this would remove almost everything (e.g. for 8‑bit data), fall back.
+    try:
+        min_abs = 0.01 * 65535.0  # 1% of [0, 65535]
+        x_clip = x[x >= min_abs]
+        if x_clip.size >= 100:
+            x = x_clip
+    except Exception:
+        # if anything goes wrong, just keep original values
+        x = vals.astype("float32", copy=False)
+
+    # 2) Original percentile-based foreground selection
     try:
         p_val = float(np.percentile(x, float(perc_for_thr)))
         thr = p_val * float(thr_factor)
@@ -240,6 +263,13 @@ def violin_selection(payload: Dict = Body(...)):
         else:
             ch_sel = list(range(int(C)))
         ids_arr = np.array([int(x) for x in ids], dtype=np.int64)
+        # Downsample selected cell ids to avoid reading an excessive number of chunks
+        # when the region is very large. Intensity statistics are approximate but
+        # much faster and still representative.
+        max_ids = int(payload.get("max_ids", 1500))
+        if ids_arr.size > max_ids:
+            idx = np.random.choice(ids_arr.size, size=max_ids, replace=False)
+            ids_arr = ids_arr[idx]
         out_vals: List[List[float]] = []
         for c in ch_sel:
             s = _sample_channel_selection(arr, c, ids_arr, max_samples)
@@ -285,6 +315,12 @@ def violin_selection_kde(payload: Dict = Body(...)):
         else:
             ch_sel = list(range(int(C)))
         ids_arr = np.array([int(x) for x in ids], dtype=np.int64)
+        # Downsample selected cell ids to an upper bound; this keeps the KDE
+        # cost roughly constant once the region is large enough.
+        max_ids = int(payload.get("max_ids", 1500))
+        if ids_arr.size > max_ids:
+            idx = np.random.choice(ids_arr.size, size=max_ids, replace=False)
+            ids_arr = ids_arr[idx]
         def _sel_sampler(cidx: int) -> np.ndarray:
             s = _sample_channel_selection(arr, cidx, ids_arr, max_samples)
             return _foreground_filter(s, perc, thr)
