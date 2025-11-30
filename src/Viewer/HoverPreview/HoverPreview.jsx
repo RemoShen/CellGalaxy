@@ -273,6 +273,15 @@ export default function HoverPreview({
     if (!containerEl) return;
 
     const handleMove = (e) => {
+      // 如果鼠标当前在分析弹窗上方，则不做 hover preview，避免在 intensity 分布窗口上出现单细胞预览。
+      const target = e.target;
+      if (target && typeof target.closest === "function") {
+        const inAnalysis = target.closest(".analysis-popover");
+        if (inAnalysis) {
+          setHoverInfo(null);
+          return;
+        }
+      }
       const deckInstance = deckRef.current && deckRef.current.deck;
       const canvas = deckInstance && deckInstance.canvas;
       if (!deckInstance || !canvas) return;

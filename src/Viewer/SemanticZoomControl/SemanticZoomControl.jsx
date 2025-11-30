@@ -4,7 +4,7 @@ import './SemanticZoomControl.css';
 export default function SemanticZoomControl({ 
   level, 
   setLevel, 
-  maxLevel = 4,
+  maxLevel = 6,
   isAuto,
   setIsAuto
 }) {

@@ -31,7 +31,7 @@ export default function ImageLayers({
   getRegionIndexForId,
   regionColors,
   // semantic zoom
-  semanticLevel = 5.0,
+  semanticLevel = 6.0,
   labelKey = "label",
   // rankKey unused
   rankKey = null,
@@ -104,7 +104,7 @@ export default function ImageLayers({
             //   Level∈[1,1.7)  →  linear from 4.8 down to 2.4
             //   Level∈[1.7,3)  →  linear from 2.4 down to 0.9 (rapidly shrinking as point count increases)
             //   Level≥3       →  sizeFactor = 0.9
-            const lvl = Math.max(0, Math.min(5, semanticLevel));
+            const lvl = Math.max(0, Math.min(6, semanticLevel));
             let sizeFactor;
             if (lvl < 1.0) {
               sizeFactor = 4.8;

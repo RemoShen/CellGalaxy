@@ -95,36 +95,38 @@ const Viewer = ({
     transitionsEnabled,
   });
   
-  const [semanticLevel, setSemanticLevel] = useState(5); // Default to finest level (adjust as needed)
+  const [semanticLevel, setSemanticLevel] = useState(6); // Default to finest level (1..6)
   const [isSemanticAuto, setIsSemanticAuto] = useState(true);
   // UMAP view: use multi-level cluster columns (cluster_L0...), raw view: use original label
   const clusterLabelKey = isUMAPView
     ? `cluster_L${semanticLevel - 1}`
     : "label";
-  // In UMAP view, representative cell ranking fields per level (rank_L0...rank_L4)
+  // In UMAP view, representative cell ranking fields per level (rank_L0...rank_L5)
   const clusterRankKey = isUMAPView
     ? `rank_L${semanticLevel - 1}`
     : null;
 
-  // Auto-update semantic level based on zoom (only enabled in UMAP view)
+  // Auto-update semantic level based on zoom (only enabled in UMAP view), mapping zoom→level(1..6)
   useEffect(() => {
     if (!isUMAPView || !isSemanticAuto || !viewState) return;
     const z = typeof viewState.zoom === 'number' ? viewState.zoom : 8;
-    let lvl = 5;
+    let lvl = 6;
     if (z < 6) lvl = 1;
     else if (z < 7) lvl = 2;
     else if (z < 8) lvl = 3;
     else if (z < 9) lvl = 4;
-    else lvl = 5;
+    else if (z < 10) lvl = 5;
+    else lvl = 6;
     
     setSemanticLevel(lvl);
   }, [isUMAPView, isSemanticAuto, viewState?.zoom]);
 
-  // Sampling budget for each semantic level (1..5)
+  // Sampling budget for each semantic level (1..6)
   // Maximum number of points per level (controls sampling density); smaller numbers show fewer points.
   // To reduce further, decrease the values below.
   const SAMPLING_BUDGETS = useMemo(
-    () => [1000, 2500, 8000, 20000, Infinity],
+    // level 1..5 使用有限采样预算；level 6（finest）始终展示全部点。
+    () => [1000, 2500, 8000, 20000, 50000, Infinity],
     []
   );
 
@@ -132,10 +134,11 @@ const Viewer = ({
     if (!points || points.length === 0) return 1.0;
     // Raw 视图不做采样/semantic zoom，始终使用全部点
     if (!isUMAPView) return 1.0;
-    // If finest level, show all
-    if (semanticLevel === 5) return 1.0;
+    // 如果是最高语义层级（6），展示全部；否则根据预算做下采样
+    if (semanticLevel >= 6) return 1.0;
 
-    const budget = SAMPLING_BUDGETS[semanticLevel - 1];
+    const idx = Math.max(0, Math.min(SAMPLING_BUDGETS.length - 2, semanticLevel - 1));
+    const budget = SAMPLING_BUDGETS[idx];
     const total = points.length;
     return budget / total;
   }, [isUMAPView, semanticLevel, SAMPLING_BUDGETS, points]);
@@ -230,8 +233,8 @@ const Viewer = ({
     if (!isUMAPView) return [];
     if (!clusterPreviewOn) return [];
     if (!points || points.length === 0) return [];
-    // 只在 level 1–4 显示 cluster 预览
-    if (!clusterRankKey || semanticLevel < 1 || semanticLevel > 4) return [];
+    // 只在 level 1–5 显示 cluster 预览（倒数第二层也需要 representative image）
+    if (!clusterRankKey || semanticLevel < 1 || semanticLevel > 5) return [];
 
     const byLabel = new Map();
     for (const p of points) {
@@ -503,7 +506,7 @@ const Viewer = ({
       {isUMAPView &&
         clusterPreviewOn &&
         semanticLevel >= 1 &&
-        semanticLevel <= 4 &&
+        semanticLevel <= 5 &&
         clusterPreviewScreens &&
         clusterPreviewScreens.length > 0 &&
         clusterPreviewScreens.map(({ point, x, y }) => {
@@ -565,7 +568,7 @@ const Viewer = ({
       {isUMAPView &&
         clusterAnnotationOn &&
         semanticLevel >= 1 &&
-        semanticLevel <= 5 &&
+        semanticLevel <= 6 &&
         clusterAnnotationScreens &&
         clusterAnnotationScreens.length > 0 &&
         clusterAnnotationScreens.map((ann) => {
@@ -736,7 +739,7 @@ const Viewer = ({
         <SemanticZoomControl
           level={semanticLevel}
           setLevel={setSemanticLevel}
-          maxLevel={5}
+          maxLevel={6}
           isAuto={isSemanticAuto}
           setIsAuto={setIsSemanticAuto}
         />

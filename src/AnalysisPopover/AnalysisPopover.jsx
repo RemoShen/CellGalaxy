@@ -281,7 +281,17 @@ export default function AnalysisPopover({
   const points = useUMAP ? pointsUMAP : pointsRaw;
 
   return (
-    <div ref={rootRef} className="analysis-popover" style={{ left: pos.x, top: pos.y }}>
+    <div
+      ref={rootRef}
+      className="analysis-popover"
+      style={{ left: pos.x, top: pos.y }}
+      // 在分析弹窗上悬停时，阻断下方 viewer 的 hover 事件，避免 HoverPreview 继续显示。
+      onMouseEnter={(e) => {
+        try {
+          e.stopPropagation();
+        } catch (_) {}
+      }}
+    >
       <div className="analysis-drag-handle" onMouseDown={handleDragMouseDown}>
         <div className="analysis-drag-pill" />
       </div>
