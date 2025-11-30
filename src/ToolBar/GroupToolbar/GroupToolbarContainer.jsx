@@ -13,6 +13,7 @@ export default function GroupToolbarContainer({
   toolbar,
   setPopoverCmd,
   setPopoverPos,
+  setPopoverBounds,
   setPopoverOpen,
   clearSelection,
 }) {
@@ -37,6 +38,10 @@ export default function GroupToolbarContainer({
           let cnt = 0,
             sx = 0,
             sy = 0;
+          let minX = Infinity,
+            maxX = -Infinity,
+            minY = Infinity,
+            maxY = -Infinity;
           const dpr =
             typeof window !== "undefined" && window.devicePixelRatio
               ? window.devicePixelRatio
@@ -47,14 +52,48 @@ export default function GroupToolbarContainer({
             sx += px / dpr;
             sy += py / dpr;
             cnt++;
+            const sx1 = px / dpr;
+            const sy1 = py / dpr;
+            if (sx1 < minX) minX = sx1;
+            if (sx1 > maxX) maxX = sx1;
+            if (sy1 < minY) minY = sy1;
+            if (sy1 > maxY) maxY = sy1;
           }
           const container = containerRef.current;
           const cssW = container ? container.clientWidth : deck?.width || 0;
           const cx = cnt ? sx / cnt : cssW / 2;
           const cy = cnt ? sy / cnt : 24;
-          setPopoverPos({ x: cx, y: cy });
+          const rect = container?.getBoundingClientRect
+            ? container.getBoundingClientRect()
+            : { left: 0, top: 0 };
+          const gx = (rect.left || 0) + cx;
+          const gy = (rect.top || 0) + cy;
+          setPopoverPos({ x: gx, y: gy });
+          if (cnt > 0 && typeof setPopoverBounds === "function" && minX < Infinity && minY < Infinity) {
+            const margin = 8;
+            const gx0 = (rect.left || 0) + minX - margin;
+            const gy0 = (rect.top || 0) + minY - margin;
+            const gx1 = (rect.left || 0) + maxX + margin;
+            const gy1 = (rect.top || 0) + maxY + margin;
+            setPopoverBounds({ x0: gx0, y0: gy0, x1: gx1, y1: gy1 });
+          }
         } else {
-          setPopoverPos({ x: toolbar.x || 20, y: toolbar.y || 20 });
+          const container = containerRef.current;
+          const rect = container?.getBoundingClientRect
+            ? container.getBoundingClientRect()
+            : { left: 0, top: 0 };
+          const gx = (rect.left || 0) + (toolbar.x || 20);
+          const gy = (rect.top || 0) + (toolbar.y || 20);
+          setPopoverPos({ x: gx, y: gy });
+          if (typeof setPopoverBounds === "function") {
+            const r = 80;
+            setPopoverBounds({
+              x0: gx - r,
+              y0: gy - r,
+              x1: gx + r,
+              y1: gy + r,
+            });
+          }
         }
         if (mode === ANALYSIS_COMPARE && regionCount >= 2) {
           const idsA = Array.from(regions[regionCount - 2] || []);

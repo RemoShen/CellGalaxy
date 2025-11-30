@@ -164,6 +164,29 @@ export function clampPositionToParent(node, x, y, margin = 8) {
 }
 
 /**
+ * Clamp an absolute位置到浏览器可视区域（window），用于需要跨越多个 viewer
+ * 容器的悬浮面板（如分析弹窗）。
+ */
+export function clampPositionToViewport(node, x, y, margin = 8) {
+  const rect = node?.getBoundingClientRect
+    ? node.getBoundingClientRect()
+    : { width: node?.offsetWidth || 0, height: node?.offsetHeight || 0 };
+  const w = rect.width || node?.offsetWidth || 0;
+  const h = rect.height || node?.offsetHeight || 0;
+  const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+  const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+  let nx = Math.round(x);
+  let ny = Math.round(y);
+  const maxX = Math.max(margin, vw - w - margin);
+  const maxY = Math.max(margin, vh - h - margin);
+  if (nx > maxX) nx = maxX;
+  if (ny > maxY) ny = maxY;
+  if (nx < margin) nx = margin;
+  if (ny < margin) ny = margin;
+  return { x: nx, y: ny };
+}
+
+/**
  * Calculate selection box boundaries
  * @param {Object} dragStart - drag start point {x, y}
  * @param {Object} dragEnd - drag end point {x, y}

@@ -176,6 +176,8 @@ const Viewer = ({
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [popoverCmd, setPopoverCmd] = useState(null);
   const [popoverPos, setPopoverPos] = useState({ x: 0, y: 0 });
+  // 当前选区在全局坐标下的大致包围盒，用于自动避让分析弹窗
+  const [popoverBounds, setPopoverBounds] = useState(null);
   // Distinct highlight colors for up to two regions
   const regionColors = defaultRegionColors;
   const getRegionIndexForId = useMemo(
@@ -188,6 +190,7 @@ const Viewer = ({
       clearSelection();
       if (toolbar.show) setToolbar({ show: false, x: 0, y: 0, object: null });
       setPopoverOpen(false);
+      setPopoverBounds(null);
       return;
     }
     if (altPressed) {
@@ -490,6 +493,7 @@ const Viewer = ({
               toolbar={toolbar}
               setPopoverCmd={setPopoverCmd}
               setPopoverPos={setPopoverPos}
+              setPopoverBounds={setPopoverBounds}
               setPopoverOpen={setPopoverOpen}
               clearSelection={clearSelection}
             />
@@ -669,7 +673,21 @@ const Viewer = ({
             const id = toolbar.object?.id;
             if (id != null) {
               setPopoverCmd({ type: ANALYSIS_SINGLE, q: id });
-              setPopoverPos({ x: toolbar.x, y: toolbar.y });
+              // 将 viewer 内部坐标转换成全局 viewport 坐标，支持跨两个 viewer 覆盖
+              const container = containerRef.current;
+              const rect = container?.getBoundingClientRect
+                ? container.getBoundingClientRect()
+                : { left: 0, top: 0 };
+              const gx = (rect.left || 0) + toolbar.x;
+              const gy = (rect.top || 0) + toolbar.y;
+              setPopoverPos({ x: gx, y: gy });
+              const r = 60;
+              setPopoverBounds({
+                x0: gx - r,
+                y0: gy - r,
+                x1: gx + r,
+                y1: gy + r,
+              });
               setPopoverOpen(true);
             }
           } finally {
@@ -683,7 +701,11 @@ const Viewer = ({
         command={popoverCmd}
         x={popoverPos.x}
         y={popoverPos.y}
-        onClose={() => setPopoverOpen(false)}
+        selectionBounds={popoverBounds}
+        onClose={() => {
+          setPopoverOpen(false);
+          setPopoverBounds(null);
+        }}
         meta={meta}
         chunkUV={chunkUV}
         atlasURL={atlasURL}
