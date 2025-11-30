@@ -82,6 +82,7 @@ export default function FeatureDock({
           alphas={alphas}
           windows={windows}
           points={useUMAP ? pointsUMAP : pointsRaw}
+          viewerId={useUMAP ? "umap" : "raw"}
         />
       )}
       {mode === "t2" && t2 && (

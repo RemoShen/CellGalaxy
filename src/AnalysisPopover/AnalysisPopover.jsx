@@ -32,6 +32,7 @@ export default function AnalysisPopover({
   pointsRaw = [],
   pointsUMAP = [],
   useUMAP = false,
+  viewerId = "raw", // 用于决定聚焦到哪个 viewer
   // selection highlight hook
   selectedIds = new Set(),
   setSelectedIds = () => {},
@@ -310,6 +311,7 @@ export default function AnalysisPopover({
             alphas={alphas}
             windows={windows}
             points={points}
+            viewerId={viewerId}
           />
         ) : mode === "group" ? (
           <GroupAnalysisPanel

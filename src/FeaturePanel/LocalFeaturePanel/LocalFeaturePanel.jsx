@@ -14,6 +14,7 @@ function Thumb({
   windows,
   size = 96,
   label,
+  onClick,
 }) {
   const canvasRef = useRef(null);
 
@@ -46,8 +47,14 @@ function Thumb({
     size,
   ]);
 
+  const handleClick = () => {
+    if (onClick && object) {
+      onClick(object);
+    }
+  };
+
   return (
-    <div className="thumb">
+    <div className="thumb" onClick={handleClick} style={{ cursor: onClick ? "pointer" : "default" }}>
       <canvas
         ref={canvasRef}
         style={{
@@ -72,6 +79,7 @@ export default function LocalFeaturePanel({
   alphas,
   windows,
   points = [],
+  viewerId = "raw", // 用于决定聚焦到哪个 viewer
 }) {
   const [view, setView] = useState("all"); // 'all' | 'gallery' | 'compact' | 'hist' | 'diff'
   // Similarity histogram x-axis: fix left end at 0.9, right end at 1.0
@@ -385,6 +393,25 @@ export default function LocalFeaturePanel({
                 windows={windows}
                 size={96}
                 label="query"
+                onClick={(obj) => {
+                  // 聚焦到选中的cell
+                  if (obj && typeof window !== "undefined") {
+                    const cellX = obj.x ?? 0;
+                    const cellY = obj.y ?? 0;
+                    const cellZ = obj.z ?? 0;
+                    // 根据 viewerId 决定聚焦到哪个 viewer
+                    const focusKey = `__focusCell_${viewerId}`;
+                    if (window[focusKey]) {
+                      window[focusKey]({ x: cellX, y: cellY, z: cellZ });
+                    }
+                    // 显示相似度排名（query 是 0，neighbors 是 1-N）
+                    const rankingKey = `__showSimilarityRanking_${viewerId}`;
+                    if (window[rankingKey] && data) {
+                      const rankings = [data.query, ...(data.neighbors || []).map(n => n.id)].filter(id => id != null);
+                      window[rankingKey](rankings);
+                    }
+                  }
+                }}
               />
             )}
           </div>
@@ -403,6 +430,25 @@ export default function LocalFeaturePanel({
                 windows={windows}
                 size={64}
                 label={`sim ${n.similarity.toFixed(2)}`}
+                onClick={(obj) => {
+                  // 聚焦到选中的cell
+                  if (obj && typeof window !== "undefined") {
+                    const cellX = obj.x ?? 0;
+                    const cellY = obj.y ?? 0;
+                    const cellZ = obj.z ?? 0;
+                    // 根据 viewerId 决定聚焦到哪个 viewer
+                    const focusKey = `__focusCell_${viewerId}`;
+                    if (window[focusKey]) {
+                      window[focusKey]({ x: cellX, y: cellY, z: cellZ });
+                    }
+                    // 显示相似度排名（query 是 0，neighbors 是 1-N）
+                    const rankingKey = `__showSimilarityRanking_${viewerId}`;
+                    if (window[rankingKey] && data) {
+                      const rankings = [data.query, ...(data.neighbors || []).map(n => n.id)].filter(id => id != null);
+                      window[rankingKey](rankings);
+                    }
+                  }
+                }}
               />
             ))}
           </div>

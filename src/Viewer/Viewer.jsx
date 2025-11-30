@@ -13,10 +13,12 @@ import {
   OrbitView,
   OrthographicController,
   OrbitController,
+  LinearInterpolator,
 } from "@deck.gl/core";
 import {
   buildIconMappingsByChunk,
   getEventCoordinates,
+  ease,
 } from "../utils/utils";
 import { buildOutlineData2D, clusterColor } from "../utils/clustering";
 import "./Viewer.css";
@@ -82,6 +84,7 @@ const Viewer = ({
     viewerId === "umap" || (viewerId === "single" && !!useUMAP);
   const {
     viewState,
+    setViewState,
     handleViewStateChange,
     computedImageSize,
     altPressed,
@@ -94,6 +97,97 @@ const Viewer = ({
     imageSize,
     transitionsEnabled,
   });
+
+  // 注册全局聚焦函数，用于从 similarity gallery 等地方聚焦到 cell
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      // 为当前 viewer 注册聚焦函数
+      const focusKey = `__focusCell_${viewerId}`;
+      window[focusKey] = (cellPos) => {
+        if (!cellPos || typeof cellPos.x !== "number" || typeof cellPos.y !== "number") return;
+        const cellX = cellPos.x ?? 0;
+        const cellY = cellPos.y ?? 0;
+        const cellZ = cellPos.z ?? 0;
+        const targetZoom = 14; // 聚焦时的目标zoom级别
+        
+        setViewState((prev) => ({
+          ...prev,
+          target: [cellX, cellY, cellZ],
+          zoom: targetZoom,
+          transitionDuration: transitionsEnabled ? 800 : 0,
+          transitionEasing: transitionsEnabled ? ease : undefined,
+          transitionInterpolator: transitionsEnabled
+            ? new LinearInterpolator(["target", "zoom"])
+            : undefined,
+        }));
+      };
+      
+      // 注册显示相似度排名的函数
+      const rankingKey = `__showSimilarityRanking_${viewerId}`;
+      window[rankingKey] = (rankings) => {
+        if (rankings && typeof rankings === 'object') {
+          const map = new Map();
+          if (Array.isArray(rankings)) {
+            // 如果是数组，假设第一个是 query (rank 0)，后面是 neighbors (rank 1-N)
+            rankings.forEach((id, index) => {
+              if (id != null) {
+                map.set(id, index);
+              }
+            });
+          } else if (rankings instanceof Map) {
+            map = rankings;
+          } else {
+            // 如果是对象，key 是 id，value 是 rank
+            Object.entries(rankings).forEach(([id, rank]) => {
+              const numId = Number(id);
+              const numRank = Number(rank);
+              if (!isNaN(numId) && !isNaN(numRank)) {
+                map.set(numId, numRank);
+              }
+            });
+          }
+          setSimilarityRankings(map);
+        } else {
+          setSimilarityRankings(new Map());
+        }
+      };
+      
+      // 同时注册通用聚焦函数（用于从 similarity gallery 调用）
+      // 根据 viewerId 决定使用哪个 viewer 的聚焦函数
+      if (viewerId === "raw" || (viewerId === "single" && !useUMAP)) {
+        window.__focusCell = window[focusKey];
+        window.__showSimilarityRanking = window[rankingKey];
+      } else if (viewerId === "umap" || (viewerId === "single" && useUMAP)) {
+        window.__focusCellUMAP = window[focusKey];
+        window.__showSimilarityRankingUMAP = window[rankingKey];
+      }
+
+      return () => {
+        // 清理
+        if (window[focusKey]) {
+          delete window[focusKey];
+        }
+        if (window[rankingKey]) {
+          delete window[rankingKey];
+        }
+        if (viewerId === "raw" || (viewerId === "single" && !useUMAP)) {
+          if (window.__focusCell === window[focusKey]) {
+            delete window.__focusCell;
+          }
+          if (window.__showSimilarityRanking === window[rankingKey]) {
+            delete window.__showSimilarityRanking;
+          }
+        } else if (viewerId === "umap" || (viewerId === "single" && useUMAP)) {
+          if (window.__focusCellUMAP === window[focusKey]) {
+            delete window.__focusCellUMAP;
+          }
+          if (window.__showSimilarityRankingUMAP === window[rankingKey]) {
+            delete window.__showSimilarityRankingUMAP;
+          }
+        }
+      };
+    }
+  }, [viewerId, useUMAP, setViewState, transitionsEnabled]);
   
   const [semanticLevel, setSemanticLevel] = useState(6); // Default to finest level (1..6)
   const [isSemanticAuto, setIsSemanticAuto] = useState(true);
@@ -180,6 +274,8 @@ const Viewer = ({
   const [popoverCmd, setPopoverCmd] = useState(null);
   const [popoverPos, setPopoverPos] = useState({ x: 0, y: 0 });
   const [popoverBounds, setPopoverBounds] = useState(null);
+  // Similarity ranking: Map of cell ID -> rank (0 for query, 1-N for neighbors)
+  const [similarityRankings, setSimilarityRankings] = useState(new Map());
   // Distinct highlight colors for up to two regions
   const regionColors = defaultRegionColors;
   const getRegionIndexForId = useMemo(
@@ -193,6 +289,7 @@ const Viewer = ({
       if (toolbar.show) setToolbar({ show: false, x: 0, y: 0, object: null });
       setPopoverOpen(false);
       setPopoverBounds(null);
+      setSimilarityRankings(new Map()); // 清除排名标签
       return;
     }
     if (altPressed) {
@@ -208,6 +305,27 @@ const Viewer = ({
     // Keep the lightweight toolbar (can be closed)
     const { x, y } = getEventCoordinates(info, containerRef);
     setToolbar({ show: true, x, y, object: info.object });
+
+    // Auto-focus to selected cell if zoom is small (画面很小)
+    const currentZoom = typeof viewState?.zoom === "number" ? viewState.zoom : 8;
+    const zoomThreshold = 9; // 如果zoom小于9，认为是"很小的画面"
+    if (currentZoom < zoomThreshold && info?.object) {
+      const cellX = info.object.x ?? 0;
+      const cellY = info.object.y ?? 0;
+      const cellZ = info.object.z ?? 0;
+      const targetZoom = 14; // 聚焦时的目标zoom级别
+      
+      setViewState((prev) => ({
+        ...prev,
+        target: [cellX, cellY, cellZ],
+        zoom: targetZoom,
+        transitionDuration: transitionsEnabled ? 800 : 0,
+        transitionEasing: transitionsEnabled ? ease : undefined,
+        transitionInterpolator: transitionsEnabled
+          ? new LinearInterpolator(["target", "zoom"])
+          : undefined,
+      }));
+    }
   };
 
   // Lazily build clustering outlines (convex hulls)
@@ -359,6 +477,47 @@ const Viewer = ({
 
   const [hoveredAnnotationLabel, setHoveredAnnotationLabel] = useState(null);
   const descriptionRefs = useRef({});
+
+  // Screen positions for similarity ranking labels (DOM overlay)
+  const [similarityRankingScreens, setSimilarityRankingScreens] = useState([]);
+
+  useEffect(() => {
+    if (!similarityRankings || similarityRankings.size === 0) {
+      setSimilarityRankingScreens([]);
+      return;
+    }
+    const deckInstance = deckRef.current && deckRef.current.deck;
+    const containerEl = containerRef.current;
+    if (!deckInstance || !containerEl) return;
+
+    const viewports = deckInstance.getViewports();
+    if (!viewports || viewports.length === 0) return;
+    const viewport = viewports[0];
+    const canvas = deckInstance.canvas;
+    if (!canvas) return;
+
+    const containerRect = containerEl.getBoundingClientRect();
+    const canvasRect = canvas.getBoundingClientRect();
+    const offsetX = canvasRect.left - containerRect.left;
+    const offsetY = canvasRect.top - containerRect.top;
+
+    // 找到所有需要显示排名的 points
+    const rankedPoints = points.filter((p) => similarityRankings.has(p.id));
+    const result = rankedPoints.map((p) => {
+      const world = [p.x, p.y, p.z ?? 0];
+      const projected = viewport.project(world);
+      const sx = projected?.[0] ?? 0;
+      const sy = projected?.[1] ?? 0;
+      const rank = similarityRankings.get(p.id);
+      return {
+        id: p.id,
+        x: sx + offsetX,
+        y: sy + offsetY,
+        rank: rank,
+      };
+    });
+    setSimilarityRankingScreens(result);
+  }, [similarityRankings, points, viewState, deckRef, containerRef]);
 
   const layers = ImageLayers({
     meta,
@@ -660,12 +819,58 @@ const Viewer = ({
           );
         })}
 
+      {/* Similarity ranking labels (DOM overlay) */}
+      {similarityRankingScreens && similarityRankingScreens.length > 0 &&
+        similarityRankingScreens.map((item) => {
+          const { id, x, y, rank } = item;
+          const isQuery = rank === 0;
+          return (
+            <div
+              key={`similarity-rank-${id}`}
+              style={{
+                position: "absolute",
+                left: x,
+                top: y,
+                transform: "translate(-50%, -50%)",
+                pointerEvents: "none",
+                zIndex: 200,
+                userSelect: "none",
+              }}
+            >
+              <div
+                style={{
+                  display: "inline-block",
+                  padding: isQuery ? "4px 8px" : "3px 6px",
+                  borderRadius: 4,
+                  backgroundColor: isQuery 
+                    ? "rgba(255, 200, 0, 0.9)" // 查询 cell 用更亮的黄色
+                    : "rgba(255, 215, 0, 0.85)", // 相似 cells 用金黄色
+                  color: "#000",
+                  fontSize: isQuery ? "14px" : "12px",
+                  fontFamily: "Monaco, Menlo, 'DejaVu Sans Mono', 'Courier New', monospace",
+                  fontWeight: isQuery ? 700 : 600,
+                  lineHeight: 1.2,
+                  whiteSpace: "nowrap",
+                  border: `2px solid ${isQuery ? "rgba(255, 150, 0, 1)" : "rgba(255, 200, 0, 1)"}`,
+                  boxShadow: "0 2px 8px rgba(0, 0, 0, 0.4)",
+                }}
+              >
+                {isQuery ? "Q" : rank}
+              </div>
+            </div>
+          );
+        })}
+
       {/* Click toolbar */}
       <ClickToolbar
         show={toolbar.show}
         x={toolbar.x}
         y={toolbar.y}
-        onClose={() => setToolbar({ show: false, x: 0, y: 0, object: null })}
+        onClose={() => {
+          setToolbar({ show: false, x: 0, y: 0, object: null });
+          clearSelection();
+          setSimilarityRankings(new Map()); // 清除排名标签
+        }}
         onViewRaw={() => {
           setToolbar((t) => ({ ...t, show: false }));
         }}
@@ -718,6 +923,7 @@ const Viewer = ({
         pointsRaw={points}
         pointsUMAP={points}
         useUMAP={false}
+        viewerId={viewerId}
         selectedIds={selectedIds}
         setSelectedIds={setSelectedIds}
       />
