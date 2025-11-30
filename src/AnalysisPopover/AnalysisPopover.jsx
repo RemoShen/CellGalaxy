@@ -27,6 +27,7 @@ export default function AnalysisPopover({
   channels,
   colors,
   alphas,
+   windows,
   pointsRaw = [],
   pointsUMAP = [],
   useUMAP = false,
@@ -183,6 +184,7 @@ export default function AnalysisPopover({
             channels={channels}
             colors={colors}
             alphas={alphas}
+            windows={windows}
             points={points}
           />
         ) : mode === "group" ? (

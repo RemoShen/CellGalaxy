@@ -37,7 +37,7 @@ function loadImageCached(src) {
   });
 }
 
-async function drawCellPreviewToCanvas({
+export async function drawCellPreviewToCanvas({
   canvas,
   object,
   iconMappingsByChunk,

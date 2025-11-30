@@ -691,6 +691,7 @@ const Viewer = ({
         channels={channels}
         colors={colors}
         alphas={alphas}
+        windows={windows}
         pointsRaw={points}
         pointsUMAP={points}
         useUMAP={false}

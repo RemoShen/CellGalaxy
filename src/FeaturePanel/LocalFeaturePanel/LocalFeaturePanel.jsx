@@ -1,27 +1,61 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { buildTooltipHTML } from "../../TooltipPreview/TooltipPreview";
+import { drawCellPreviewToCanvas } from "../../Viewer/HoverPreview/HoverPreview";
 import "../../FeatureDock/FeatureDock.css";
 import "./LocalFeaturePanel.css";
 
-function Thumb({ object, iconMappingsByChunk, chunkUV, atlasByChannel, atlasURL, channels, colors, alphas, size = 96, label }) {
-  const html = useMemo(
-    () =>
-      buildTooltipHTML({
+function Thumb({
+  object,
+  iconMappingsByChunk,
+  chunkUV,
+  atlasByChannel,
+  channels,
+  colors,
+  alphas,
+  windows,
+  size = 96,
+  label,
+}) {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !object) return;
+    (async () => {
+      await drawCellPreviewToCanvas({
+        canvas,
         object,
         iconMappingsByChunk,
         chunkUV,
         atlasByChannel,
-        atlasURL,
         channels,
         colors,
         alphas,
+        windows,
         previewSize: size,
-      }),
-    [object, iconMappingsByChunk, chunkUV, atlasByChannel, atlasURL, channels, colors, alphas, size]
-  );
+      });
+    })();
+  }, [
+    object,
+    iconMappingsByChunk,
+    chunkUV,
+    atlasByChannel,
+    channels,
+    colors,
+    alphas,
+    windows,
+    size,
+  ]);
+
   return (
     <div className="thumb">
-      <div dangerouslySetInnerHTML={{ __html: html }} />
+      <canvas
+        ref={canvasRef}
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          display: "block",
+        }}
+      />
       {label ? <div className="label">{label}</div> : null}
     </div>
   );
@@ -36,6 +70,7 @@ export default function LocalFeaturePanel({
   channels,
   colors,
   alphas,
+  windows,
   points = [],
 }) {
   const [view, setView] = useState("all"); // 'all' | 'gallery' | 'compact' | 'hist' | 'diff'
@@ -347,6 +382,7 @@ export default function LocalFeaturePanel({
                 channels={channels}
                 colors={colors}
                 alphas={alphas}
+                windows={windows}
                 size={96}
                 label="query"
               />
@@ -364,6 +400,7 @@ export default function LocalFeaturePanel({
                 channels={channels}
                 colors={colors}
                 alphas={alphas}
+                windows={windows}
                 size={64}
                 label={`sim ${n.similarity.toFixed(2)}`}
               />

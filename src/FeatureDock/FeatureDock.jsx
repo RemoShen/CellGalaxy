@@ -13,6 +13,7 @@ export default function FeatureDock({
   channels,
   colors,
   alphas,
+  windows,
   // points for two projections (used to locate thumbnails metadata)
   pointsRaw = [],
   pointsUMAP = [],
@@ -79,6 +80,7 @@ export default function FeatureDock({
           channels={channels}
           colors={colors}
           alphas={alphas}
+          windows={windows}
           points={useUMAP ? pointsUMAP : pointsRaw}
         />
       )}

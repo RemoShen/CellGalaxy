@@ -106,6 +106,19 @@ export default function useDataLoader() {
     return 2 * (v - minV) / span - 1;
   }
 
+  // —— Utility: 根据 atlas tile 尺寸推一个合适的默认 imageSize —— 
+  // 需求：tile=64 → 默认 1.5；tile=16 → 默认 0.3；中间线性插值。
+  function defaultImageSizeForTile(tile) {
+    const t = Number(tile) || 16;
+    const minTile = 16;
+    const maxTile = 64;
+    const clamped = Math.max(minTile, Math.min(maxTile, t));
+    const ratio = (clamped - minTile) / (maxTile - minTile); // 0..1
+    const minSize = 0.3;
+    const maxSize = 1.5;
+    return minSize + ratio * (maxSize - minSize);
+  }
+
   // Build both projections (raw and UMAP) and normalize each set independently
   const applyAllProjections = () => {
     if (!allCoords || allCoords.length === 0) {
@@ -176,6 +189,11 @@ export default function useDataLoader() {
       const abort = new AbortController();
       let metaJson = await fetchMeta(abort.signal);
       setMeta(metaJson);
+
+      // 根据当前数据的 tile 大小重置 Size Control 默认值
+      if (metaJson && metaJson.atlas && metaJson.atlas.tile) {
+        setImageSize(defaultImageSizeForTile(metaJson.atlas.tile));
+      }
 
       let coords = await fetchCoords(abort.signal);
       if (!Array.isArray(coords)) coords = [];
