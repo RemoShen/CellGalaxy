@@ -96,8 +96,32 @@ export default function AnalysisPopover({
           setMode("group");
           setT1(null);
           setTCompare(null);
-          const ids = command.ids.map((v) => Number(v)).filter((v) => Number.isFinite(v));
+          let ids = command.ids.map((v) => Number(v)).filter((v) => Number.isFinite(v));
           if (ids.length === 0) return;
+
+          // 大 group 分析的主要瓶颈在 /features/t2 里做谱排序和相似度矩阵（O(n^2)）。
+          // 这里在前端对 ids 做一次随机下采样，让计算量基本保持在几千级别：
+          //   - small  (<= 2500): 使用全部 ids
+          //   - medium (2500~8000): 控制在 ~4000
+          //   - large  (> 8000): 控制在 ~5000
+          const total = ids.length;
+          let maxGroup = 2500;
+          if (total > 8000) {
+            maxGroup = 5000;
+          } else if (total > 2500) {
+            maxGroup = 4000;
+          }
+          if (total > maxGroup) {
+            const tmp = ids.slice();
+            for (let i = tmp.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              const t = tmp[i];
+              tmp[i] = tmp[j];
+              tmp[j] = t;
+            }
+            ids = tmp.slice(0, maxGroup);
+          }
+
           const res = await fetchT2(ids, undefined);
           if (!res || res.error) return;
           setT2(res);

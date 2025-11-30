@@ -304,7 +304,10 @@ def violin_selection_kde(payload: Dict = Body(...)):
         if not isinstance(ids, list) or len(ids) == 0:
             raise HTTPException(status_code=400, detail="ids must be a non-empty list")
         chs = payload.get("channels", None)
-        max_samples = int(payload.get("max", 100000))
+        # max_samples 控制每个通道用于 KDE 的前景像素上限。
+        # 把默认值从 100000 略微降到 60000，在大区域时可以明显减轻
+        # CPU 负担，同时形状仍然足够平滑。
+        max_samples = int(payload.get("max", 60000))
         perc = float(payload.get("perc", 99.0))
         thr = float(payload.get("thr", 0))
         grid = int(payload.get("grid", 256))
@@ -317,7 +320,8 @@ def violin_selection_kde(payload: Dict = Body(...)):
         ids_arr = np.array([int(x) for x in ids], dtype=np.int64)
         # Downsample selected cell ids to an upper bound; this keeps the KDE
         # cost roughly constant once the region is large enough.
-        max_ids = int(payload.get("max_ids", 1500))
+        # 默认上限从 1500 收紧到 400，避免在超大选区上读取过多 chunk。
+        max_ids = int(payload.get("max_ids", 400))
         if ids_arr.size > max_ids:
             idx = np.random.choice(ids_arr.size, size=max_ids, replace=False)
             ids_arr = ids_arr[idx]

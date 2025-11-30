@@ -140,12 +140,24 @@ export async function fetchRegionRepresentatives(regions, metric = "cosine_cente
 
 export async function fetchViolinSelectionKDE(ids, max = 30000, perc = 99.0, thr = 0.1, channels = null, grid = 192, signal) {
   try {
-    // For very large selections, sending and computing on all ids is expensive.
-    // Here we simply cap the number of ids used for intensity KDE to keep it responsive.
-    const ID_LIMIT = 800;
-    let effectiveIds = Array.isArray(ids) ? ids : [];
-    if (effectiveIds.length > ID_LIMIT) {
-      // shuffle a copy and take the first ID_LIMIT items (simple Fisher–Yates)
+    // 对很大的选区做**自适应下采样**：
+    // - 小选区（≤2k）保留更多 id，细节更高；
+    // - 中等选区（2k~1w）只取一部分；
+    // - 超大选区（>1w）只取少量代表点，使计算时间几乎与选区大小无关。
+    const rawIds = Array.isArray(ids) ? ids : [];
+    const total = rawIds.length;
+    let idLimit;
+    if (total <= 2000) {
+      idLimit = 800;
+    } else if (total <= 10000) {
+      idLimit = 400;
+    } else {
+      idLimit = 200;
+    }
+
+    let effectiveIds = rawIds;
+    if (effectiveIds.length > idLimit) {
+      // Fisher–Yates 洗牌后取前 idLimit 个，避免总是取前面的点
       const temp = effectiveIds.slice();
       for (let i = temp.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -153,7 +165,7 @@ export async function fetchViolinSelectionKDE(ids, max = 30000, perc = 99.0, thr
         temp[i] = temp[j];
         temp[j] = t;
       }
-      effectiveIds = temp.slice(0, ID_LIMIT);
+      effectiveIds = temp.slice(0, idLimit);
     }
 
     const body = { ids: effectiveIds, max, perc, thr, grid };
