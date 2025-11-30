@@ -187,7 +187,7 @@ def _pixel_range_from_array(channel_data: np.ndarray) -> tuple[float, float]:
     flat = channel_data.astype(np.float32).ravel()
     if flat.size == 0:
         return 0.0, 0.0
-    p5, p95 = np.percentile(flat, [0.0, 100.0])
+    p5, p95 = np.percentile(flat, [0, 100])
     return float(p5), float(p95)
 
 
