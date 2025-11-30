@@ -182,13 +182,33 @@ def process_coord_row(row: pd.Series, idx: int, n_per_chunk: int) -> Dict[str, A
     return base
 
 
-def _pixel_range_from_array(channel_data: np.ndarray) -> tuple[float, float]:
-    """Compute 1%-99% pixel range from a numpy array."""
+def _pixel_stats_from_array(channel_data: np.ndarray) -> Dict[str, float]:
+    """
+    计算单个通道的像素统计信息，用于前端 intensity 窗宽/自动窗位：
+
+    - data_min / data_max: 全局真实最小/最大值（用于 slider 总范围）
+    - auto_min / auto_max: 百分位裁剪后的推荐显示范围（用于“Auto” 按钮和默认窗位）
+    """
     flat = channel_data.astype(np.float32).ravel()
     if flat.size == 0:
-        return 0.0, 0.0
-    p5, p95 = np.percentile(flat, [0, 100])
-    return float(p5), float(p95)
+        return {
+            "data_min": 0.0,
+            "data_max": 0.0,
+            "auto_min": 0.0,
+            "auto_max": 0.0,
+        }
+
+    data_min = float(np.min(flat))
+    data_max = float(np.max(flat))
+
+    # 使用 1% / 99% 百分位作为自动窗位，避免极少数 outlier 拉开对比度
+    auto_low, auto_high = np.percentile(flat, [1.0, 99.0])
+    return {
+        "data_min": data_min,
+        "data_max": data_max,
+        "auto_min": float(auto_low),
+        "auto_max": float(auto_high),
+    }
 
 
 def get_channel_info(df: pd.DataFrame, img):
@@ -199,13 +219,13 @@ def get_channel_info(df: pd.DataFrame, img):
     for i, col_name in enumerate(channel_columns):
         # use Zarr image statistics pixel range
         channel_data = img[i, :, :, :]
-        min_value, max_value = _pixel_range_from_array(channel_data)
+        stats = _pixel_stats_from_array(channel_data)
         channels.append(
             {
                 "id": i,
                 "name": col_name,
                 "column_index": i + 9,
-                "pixel_value_range": {"min": min_value, "max": max_value},
+                "pixel_value_range": stats,
             }
         )
     return channels
@@ -299,7 +319,12 @@ def get_channel_info_from_names(names: List[str], img) -> List[Dict[str, Any]]:
             {
                 "id": i,
                 "name": (names[i] if i < len(names) else f"ch_{i}"),
-                "pixel_value_range": {"min": 0.0, "max": 0.0},
+                "pixel_value_range": {
+                    "data_min": 0.0,
+                    "data_max": 0.0,
+                    "auto_min": 0.0,
+                    "auto_max": 0.0,
+                },
             }
             for i in range(len(names))
         ]
@@ -312,13 +337,18 @@ def get_channel_info_from_names(names: List[str], img) -> List[Dict[str, Any]]:
         ch_name = names[i] if i < len(names) else f"ch_{i}"
         try:
             channel_data = img[i, :, :, :]
-            vmin, vmax = _pixel_range_from_array(channel_data)
+            stats = _pixel_stats_from_array(channel_data)
         except Exception:
-            vmin, vmax = 0.0, 0.0
+            stats = {
+                "data_min": 0.0,
+                "data_max": 0.0,
+                "auto_min": 0.0,
+                "auto_max": 0.0,
+            }
         channels.append({
             "id": i,
             "name": ch_name,
-            "pixel_value_range": {"min": vmin, "max": vmax},
+            "pixel_value_range": stats,
         })
     return channels
 

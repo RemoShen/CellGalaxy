@@ -15,6 +15,22 @@ export default function ChannelManager({
   // Slider read/write directly uses global windows (min/max for each channel)
   const [tooltip, setTooltip] = useState({ show: false, value: '', x: 0, y: 0 });
 
+  // 将后端 pixel_value_range 统一解析成：
+  // - dataMin/dataMax：真实全局范围（slider 边界）
+  // - autoMin/autoMax：推荐的自动窗位（基于 1%-99% 百分位）
+  const getChannelRanges = (channel) => {
+    const pv = channel?.pixel_value_range || {};
+    const dataMin = Number.isFinite(pv.data_min)
+      ? pv.data_min
+      : (Number.isFinite(pv.min) ? pv.min : 0);
+    const dataMax = Number.isFinite(pv.data_max)
+      ? pv.data_max
+      : (Number.isFinite(pv.max) ? pv.max : 65535);
+    const autoMin = Number.isFinite(pv.auto_min) ? pv.auto_min : dataMin;
+    const autoMax = Number.isFinite(pv.auto_max) ? pv.auto_max : dataMax;
+    return { dataMin, dataMax, autoMin, autoMax };
+  };
+
   // Get channel information
   useEffect(() => {
     const fetchChannelInfo = async () => {
@@ -93,12 +109,12 @@ export default function ChannelManager({
       const c = defaultColorFor(channel.id);
       setColors((prev) => ({ ...prev, [channel.id]: c }));
     }
-    // If window not initialized, initialize with channel default range
-    const pv = channel.pixel_value_range || { min: 0, max: 65535 };
+    // 如果窗口尚未初始化，使用推荐 autoMin/autoMax 作为默认窗位
+    const { autoMin, autoMax } = getChannelRanges(channel);
     setWindows((prev) => (
       prev[channel.id]
         ? prev
-        : { ...prev, [channel.id]: { min: pv.min ?? 0, max: pv.max ?? 65535 } }
+        : { ...prev, [channel.id]: { min: autoMin, max: autoMax } }
     ));
   };
 
@@ -201,7 +217,7 @@ export default function ChannelManager({
           const channel = channelInfo.channels?.find(ch => ch.id === channelId);
           if (!channel) return null;
 
-          const { min = 0, max = 100 } = channel.pixel_value_range || {};
+          const { dataMin, dataMax, autoMin, autoMax } = getChannelRanges(channel);
 
           return (
             <div key={channelId} className="channel-item">
@@ -219,10 +235,24 @@ export default function ChannelManager({
               {/* Dual-end slider */}
               <div className="range-slider-container">
                 <div className="dual-range-slider">
-                  {renderSlider(channelId, 'min', min, min, max)}
-                  {renderSlider(channelId, 'max', max, min, max)}
+                  {renderSlider(channelId, 'min', autoMin, dataMin, dataMax)}
+                  {renderSlider(channelId, 'max', autoMax, dataMin, dataMax)}
                 </div>
               </div>
+
+              {/* Auto button: 恢复到推荐自动窗位 */}
+              <button
+                className="auto-button"
+                onClick={() => {
+                  const { autoMin: aMin, autoMax: aMax } = getChannelRanges(channel);
+                  setWindows((prev) => ({
+                    ...prev,
+                    [channelId]: { min: aMin, max: aMax },
+                  }));
+                }}
+              >
+                Auto
+              </button>
 
               {/* Delete button */}
               <button

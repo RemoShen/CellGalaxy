@@ -125,7 +125,7 @@
   border: none;
   border-radius: 3px;
   cursor: pointer;
-  margin-right: 4px;
+  margin-right: 2px;
 }
 
 .color-picker::-webkit-color-swatch-wrapper {
@@ -143,8 +143,8 @@
   color: #fff;
   margin-right: 10px;
   /* fixed column width, ensure right slider is equal length; overflow with ellipsis */
-  width: 55px;
-  flex: 0 0 55px;
+  width: 40px;
+  flex: 0 0 40px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -162,7 +162,25 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
-  margin-right: 10px;
+  margin-right: 4px;
+}
+
+/* Auto 按钮：做成小号扁平按钮，避免占太大空间 */
+.auto-button {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #fff;
+  font-size: 9px;
+  padding: 1px 4px;
+  margin-right: 2px;
+  border-radius: 3px;
+  cursor: pointer;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.auto-button:hover {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 /* Dual-end slider container */
