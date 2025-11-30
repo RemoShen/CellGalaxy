@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "../../FeatureDock/FeatureDock.css";
 import "./CompareFeaturePanel.css";
-import { buildTooltipHTML } from "../../TooltipPreview/TooltipPreview";
+import { drawCellPreviewToCanvas } from "../../Viewer/HoverPreview/HoverPreview";
 import { API_BASE } from "../../api/api";
 
 // Use grayscale colors for violin plots (avoid conflicting with per-channel colors)
@@ -22,34 +22,63 @@ function RegionThumb({
   channels,
   colors,
   alphas,
+  windows,
 }) {
   const obj = mapById.get(repId);
-  const html = useMemo(
-    () =>
-      obj
-        ? buildTooltipHTML({
-            object: obj,
-            iconMappingsByChunk,
-            chunkUV,
-            atlasByChannel,
-            atlasURL,
-            channels,
-            colors,
-            alphas,
-            previewSize: 100,
-          })
-        : "",
-    [obj, iconMappingsByChunk, chunkUV, atlasByChannel, atlasURL, channels, colors, alphas]
-  );
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !obj) return;
+    let cancelled = false;
+    (async () => {
+      await drawCellPreviewToCanvas({
+        canvas,
+        object: obj,
+        iconMappingsByChunk,
+        chunkUV,
+        atlasByChannel,
+        channels,
+        colors,
+        alphas,
+        windows,
+        previewSize: 110,
+      });
+      if (cancelled) return;
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    obj,
+    iconMappingsByChunk,
+    chunkUV,
+    atlasByChannel,
+    channels,
+    colors,
+    alphas,
+    windows,
+  ]);
+
   return (
     <div className="compare-card">
       <div className="compare-card-title">{label}</div>
       <div className="compare-card-body">
-        {html ? (
-          <div className="compare-thumb" dangerouslySetInnerHTML={{ __html: html }} />
-        ) : (
-          <div className="compare-thumb compare-thumb-empty">No representative</div>
-        )}
+        <div className="compare-thumb">
+          {obj ? (
+            <canvas
+              ref={canvasRef}
+              style={{
+                width: 110,
+                height: 110,
+                borderRadius: 8,
+                display: "block",
+              }}
+            />
+          ) : (
+            <div className="compare-thumb-empty">No representative</div>
+          )}
+        </div>
         <div className="compare-meta">
           <div className="compare-meta-line">cells: {size ?? 0}</div>
           <div className="compare-meta-line">rep id: {repId ?? "N/A"}</div>
@@ -283,6 +312,7 @@ export default function CompareFeaturePanel({
   channels,
   colors,
   alphas,
+  windows,
   points = [],
 }) {
   const channelNames = useChannelNames();
@@ -358,6 +388,7 @@ export default function CompareFeaturePanel({
             channels={channels}
             colors={colors}
             alphas={alphas}
+            windows={windows}
           />
           <RegionThumb
             label="Region 2"
@@ -373,6 +404,7 @@ export default function CompareFeaturePanel({
             channels={channels}
             colors={colors}
             alphas={alphas}
+            windows={windows}
           />
         </div>
       </div>

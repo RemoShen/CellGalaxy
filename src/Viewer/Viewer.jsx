@@ -22,7 +22,6 @@ import {
 } from "../utils/utils";
 import { buildOutlineData2D, clusterColor } from "../utils/clustering";
 import "./Viewer.css";
-import buildTooltipHTML from "../TooltipPreview/TooltipPreview";
 import ClickToolbar from "../ToolBar/ClickToolbar/ClickToolbar";
 import GroupToolbarContainer from "../ToolBar/GroupToolbar/GroupToolbarContainer";
 import ClusterHoverMask from "../ClusterHoverMask/ClusterHoverMask";
@@ -32,7 +31,90 @@ import ClusterOutlines from "../ClusterHoverMask/ClusterOutlines";
 import useClusterSelection from "./useClusterSelection";
 import useClusterAnnotations from "./useClusterAnnotations";
 import SemanticZoomControl from "./SemanticZoomControl/SemanticZoomControl";
-import HoverPreview from "./HoverPreview/HoverPreview";
+import HoverPreview, { drawCellPreviewToCanvas } from "./HoverPreview/HoverPreview";
+
+// Canvas‑based fixed cluster preview thumbnail, sharing the same
+// windowing logic as HoverPreview / main viewer.
+function ClusterPreviewThumb({
+  point,
+  x,
+  y,
+  previewSize,
+  borderColor,
+  iconMappingsByChunk,
+  chunkUV,
+  atlasByChannel,
+  channels,
+  colors,
+  alphas,
+  windows,
+}) {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !point) return;
+    let cancelled = false;
+    (async () => {
+      await drawCellPreviewToCanvas({
+        canvas,
+        object: point,
+        iconMappingsByChunk,
+        chunkUV,
+        atlasByChannel,
+        channels,
+        colors,
+        alphas,
+        windows,
+        previewSize,
+      });
+      if (cancelled) return;
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    point,
+    iconMappingsByChunk,
+    chunkUV,
+    atlasByChannel,
+    channels,
+    colors,
+    alphas,
+    windows,
+    previewSize,
+  ]);
+
+  if (!point) return null;
+
+  return (
+    <div
+      className="deck-tooltip"
+      style={{
+        position: "absolute",
+        left: x,
+        top: y,
+        transform: "translate(-50%, -125%)",
+        pointerEvents: "none",
+        padding: 0,
+        background: "transparent",
+        borderRadius: 8,
+        border: `1px solid ${borderColor}`,
+        boxShadow: "none",
+      }}
+    >
+      <canvas
+        ref={canvasRef}
+        style={{
+          width: previewSize,
+          height: previewSize,
+          borderRadius: 8,
+          display: "block",
+        }}
+      />
+    </div>
+  );
+}
 
 const Viewer = ({
   viewerId = "viewer",
@@ -670,55 +752,30 @@ const Viewer = ({
         clusterPreviewScreens.length > 0 &&
         clusterPreviewScreens.map(({ point, x, y }) => {
           if (!point) return null;
-          // Dynamically adjust preview size based on current zoom: smaller when zoomed out, larger when zoomed in,
-          // with lower/upper bounds.
           const z = typeof viewState?.zoom === "number" ? viewState.zoom : 8;
-          const baseSize = 60; // baseline size considered visually reasonable
-          const scale = 1 + (z - 8) * 0.25; // change size by ~25% per zoom level
+          const baseSize = 60;
+          const scale = 1 + (z - 8) * 0.25;
           const previewSize = Math.max(30, Math.min(120, baseSize * scale));
-          // Compute current cluster color for the border and title background
           const val = point?.[clusterLabelKey];
           const lbl = Number.isFinite(val) ? val : (point.label ?? 0);
           const rgb = clusterColor(lbl);
           const borderColor = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.9)`;
 
-          const previewHtml = buildTooltipHTML({
-            object: point,
-            iconMappingsByChunk,
-            chunkUV,
-            atlasByChannel,
-            atlasURL,
-            channels,
-            colors,
-            alphas,
-            // Preview size that changes dynamically with zoom
-            previewSize,
-            // Embedded mode: remove internal margin/shadow so border hugs the image
-            compact: true,
-          });
-          if (!previewHtml) return null;
           return (
-            <div
+            <ClusterPreviewThumb
               key={`cluster-preview-${point.id}`}
-              className="deck-tooltip"
-              style={{
-                position: "absolute",
-                left: x,
-                top: y,
-                // Lift the image slightly so there is some spacing between image and text
-                transform: "translate(-50%, -125%)",
-                // Do not intercept mouse events so that scroll zoom still works on DeckGL.
-                // (cell tooltip is already suppressed in getTooltip based on representative IDs)
-                pointerEvents: "none",
-                padding: 0,
-                background: "transparent",
-                borderRadius: 8,
-                border: `1px solid ${borderColor}`,
-                boxShadow: "none",
-              }}
-              dangerouslySetInnerHTML={{
-                __html: previewHtml,
-              }}
+              point={point}
+              x={x}
+              y={y}
+              previewSize={previewSize}
+              borderColor={borderColor}
+              iconMappingsByChunk={iconMappingsByChunk}
+              chunkUV={chunkUV}
+              atlasByChannel={atlasByChannel}
+              channels={channels}
+              colors={colors}
+              alphas={alphas}
+              windows={windows}
             />
           );
         })}
