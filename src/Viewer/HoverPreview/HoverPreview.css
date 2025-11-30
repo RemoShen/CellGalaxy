@@ -1,0 +1,23 @@
+.hover-preview-tooltip {
+  /* 复用全局 .deck-tooltip 的基础样式，这里只做细节调整 */
+}
+
+.hover-preview-canvas-wrapper {
+  margin-top: 6px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  width: 128px;
+  height: 128px;
+}
+
+.hover-preview-canvas {
+  width: 128px;
+  height: 128px;
+  display: block;
+  /* 使用默认插值，让缩放后的预览更平滑 */
+  image-rendering: auto;
+}
+
+

@@ -1,7 +1,7 @@
 // =============================
 // Viewer.jsx  (screen-space lasso overlay + accurate selection in 2D/3D)
 // =============================
-import React, { useMemo, useState, useRef } from "react";
+import React, { useMemo, useState, useRef, useEffect } from "react";
 import DeckGL from "@deck.gl/react";
 import AnalysisPopover from "../AnalysisPopover/AnalysisPopover";
 import SelectionOverlay from "../SelectionOverlay/SelectionOverlay";
@@ -30,6 +30,7 @@ import ClusterOutlines from "../ClusterHoverMask/ClusterOutlines";
 import useClusterSelection from "./useClusterSelection";
 import useClusterAnnotations from "./useClusterAnnotations";
 import SemanticZoomControl from "./SemanticZoomControl/SemanticZoomControl";
+import HoverPreview from "./HoverPreview/HoverPreview";
 
 const Viewer = ({
   viewerId = "viewer",
@@ -106,7 +107,7 @@ const Viewer = ({
     : null;
 
   // Auto-update semantic level based on zoom (only enabled in UMAP view)
-  React.useEffect(() => {
+  useEffect(() => {
     if (!isUMAPView || !isSemanticAuto || !viewState) return;
     const z = typeof viewState.zoom === 'number' ? viewState.zoom : 8;
     let lvl = 5;
@@ -248,7 +249,7 @@ const Viewer = ({
   // Project representative cell positions into screen coordinates for DOM preview card placement
   const [clusterPreviewScreens, setClusterPreviewScreens] = useState([]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!isUMAPView || !clusterPreviewOn) {
       setClusterPreviewScreens([]);
       return;
@@ -306,7 +307,7 @@ const Viewer = ({
   // Screen positions for cluster titles (DOM overlay at cluster centroid)
   const [clusterAnnotationScreens, setClusterAnnotationScreens] = useState([]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!isUMAPView || !clusterAnnotationOn) {
       setClusterAnnotationScreens([]);
       return;
@@ -353,37 +354,6 @@ const Viewer = ({
 
   const [hoveredAnnotationLabel, setHoveredAnnotationLabel] = useState(null);
   const descriptionRefs = useRef({});
-
-  // Canvas-space bounding boxes for each representative preview image,
-  // used to suppress DeckGL cell tooltips when hovering over the preview.
-  const clusterPreviewBoxes = useMemo(() => {
-    if (
-      !isUMAPView ||
-      !clusterPreviewOn ||
-      !clusterPreviewScreens ||
-      clusterPreviewScreens.length === 0
-    ) {
-      return [];
-    }
-    const z = typeof viewState?.zoom === "number" ? viewState.zoom : 8;
-    const baseSize = 60;
-    const scale = 1 + (z - 8) * 0.25;
-    const size = Math.max(30, Math.min(120, baseSize * scale));
-    const half = size / 2;
-    return clusterPreviewScreens.map(({ point, canvasX, canvasY }) => {
-      const top = canvasY - size * 1.3;
-      const bottom = canvasY - size * 0.3;
-      const left = canvasX - half;
-      const right = canvasX + half;
-      return {
-        id: point?.id,
-        left,
-        right,
-        top,
-        bottom,
-      };
-    });
-  }, [isUMAPView, clusterPreviewOn, clusterPreviewScreens, viewState]);
 
   const layers = ImageLayers({
     meta,
@@ -491,65 +461,8 @@ const Viewer = ({
                   onDragStart={onDragStart}
                   onDrag={onDrag}
                   onDragEnd={onDragEnd}
-                  getTooltip={(info) => {
-                    const { object } = info || {};
-                    if (altPressed) return null;
-                    if (
-                      info &&
-                      typeof info.x === "number" &&
-                      typeof info.y === "number" &&
-                      clusterPreviewBoxes &&
-                      clusterPreviewBoxes.length > 0
-                    ) {
-                      const { x, y } = info;
-                      const overPreview = clusterPreviewBoxes.some(
-                        (b) => x >= b.left && x <= b.right && y >= b.top && y <= b.bottom
-                      );
-                      if (overPreview) return null;
-                    }
-                    if (!object) return null;
-
-                    // Cluster-level annotation (used for text layer and point hover)
-                    let annotation = null;
-                    if (object.kind === "cluster-annotation") {
-                      annotation = object;
-                    }
-
-                    if (annotation && (annotation.title || annotation.description)) {
-                      const titleHtml = annotation.title
-                        ? `<div><b>${annotation.title}</b></div>`
-                        : "";
-                      return {
-                        html: titleHtml,
-                        className: "deck-tooltip",
-                      };
-                    }
-
-                    const activeFilter = filteredIds && filteredIds.size > 0;
-                    if (activeFilter && !filteredIds.has(object.id)) return null;
-
-                    const previewHtml = buildTooltipHTML({
-                      object,
-                      iconMappingsByChunk,
-                      chunkUV,
-                      atlasByChannel,
-                      atlasURL,
-                      channels,
-                      colors,
-                      alphas,
-                      previewSize: 128,
-                    });
-
-                    const clusterVal = object?.[clusterLabelKey];
-                    const effectiveLabel = Number.isFinite(clusterVal)
-                      ? clusterVal
-                      : (object.label ?? object.id % 11);
-                    const textHtml = `id: ${object.id}<br/>label: ${effectiveLabel}`;
-                    return {
-                      html: `${textHtml}${previewHtml ? "<br/>" + previewHtml : ""}`,
-                      className: "deck-tooltip",
-                    };
-                  }}
+                  // 我们改用自定义 React tooltip，不再使用 DeckGL 内置 HTML tooltip
+                  getTooltip={null}
                   getCursor={() => "default"}
                   pickingRadius={6}
                 />
@@ -783,6 +696,19 @@ const Viewer = ({
         useUMAP={false}
         selectedIds={selectedIds}
         setSelectedIds={setSelectedIds}
+      />
+
+      {/* 自定义 hover 预览 tooltip（canvas + window-aware） */}
+      <HoverPreview
+        deckRef={deckRef}
+        containerRef={containerRef}
+        iconMappingsByChunk={iconMappingsByChunk}
+        chunkUV={chunkUV}
+        atlasByChannel={atlasByChannel}
+        channels={channels}
+        colors={colors}
+        alphas={alphas}
+        windows={windows}
       />
 
       {/* Semantic Zoom Slider (Manual Control) */}
