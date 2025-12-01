@@ -273,17 +273,35 @@ export default function HoverPreview({
     if (!containerEl) return;
 
     const handleMove = (e) => {
-      // 如果鼠标当前在分析弹窗 / cluster 代表图 / cluster 文本标签上方，
-      // 则不做 hover preview，避免叠加多个预览元素。
+      // 如果鼠标当前在分析弹窗上方，则不做 hover preview，避免在 intensity 分布窗口上出现单细胞预览。
       const target = e.target;
       if (target && typeof target.closest === "function") {
         const inAnalysis = target.closest(".analysis-popover");
-        const onClusterPreview = target.closest(".cluster-preview-thumb");
-        const onClusterTitle = target.closest(".cluster-annotation-title");
-        if (inAnalysis || onClusterPreview || onClusterTitle) {
+        if (inAnalysis) {
           setHoverInfo(null);
           return;
         }
+      }
+
+      // 同样，在 cluster 代表图 / cluster 文本标签上方时也不显示 hover preview。
+      const xClient = e.clientX;
+      const yClient = e.clientY;
+      try {
+        const blockers = document.querySelectorAll(".cluster-preview-thumb, .cluster-annotation-title");
+        for (const el of blockers) {
+          const rect = el.getBoundingClientRect();
+          if (
+            xClient >= rect.left &&
+            xClient <= rect.right &&
+            yClient >= rect.top &&
+            yClient <= rect.bottom
+          ) {
+            setHoverInfo(null);
+            return;
+          }
+        }
+      } catch {
+        // 如果查询失败，继续正常逻辑
       }
       const deckInstance = deckRef.current && deckRef.current.deck;
       const canvas = deckInstance && deckInstance.canvas;

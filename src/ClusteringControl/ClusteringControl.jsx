@@ -16,10 +16,11 @@ export default function ClusteringControl({
   const [showModelPanel, setShowModelPanel] = useState(false);
   const [selectedModel, setSelectedModel] = useState(annotationModel || "Biomni");
   const [isLLMRunning, setIsLLMRunning] = useState(false);
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
 
   return (
     <div className="clu-block">
-      <div className="clu-title">Clustering</div>
+      <div className="clu-title">Visual Encoding </div>
       <div className="clu-buttons">
         <button
           className={`clu-btn ${outlineOn ? "on" : ""}`}
@@ -148,19 +149,42 @@ export default function ClusteringControl({
           <div className="clu-row">
             <div className="clu-label">Model</div>
             <div className="clu-select-wrap">
-              <select
-                className="clu-select"
-                value={selectedModel}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setSelectedModel(val);
-                  setAnnotationModel(val);
+              <div
+                className={`clu-select-display ${modelMenuOpen ? "open" : ""}`}
+                tabIndex={0}
+                onClick={() => setModelMenuOpen((v) => !v)}
+                onBlur={(e) => {
+                  // 仅当真正离开整个组件时才关闭菜单
+                  if (!e.currentTarget.contains(e.relatedTarget)) {
+                    setModelMenuOpen(false);
+                  }
                 }}
               >
-                {/* <option value="Biomni">Biomni</option> */}
-                <option value="MedGemma">MedGemma</option>
-                <option value="BioMistral">BioMistral</option>
-              </select>
+                <span className="clu-select-display-label">{selectedModel}</span>
+                <span className="clu-select-display-caret">▾</span>
+                {modelMenuOpen && (
+                  <div className="clu-select-menu">
+                    {["MedGemma", "BioMistral"].map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        className={`clu-select-option ${selectedModel === m ? "active" : ""}`}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setSelectedModel(m);
+                          setAnnotationModel(m);
+                          setModelMenuOpen(false);
+                        }}
+                      >
+                        <span className="clu-select-option-check">
+                          {selectedModel === m ? "✓" : ""}
+                        </span>
+                        <span>{m}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

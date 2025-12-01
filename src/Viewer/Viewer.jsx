@@ -95,7 +95,9 @@ function ClusterPreviewThumb({
         left: x,
         top: y,
         transform: "translate(-50%, -125%)",
-        pointerEvents: "auto",
+        // 不拦截鼠标事件，让底层 DeckGL 继续响应缩放/拖拽；
+        // HoverPreview 会通过几何位置判断在代表图上方时抑制单细胞 preview。
+        pointerEvents: "none",
         padding: 0,
         background: "transparent",
         borderRadius: 8,
@@ -752,10 +754,8 @@ const Viewer = ({
         clusterPreviewScreens.length > 0 &&
         clusterPreviewScreens.map(({ point, x, y }) => {
           if (!point) return null;
-          const z = typeof viewState?.zoom === "number" ? viewState.zoom : 8;
-          const baseSize = 60;
-          const scale = 1 + (z - 8) * 0.25;
-          const previewSize = Math.max(30, Math.min(120, baseSize * scale));
+          // 固定代表图尺寸，避免在缩放过程中频繁重算缩略图，提高交互流畅度。
+          const previewSize = 64;
           const val = point?.[clusterLabelKey];
           const lbl = Number.isFinite(val) ? val : (point.label ?? 0);
           const rgb = clusterColor(lbl);
@@ -805,9 +805,8 @@ const Viewer = ({
                 left: x,
                 top: y,
                 transform: "translate(-50%, -50%)",
-                // 始终接收鼠标事件，方便 HoverPreview 判断「当前在 cluster 文本上」并抑制单细胞预览。
-                // 是否显示描述仍由 Alt 键控制（见 onMouseEnter / hoveredAnnotationLabel 逻辑）。
-                pointerEvents: "auto",
+                // 仅在按下 Alt 键查看描述时接收鼠标事件，其余时间让底层 DeckGL 处理缩放/拖拽。
+                pointerEvents: altPressed ? "auto" : "none",
                 zIndex: hoveredAnnotationLabel === label ? 100 : 10,
                 // Show default cursor, but no text insertion cursor
                 cursor: "default",
