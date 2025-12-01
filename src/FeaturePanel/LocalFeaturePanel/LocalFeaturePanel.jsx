@@ -390,19 +390,33 @@ export default function LocalFeaturePanel({
                 onClick={(obj) => {
                   // 聚焦到选中的cell
                   if (obj && typeof window !== "undefined") {
-                    const cellX = obj.x ?? 0;
-                    const cellY = obj.y ?? 0;
-                    const cellZ = obj.z ?? 0;
-                    // 根据 viewerId 决定聚焦到哪个 viewer
+                    // 1) 在当前 viewer 中聚焦
                     const focusKey = `__focusCell_${viewerId}`;
                     if (window[focusKey]) {
-                      window[focusKey]({ x: cellX, y: cellY, z: cellZ });
+                      window[focusKey]({ id: obj.id });
                     }
-                    // 显示相似度排名（query 是 0，neighbors 是 1-N）
-                    const rankingKey = `__showSimilarityRanking_${viewerId}`;
-                    if (window[rankingKey] && data) {
-                      const rankings = [data.query, ...(data.neighbors || []).map(n => n.id)].filter(id => id != null);
-                      window[rankingKey](rankings);
+                    // 2) 在 Raw / UMAP 两个 viewer 中都聚焦
+                    if (typeof window.__focusCell === "function") {
+                      window.__focusCell({ id: obj.id });
+                    }
+                    if (typeof window.__focusCellUMAP === "function") {
+                      window.__focusCellUMAP({ id: obj.id });
+                    }
+                    // 3) 在两个 viewer 上都显示相似度排名（query 是 0，neighbors 是 1-N）
+                    if (data) {
+                      const rankings = [data.query, ...(data.neighbors || []).map((n) => n.id)].filter(
+                        (id) => id != null
+                      );
+                      const rankingKey = `__showSimilarityRanking_${viewerId}`;
+                      if (window[rankingKey]) {
+                        window[rankingKey](rankings);
+                      }
+                      if (typeof window.__showSimilarityRanking === "function") {
+                        window.__showSimilarityRanking(rankings);
+                      }
+                      if (typeof window.__showSimilarityRankingUMAP === "function") {
+                        window.__showSimilarityRankingUMAP(rankings);
+                      }
                     }
                   }
                 }}
@@ -427,19 +441,33 @@ export default function LocalFeaturePanel({
                 onClick={(obj) => {
                   // 聚焦到选中的cell
                   if (obj && typeof window !== "undefined") {
-                    const cellX = obj.x ?? 0;
-                    const cellY = obj.y ?? 0;
-                    const cellZ = obj.z ?? 0;
-                    // 根据 viewerId 决定聚焦到哪个 viewer
+                    // 1) 在当前 viewer 中聚焦
                     const focusKey = `__focusCell_${viewerId}`;
                     if (window[focusKey]) {
-                      window[focusKey]({ x: cellX, y: cellY, z: cellZ });
+                      window[focusKey]({ id: obj.id });
                     }
-                    // 显示相似度排名（query 是 0，neighbors 是 1-N）
-                    const rankingKey = `__showSimilarityRanking_${viewerId}`;
-                    if (window[rankingKey] && data) {
-                      const rankings = [data.query, ...(data.neighbors || []).map(n => n.id)].filter(id => id != null);
-                      window[rankingKey](rankings);
+                    // 2) 在 Raw / UMAP 两个 viewer 中都聚焦
+                    if (typeof window.__focusCell === "function") {
+                      window.__focusCell({ id: obj.id });
+                    }
+                    if (typeof window.__focusCellUMAP === "function") {
+                      window.__focusCellUMAP({ id: obj.id });
+                    }
+                    // 3) 在两个 viewer 上都显示相似度排名（query 是 0，neighbors 是 1-N）
+                    if (data) {
+                      const rankings = [data.query, ...(data.neighbors || []).map((nn) => nn.id)].filter(
+                        (id) => id != null
+                      );
+                      const rankingKey = `__showSimilarityRanking_${viewerId}`;
+                      if (window[rankingKey]) {
+                        window[rankingKey](rankings);
+                      }
+                      if (typeof window.__showSimilarityRanking === "function") {
+                        window.__showSimilarityRanking(rankings);
+                      }
+                      if (typeof window.__showSimilarityRankingUMAP === "function") {
+                        window.__showSimilarityRankingUMAP(rankings);
+                      }
                     }
                   }
                 }}
