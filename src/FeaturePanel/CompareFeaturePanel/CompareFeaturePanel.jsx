@@ -9,11 +9,7 @@ const COLOR_GLOBAL = "rgba(200,200,200,0.95)"; // global: lighter gray
 const COLOR_SEL = "rgba(120,120,120,0.95)";    // selection: darker gray
 
 function RegionThumb({
-  label,
   repId,
-  size = 0,
-  similarity,
-  compactness,
   mapById,
   iconMappingsByChunk,
   chunkUV,
@@ -61,32 +57,18 @@ function RegionThumb({
   ]);
 
   return (
-    <div className="compare-card">
-      <div className="compare-card-title">{label}</div>
-      <div className="compare-card-body">
-        <div className="compare-thumb">
-          {obj ? (
-            <canvas
-              ref={canvasRef}
-              style={{
-                width: 110,
-                height: 110,
-                borderRadius: 8,
-                display: "block",
-              }}
-            />
-          ) : (
-            <div className="compare-thumb-empty">No representative</div>
-          )}
-        </div>
-        <div className="compare-meta">
-          <div className="compare-meta-line">cells: {size ?? 0}</div>
-          <div className="compare-meta-line">rep id: {repId ?? "N/A"}</div>
-          {typeof compactness === "number" ? (
-            <div className="compare-meta-line">compactness: {compactness.toFixed(3)}</div>
-          ) : null}
-        </div>
-      </div>
+    <div className="compare-thumb">
+      {obj ? (
+        <canvas
+          ref={canvasRef}
+          style={{
+            width: 72,
+            height: 72,
+            borderRadius: 8,
+            display: "block",
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -374,38 +356,36 @@ export default function CompareFeaturePanel({
       <div className="feature-section">
         <div className="feature-title">Representative cells</div>
         <div className="compare-reps">
-          <RegionThumb
-            label="Region 1"
-            repId={regionA?.representative}
-            size={regionA?.size ?? regionA?.ids?.length ?? 0}
-            similarity={regionA?.representative_similarity}
-            compactness={regionA?.compactness}
-            mapById={mapById}
-            iconMappingsByChunk={iconMappingsByChunk}
-            chunkUV={chunkUV}
-            atlasByChannel={atlasByChannel}
-            atlasURL={atlasURL}
-            channels={channels}
-            colors={colors}
-            alphas={alphas}
-            windows={windows}
-          />
-          <RegionThumb
-            label="Region 2"
-            repId={regionB?.representative}
-            size={regionB?.size ?? regionB?.ids?.length ?? 0}
-            similarity={regionB?.representative_similarity}
-            compactness={regionB?.compactness}
-            mapById={mapById}
-            iconMappingsByChunk={iconMappingsByChunk}
-            chunkUV={chunkUV}
-            atlasByChannel={atlasByChannel}
-            atlasURL={atlasURL}
-            channels={channels}
-            colors={colors}
-            alphas={alphas}
-            windows={windows}
-          />
+          <div className="compare-rep-item">
+            <RegionThumb
+              repId={regionA?.representative}
+              mapById={mapById}
+              iconMappingsByChunk={iconMappingsByChunk}
+              chunkUV={chunkUV}
+              atlasByChannel={atlasByChannel}
+              atlasURL={atlasURL}
+              channels={channels}
+              colors={colors}
+              alphas={alphas}
+              windows={windows}
+            />
+            <div className="compare-rep-label">Region 1</div>
+          </div>
+          <div className="compare-rep-item">
+            <RegionThumb
+              repId={regionB?.representative}
+              mapById={mapById}
+              iconMappingsByChunk={iconMappingsByChunk}
+              chunkUV={chunkUV}
+              atlasByChannel={atlasByChannel}
+              atlasURL={atlasURL}
+              channels={channels}
+              colors={colors}
+              alphas={alphas}
+              windows={windows}
+            />
+            <div className="compare-rep-label">Region 2</div>
+          </div>
         </div>
       </div>
 

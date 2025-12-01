@@ -117,7 +117,7 @@ export default function LocalFeaturePanel({
     ctx.clearRect(0, 0, w, h);
     if (!sims.length) return;
 
-    const X_MIN = 0.9;
+    const X_MIN = 0;
     const X_MAX = 1.0;
     const X_SPAN = Math.max(1e-6, X_MAX - X_MIN);
 
@@ -181,9 +181,10 @@ export default function LocalFeaturePanel({
     }
 
     const decimals = X_SPAN < 0.05 ? 3 : 2;
-    const tickVals = [X_MIN, X_MIN + X_SPAN * 0.5, X_MAX];
-    for (let i = 0; i < tickVals.length; i++) {
-      const val = tickVals[i];
+    // more x-axis ticks for better readability (e.g. 0.00, 0.25, 0.50, 0.75, 1.00)
+    const tickCount =10; // will generate tickCount+1 ticks from X_MIN to X_MAX
+    for (let i = 0; i <= tickCount; i++) {
+      const val = X_MIN + (X_SPAN * i) / tickCount;
       const t = (val - X_MIN) / X_SPAN;
       const xx = x0 + t * plotW;
       ctx.fillStyle = "rgba(255,255,255,0.55)";
@@ -196,7 +197,8 @@ export default function LocalFeaturePanel({
     ctx.font = "14px system-ui, -apple-system, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
-    ctx.fillText("cosine similarity", x0 + plotW / 2, h - 2);
+    // move x-axis title slightly further down for better spacing from ticks
+    ctx.fillText("Similarity", x0 + plotW / 2, h);
     ctx.save();
     ctx.translate(12, y0 - plotH / 2);
     ctx.rotate(-Math.PI / 2);
@@ -282,15 +284,7 @@ export default function LocalFeaturePanel({
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // remove colored Δ band, keep text only
-
-    ctx.fillStyle = "rgba(255,255,255,0.55)";
-    ctx.textAlign = "right";
-    ctx.textBaseline = "top";
-    if (isFinite(span) && span > 0) {
-      const decimals2 = Math.max(2, Math.min(6, Math.ceil(-Math.log10(span)) + 1));
-      ctx.fillText(`Δ=${span.toFixed(decimals2)}`, x0 + plotW - 4, y0 - plotH + 4);
-    }
+    // remove Δ label from the plot (Δ was span = max - min of similarities)
     // save geometry for hover
     const barRects = [];
     {
@@ -377,7 +371,7 @@ export default function LocalFeaturePanel({
 
       {(view === "all" || view === "gallery") && (
       <div className="feature-section">
-        <div className="feature-title">Similarity gallery</div>
+        <div className="feature-title">Similarity Gallery (UMAP Space)</div>
         <div className="gallery-t1">
           <div className="gallery-query">
             {queryObj && (
@@ -458,7 +452,7 @@ export default function LocalFeaturePanel({
 
       {(view === "all" || view === "compact") && (
       <div className="feature-section">
-        <div className="feature-title">Local metrics</div>
+        <div className="feature-title">Local Metrics (High-Dim Feature Space)</div>
         <div className="metrics-wrap">
         <div className="metric-card">
           {/* Compactness gauge (smaller is better → use percentile directly) */}
@@ -496,7 +490,7 @@ export default function LocalFeaturePanel({
           </div>
           {/* Difference gauge (larger is more unique → percentile higher is more right) */}
           <div className="metric-row">
-            <div className="metric-name">Difference</div>
+            <div className="metric-name">Difference between Query and Neighbors</div>
             <div className="metric-pad-right">
               <div
                 className="metric-line"

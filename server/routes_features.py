@@ -21,6 +21,7 @@ _GLOBAL_CENTER: np.ndarray | None = None
 _GLOBAL_DIFFS_SORTED: np.ndarray | None = None
 _GLOBAL_CENTER: np.ndarray | None = None
 _GLOBAL_DIFFS_SORTED: np.ndarray | None = None
+_UMAP2: np.ndarray | None = None
 
 
 def _ensure_features() -> Tuple[np.ndarray, np.ndarray]:
@@ -66,6 +67,24 @@ def _get_repr(metric: str) -> np.ndarray:
     return feats_n
 
 
+def _ensure_umap2() -> np.ndarray:
+    """
+    Load / cache the 2D UMAP coordinates used for neighbor selection.
+    This aligns the neighbor topology with what the user sees on the UMAP plot.
+    """
+    global _UMAP2
+    if _UMAP2 is not None:
+        return _UMAP2
+    if not os.path.exists(_CSV_PATH):
+        raise FileNotFoundError("data.csv not found. UMAP-based neighbors require umap2_x/umap2_y.")
+    df = pd.read_csv(_CSV_PATH)
+    if "umap2_x" not in df.columns or "umap2_y" not in df.columns:
+        raise ValueError("data.csv must contain 'umap2_x' and 'umap2_y' columns for UMAP-based neighbors.")
+    umap = df[["umap2_x", "umap2_y"]].to_numpy(dtype=np.float32, copy=False)
+    _UMAP2 = umap
+    return _UMAP2
+
+
 def _topk_cosine(idx: int, k: int, metric: str = "cosine") -> Tuple[np.ndarray, np.ndarray]:
     """Return neighbor indices and similarities (exclude self)."""
     feats, feats_n = _ensure_features()
@@ -90,6 +109,32 @@ def _topk_cosine(idx: int, k: int, metric: str = "cosine") -> Tuple[np.ndarray, 
     return neigh[:k_eff], sims[neigh[:k_eff]]
 
 
+def _topk_umap_l2(idx: int, k: int) -> np.ndarray:
+    """
+    Return indices of the k nearest neighbors using **Euclidean distance**
+    in the 2D UMAP space (umap2_x, umap2_y), excluding self.
+
+    This is used to make the selected neighbors match what the user sees
+    as "nearby" on the UMAP projection, while metrics are still computed
+    in the high-dimensional feature space.
+    """
+    umap = _ensure_umap2()
+    n = umap.shape[0]
+    if not (0 <= idx < n):
+        raise IndexError(f"Index out of range: {idx} (0..{n-1})")
+    k_eff = max(1, min(int(k), n - 1))
+    q = umap[idx]
+    dists = np.linalg.norm(umap - q, axis=1).astype(np.float32)
+    dists[idx] = np.inf
+    if k_eff < n - 1:
+        part_idx = np.argpartition(dists, k_eff)[:k_eff]
+        order = np.argsort(dists[part_idx])
+        neigh = part_idx[order]
+    else:
+        neigh = np.argsort(dists)
+    return neigh[:k_eff]
+
+
 def _compactness(neigh_ids: np.ndarray) -> float:
     """Mean L2 distance to neighbor centroid, on normalized features."""
     _, feats_n = _ensure_features()
@@ -111,13 +156,24 @@ def _difference_magnitude(q_id: int, neigh_ids: np.ndarray) -> float:
     return float(np.linalg.norm(fq - fN))
 
 def _compute_metrics_for(idx: int, k: int, metric: str = "cosine") -> Tuple[float, float]:
-    """Return (compactness, difference) for one query index using given metric."""
+    """
+    Return (compactness, difference) for one query index.
+
+    Neighbor set is selected in UMAP 2D space (Euclidean distance) so that
+    the local structure matches what is visible on the UMAP plot.
+    Metrics themselves are still computed in the normalized feature space.
+    """
     feats, feats_n = _ensure_features()
-    feats_n = _get_repr(metric)
-    n = feats_n.shape[0]
+    _ = feats  # keep reference for potential future use
+    feats_repr = _get_repr(metric)
+    n = feats_repr.shape[0]
     if not (0 <= idx < n):
         idx = int(max(0, min(idx, n - 1)))
-    neigh_ids, _ = _topk_cosine(idx, k, metric=metric)
+    try:
+        neigh_ids = _topk_umap_l2(idx, k)
+    except Exception:
+        # Fallback: if UMAP coordinates are unavailable, revert to cosine-based neighbors
+        neigh_ids, _ = _topk_cosine(idx, k, metric=metric)
     comp = _compactness(neigh_ids)
     diff = _difference_magnitude(idx, neigh_ids)
     return comp, diff
@@ -309,11 +365,22 @@ def features_t1(
     """T1: for a single query cell, return neighbors and local structure stats."""
     try:
         feats, feats_n = _ensure_features()
-        feats_n = _get_repr(metric)
-        n = feats_n.shape[0]
+        feats_repr = _get_repr(metric)
+        n = feats_repr.shape[0]
         if not (0 <= q < n):
             raise HTTPException(status_code=400, detail=f"q out of range (0..{n-1})")
-        neigh_ids, sims = _topk_cosine(q, k, metric=metric)
+        # 1) 在 UMAP 2D 空间（umap2_x, umap2_y）里用欧氏距离选出 top-k 邻居，
+        #    这样「示例图 / UMAP 上的黄色编号」和用户视觉上的“谁在附近”是一致的；
+        # 2) 然后回到高维特征表征 feats_repr 上，对这些邻居计算 cosine 相似度，
+        #    同时在归一化 feature 空间里计算 compactness / difference 等指标。
+        try:
+            neigh_ids = _topk_umap_l2(q, k)
+            q_vec = feats_repr[q]
+            sims = (feats_repr[neigh_ids] @ q_vec).astype(np.float32)
+            np.clip(sims, -1.0, 1.0, out=sims)
+        except Exception:
+            # 如果 UMAP 坐标不可用，就回退到原来的 cosine 邻居逻辑，避免整个接口报错。
+            neigh_ids, sims = _topk_cosine(q, k, metric=metric)
         comp = _compactness(neigh_ids)
         diff = _difference_magnitude(q, neigh_ids)
         # Percentiles (approximate via cached sampling)
