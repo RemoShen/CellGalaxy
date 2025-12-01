@@ -358,8 +358,8 @@ export default function Filter({ setFilteredIds = () => {} }) {
       const rows = rawRows || [];
       if (rows.length === 0) { setFilteredIds(new Set()); setCount(0); return; }
       const exp = (expr || "").trim();
-      if (!exp) { setError("表达式为空"); setFilteredIds(new Set()); setCount(0); return; }
-      if (!isExpressionSafe(exp)) { setError("表达式包含不支持的字符"); setFilteredIds(new Set()); setCount(0); return; }
+      if (!exp) { setError("Expression is empty"); setFilteredIds(new Set()); setCount(0); return; }
+      if (!isExpressionSafe(exp)) { setError("Expression contains unsupported characters"); setFilteredIds(new Set()); setCount(0); return; }
 
       // Build param aliases from known columns (by aliasIndex order)
       const uniqueAliases = Object.keys(aliasIndex);
@@ -368,7 +368,7 @@ export default function Filter({ setFilteredIds = () => {} }) {
         // eslint-disable-next-line no-new-func
         fn = new Function(...uniqueAliases, `return (${exp});`);
       } catch (e) {
-        setError(`表达式语法错误: ${e?.message || e}`);
+        setError(`Expression syntax error: ${e?.message || e}`);
         setFilteredIds(new Set());
         setCount(0);
         return;
