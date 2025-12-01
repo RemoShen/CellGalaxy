@@ -89,13 +89,13 @@ function ClusterPreviewThumb({
 
   return (
     <div
-      className="deck-tooltip"
+      className="deck-tooltip cluster-preview-thumb"
       style={{
         position: "absolute",
         left: x,
         top: y,
         transform: "translate(-50%, -125%)",
-        pointerEvents: "none",
+        pointerEvents: "auto",
         padding: 0,
         background: "transparent",
         borderRadius: 8,
@@ -799,14 +799,15 @@ const Viewer = ({
           return (
             <div
               key={`cluster-annotation-title-${label}`}
+              className="cluster-annotation-title"
               style={{
                 position: "absolute",
                 left: x,
                 top: y,
                 transform: "translate(-50%, -50%)",
-                // Only respond to hover when Option is pressed to show the description;
-                // in other cases, let events pass through to DeckGL so scroll zoom always works.
-                pointerEvents: altPressed ? "auto" : "none",
+                // 始终接收鼠标事件，方便 HoverPreview 判断「当前在 cluster 文本上」并抑制单细胞预览。
+                // 是否显示描述仍由 Alt 键控制（见 onMouseEnter / hoveredAnnotationLabel 逻辑）。
+                pointerEvents: "auto",
                 zIndex: hoveredAnnotationLabel === label ? 100 : 10,
                 // Show default cursor, but no text insertion cursor
                 cursor: "default",

@@ -3,8 +3,6 @@ import "./ClusteringControl.css";
 import { runLLMClusterChannelAvg, runLLMGenerateClusterLabels } from "../api/api";
 
 export default function ClusteringControl({
-  colorOn = false,
-  setColorOn = () => {},
   outlineOn = false,
   setOutlineOn = () => {},
   setLineWidth = () => {},
@@ -23,29 +21,6 @@ export default function ClusteringControl({
     <div className="clu-block">
       <div className="clu-title">Clustering</div>
       <div className="clu-buttons">
-        <button
-          className={`clu-btn ${colorOn ? "on" : ""}`}
-          onClick={() => setColorOn(!colorOn)}
-          title="color overlay for each clustering"
-        >
-          {/* color icon */}
-          <svg
-            className="icon icon-color"
-            width="18"
-            height="18"
-            viewBox="0 0 20 20"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            aria-hidden="true"
-            focusable="false"
-          >
-            <rect x="2.5" y="2.5" width="15" height="15" rx="3.5" stroke="currentColor" opacity="0.35"/>
-            <circle cx="7" cy="7" r="3" fill="#ef4444"/>
-            <circle cx="13" cy="7" r="3" fill="#3b82f6"/>
-            <circle cx="7" cy="13" r="3" fill="#22c55e"/>
-            <circle cx="13" cy="13" r="3" fill="#eab308"/>
-          </svg>
-        </button>
         <button
           className={`clu-btn ${outlineOn ? "on" : ""}`}
           onClick={() => {
@@ -182,7 +157,7 @@ export default function ClusteringControl({
                   setAnnotationModel(val);
                 }}
               >
-                <option value="Biomni">Biomni</option>
+                {/* <option value="Biomni">Biomni</option> */}
                 <option value="MedGemma">MedGemma</option>
                 <option value="BioMistral">BioMistral</option>
               </select>

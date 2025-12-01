@@ -39,8 +39,6 @@ export default function Control({
   setViewMode = () => {},
   
   // —— clustering overlay props ——
-  clusterColorOn = false,
-  setClusterColorOn = () => {},
   clusterOutlineOn = false,
   setClusterOutlineOn = () => {},
   clusterOpacity = 0.25,
@@ -113,8 +111,6 @@ export default function Control({
 
       {/* Clustering overlay control */}
       <ClusteringControl
-        colorOn={clusterColorOn}
-        setColorOn={setClusterColorOn}
         outlineOn={clusterOutlineOn}
         setOutlineOn={setClusterOutlineOn}
         opacity={clusterOpacity}

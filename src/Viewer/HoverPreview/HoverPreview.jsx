@@ -242,7 +242,7 @@ function HoverCellTooltip({
       }}
     >
       <div>id: {object.id}</div>
-      <div>label: {effectiveLabel}</div>
+      <div>cluster: {effectiveLabel}</div>
       <div className="hover-preview-canvas-wrapper">
         <canvas
           ref={canvasRef}
@@ -273,11 +273,14 @@ export default function HoverPreview({
     if (!containerEl) return;
 
     const handleMove = (e) => {
-      // 如果鼠标当前在分析弹窗上方，则不做 hover preview，避免在 intensity 分布窗口上出现单细胞预览。
+      // 如果鼠标当前在分析弹窗 / cluster 代表图 / cluster 文本标签上方，
+      // 则不做 hover preview，避免叠加多个预览元素。
       const target = e.target;
       if (target && typeof target.closest === "function") {
         const inAnalysis = target.closest(".analysis-popover");
-        if (inAnalysis) {
+        const onClusterPreview = target.closest(".cluster-preview-thumb");
+        const onClusterTitle = target.closest(".cluster-annotation-title");
+        if (inAnalysis || onClusterPreview || onClusterTitle) {
           setHoverInfo(null);
           return;
         }
