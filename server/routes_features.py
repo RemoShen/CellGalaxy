@@ -302,7 +302,8 @@ def _coords_for_ids(ids: List[int]) -> List[Dict]:
 @router.get("/features/t1")
 def features_t1(
     q: int = Query(..., description="query id"),
-    k: int = Query(30, ge=1, le=2000),
+    # 默认邻居数量从 30 调整为 8，使局部直方图与上方图库一致（仅展示前 8 个最近邻）
+    k: int = Query(8, ge=1, le=2000),
     metric: str = Query("cosine", regex="^(cosine|cosine_centered)$"),
 ):
     """T1: for a single query cell, return neighbors and local structure stats."""

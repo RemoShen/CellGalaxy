@@ -1,26 +1,31 @@
 Data background (read before answering):
-- The project is based on multiplex immunofluorescence (mIF/CycIF, ~30–50 protein markers). Whole-slide images are decomposed into single-cell crops or fixed-size patches, each keeping global coordinates and a unique ID.
-- Cross-channel features (typically 256–1024 dims) are extracted with pretrained ViT/CNN encoders, capturing morphology, marker expression, and local context; embeddings are projected with UMAP to 2D/3D and linked with the raw spatial view.
-- Your task: using the cluster-level marker behavior (Top/Low lists by within-level z-scores) and size/percentage statistics, produce an English short title and a concise biological description. Do not treat any individual embedding dimension as a direct marker expression; use cautious, evidence-based language.
+- The project uses multiplex immunofluorescence (mIF/CycIF, ~30–50 protein markers). Whole-slide images are decomposed into single-cell crops or fixed-size patches, each retaining global coordinates and a unique ID.
+- Cross-channel features (typically 256–1024 dims) are extracted with pretrained ViT/CNN encoders. These embeddings capture morphology, marker co-expression, and local context, then are projected with UMAP for linked spatial analysis.
+- Importantly, embedding dimensions do NOT correspond directly to marker intensities. The user may only inspect a subset of channels at a time.
 
-You are an expert in immunohistology and spatial omics. Based on the cluster-level statistics below, produce:
-1) A short English title (<= 6 words, no punctuation).
-2) A concise 80–150 word English description that hypothesizes the likely cell type/subtype and state (e.g., activation, suppression, proliferation), grounded in the key high/low markers.
+Additional dataset context:
+The dataset consists of lung cancer tissue regions, where malignant epithelial tumour cells coexist with a diverse and spatially heterogeneous tumour microenvironment. Common components include stromal fibroblasts, endothelial structures, and multiple myeloid and lymphoid immune populations such as monocytes/macrophages, neutrophils, dendritic cells, T cells, NK cells, and B-lineage infiltrates. Lung tumours frequently show variable immune activity, ranging from immune-hot regions with active lymphoid aggregates to immune-cold tumour nests with minimal infiltration. Myeloid-rich niches, including monocyte- and neutrophil-dominated areas, may contribute to tissue remodelling or immunosuppressive states, whereas lymphoid-enriched regions can reflect anti-tumour responses or tertiary lymphoid structures. When interpreting clusters, consider the coexistence of multiple lineages, spatial gradients of inflammation, and niche-specific tumour–immune interactions.
+Your task:
+Using the cluster-level marker behavior (top/high vs. low markers relative to peers in the same level) and size/percentage statistics, produce:
+1) A short English title (≤ 6 words, no punctuation).
+2) A concise 80–150 word English description that hypothesizes the likely cell type/subtype and state (e.g., activation, suppression, proliferation), grounded in functional or phenotypic interpretation.
 
-Use cautious language (e.g., “likely”, “consistent with”). Avoid unnecessary technical jargon (e.g., “z-score”, “hyperparameters”) in the final text. Keep the content relevant to immunology/tissue context.
-
-Important constraint: embeddings are learned across all channels; users may only inspect a subset of channels at a time. Therefore, avoid explicitly naming specific markers/channels in the title and description. Prefer functional/phenotypic phrasing (e.g., “activated cytotoxic T cells”, “epithelial-like”, “macrophage-enriched”) instead of listing marker names. The provided channel lists and averages are for reasoning, not for literal mention.
-Do NOT use placeholders such as "..." or empty strings. Provide concrete, specific content in both fields. Make sure every clustering's title are different.
+Constraints:
+- Do NOT list specific markers/channels in the output. If needed, just use functional/phenotypic terms (e.g., “activated cytotoxic T cells”, “macrophage-enriched”, “epithelial-like”) rather than marker names.
+- Interpret biological states cautiously. Use moderate-confidence language such as “likely”, “consistent with”, “suggestive of”.
+- Avoid over-interpreting exhaustion/activation unless strongly supported.
+- Do not assume a specific tissue type unless clearly indicated.
+- Titles must differ between clusters and reflect their unique phenotype.
+- Do not assume embedding dimensions map to marker expression.
 
 Context:
 - Level: {level_id}
 - Cluster: {cluster_id}
-- High markers (highest z within level): {top_markers}
-- Low markers (lowest z within level): {low_markers}
+- High markers (within-level strongest): {top_markers}
+- Low markers (within-level lowest): {low_markers}
 - Channels: {channel_list}
-- Average intensity per channel (this cluster): {channel_avg_pairs}
+- Average intensity per channel (cluster-level): {channel_avg_pairs}
 
-
-Output format (strict JSON; return only this object, no extra text):
+Output (strict JSON only):
 {{"title":"...", "description":"..."}}
-
+ 

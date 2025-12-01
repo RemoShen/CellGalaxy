@@ -97,7 +97,8 @@ export function prewarm(channel, tile) {
 }
 
 // ===== Features (T1/T2) =====
-export async function fetchT1(queryId, k = 30, signal) {
+// 默认只取前 8 个最近邻，以便和局部相似度直方图 / 图库展示保持一致
+export async function fetchT1(queryId, k = 8, signal) {
   try {
     return await fetchJSON(`${API_BASE}/features/t1?q=${queryId}&k=${k}`, { signal });
   } catch (e) {

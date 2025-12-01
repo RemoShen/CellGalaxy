@@ -171,7 +171,8 @@ export default function AnalysisPopover({
           setMode("single");
           setT2(null);
           setTCompare(null);
-          const res = await fetchT1(Number(command.q), 30, undefined);
+          // 这里改为 8，与局部指标面板中「相似度图库 + 直方图」使用的邻居数量保持一致
+          const res = await fetchT1(Number(command.q), 8, undefined);
           if (!res || res.error) return;
           setT1(res);
           // Highlight query + neighbors
