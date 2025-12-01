@@ -154,7 +154,6 @@ export default function ClusteringControl({
                 tabIndex={0}
                 onClick={() => setModelMenuOpen((v) => !v)}
                 onBlur={(e) => {
-                  // 仅当真正离开整个组件时才关闭菜单
                   if (!e.currentTarget.contains(e.relatedTarget)) {
                     setModelMenuOpen(false);
                   }

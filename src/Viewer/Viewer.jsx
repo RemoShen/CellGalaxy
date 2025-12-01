@@ -188,10 +188,28 @@ const Viewer = ({
       // 为当前 viewer 注册聚焦函数
       const focusKey = `__focusCell_${viewerId}`;
       window[focusKey] = (cellPos) => {
-        if (!cellPos || typeof cellPos.x !== "number" || typeof cellPos.y !== "number") return;
-        const cellX = cellPos.x ?? 0;
-        const cellY = cellPos.y ?? 0;
-        const cellZ = cellPos.z ?? 0;
+        if (!cellPos) return;
+        let cellX;
+        let cellY;
+        let cellZ;
+
+        // 支持通过 id 聚焦：在当前 viewer 的 points 里查找对应 cell，
+        // 由各自 viewer 使用自己的投影坐标（Raw / UMAP 独立）。
+        if (typeof cellPos.id === "number" && Array.isArray(points) && points.length > 0) {
+          const hit = points.find((p) => p.id === cellPos.id);
+          if (!hit) return;
+          cellX = hit.x ?? 0;
+          cellY = hit.y ?? 0;
+          cellZ = hit.z ?? 0;
+        } else if (typeof cellPos.x === "number" && typeof cellPos.y === "number") {
+          // 兼容旧逻辑：直接传入 canvas 空间坐标
+          cellX = cellPos.x ?? 0;
+          cellY = cellPos.y ?? 0;
+          cellZ = cellPos.z ?? 0;
+        } else {
+          return;
+        }
+
         const targetZoom = 14; // 聚焦时的目标zoom级别
         
         setViewState((prev) => ({
@@ -271,7 +289,7 @@ const Viewer = ({
         }
       };
     }
-  }, [viewerId, useUMAP, setViewState, transitionsEnabled]);
+  }, [viewerId, useUMAP, setViewState, transitionsEnabled, points]);
   
   const [semanticLevel, setSemanticLevel] = useState(6); // Default to finest level (1..6)
   const [isSemanticAuto, setIsSemanticAuto] = useState(true);
@@ -929,7 +947,25 @@ const Viewer = ({
           setSimilarityRankings(new Map()); // 清除排名标签
         }}
         onViewRaw={() => {
-          setToolbar((t) => ({ ...t, show: false }));
+          // 在当前空间点击「眼睛」按钮时，让**另一种投影空间**使用自己的投影逻辑按 id 聚焦。
+          try {
+            const obj = toolbar.object;
+            if (!obj || typeof window === "undefined") return;
+
+            if (isUMAPView) {
+              // 当前是 UMAP 视图 → 通知 Raw 视图根据 id 聚焦
+              if (typeof window.__focusCell === "function") {
+                window.__focusCell({ id: obj.id });
+              }
+            } else {
+              // 当前是 Raw 视图 → 通知 UMAP 视图根据 id 聚焦
+              if (typeof window.__focusCellUMAP === "function") {
+                window.__focusCellUMAP({ id: obj.id });
+              }
+            }
+          } finally {
+            setToolbar((t) => ({ ...t, show: false }));
+          }
         }}
         onFindTopK={() => {
           try {
