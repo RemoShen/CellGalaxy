@@ -16,6 +16,7 @@ export default function GroupToolbarContainer({
   setPopoverBounds,
   setPopoverOpen,
   clearSelection,
+  clearSimilarityRankings = () => {},
 }) {
   const regions = Array.isArray(selectedRegions)
     ? selectedRegions.filter((r) => r && r.size > 0)
@@ -110,9 +111,28 @@ export default function GroupToolbarContainer({
   return (
     <GroupToolbar
       show={show}
-       mode={mode}
+      mode={mode}
       onAnalyze={onAnalyze}
-      onClear={() => clearSelection()}
+      onClear={() => {
+        // 清空选中
+        clearSelection();
+         // 同步清空相似度排序标签（Q / 1..8）—— 所有 viewer
+        try {
+          clearSimilarityRankings();
+        } catch {}
+        // 同时关闭当前分析弹窗（如果有的话）
+        try {
+          setPopoverOpen(false);
+          if (typeof setPopoverBounds === "function") {
+            setPopoverBounds(null);
+          }
+          if (typeof setPopoverCmd === "function") {
+            setPopoverCmd(null);
+          }
+        } catch {
+          // ignore
+        }
+      }}
     />
   );
 }

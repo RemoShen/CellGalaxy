@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import "./HoverPreview.css";
+import { projectItemsToScreen } from "../../utils/utils";
 
 // Canvas‑based hover preview (apply intensity mapping according to current window).
 // Try to stay consistent with the WindowedIconLayer shader behavior.
@@ -266,8 +267,15 @@ export default function HoverPreview({
   colors,
   alphas,
   windows,
+  // Approximate on‑screen tile size in pixels; used for hover outline box.
+  computedImageSize = 16,
+  // Whether hover preview should be enabled (e.g. disabled during box/lasso selection).
+  hoverEnabled = true,
+  // When there is an active selection, we disable hover preview on other tiles.
+  selectedIds = new Set(),
 }) {
   const [hoverInfo, setHoverInfo] = useState(null);
+  const [outlineRect, setOutlineRect] = useState(null);
 
   // Use pickObject to uniformly get hovered cells in Raw / UMAP views
   useEffect(() => {
@@ -275,6 +283,20 @@ export default function HoverPreview({
     if (!containerEl) return;
 
     const handleMove = (e) => {
+      // Disable hover entirely when hoverEnabled is false (e.g. box/lasso modes)
+      if (!hoverEnabled) {
+        setHoverInfo(null);
+        return;
+      }
+      // If there is any active selection, disable hover preview entirely
+      if (
+        selectedIds &&
+        typeof selectedIds.size === "number" &&
+        selectedIds.size > 0
+      ) {
+        setHoverInfo(null);
+        return;
+      }
       // If the mouse is over the analysis popover, disable hover preview
       // to avoid showing single‑cell preview on top of intensity panels.
       const target = e.target;
@@ -335,22 +357,66 @@ export default function HoverPreview({
       containerEl.removeEventListener("mousemove", handleMove);
       containerEl.removeEventListener("mouseleave", handleLeave);
     };
-  }, [deckRef, containerRef]);
+  }, [deckRef, containerRef, selectedIds, hoverEnabled]);
+
+  // Compute white outline rectangle around the hovered tile in screen space
+  useEffect(() => {
+    if (!hoverInfo || !hoverInfo.object) {
+      setOutlineRect(null);
+      return;
+    }
+    const projected = projectItemsToScreen({
+      deckRef,
+      containerRef,
+      items: [hoverInfo.object],
+      getWorldPosition: (p) => [p.x, p.y, p.z ?? 0],
+      mapResult: (p, sx, sy, offsetX, offsetY) => ({
+        x: sx + offsetX,
+        y: sy + offsetY,
+      }),
+    });
+    if (!projected || projected.length === 0) {
+      setOutlineRect(null);
+      return;
+    }
+    const { x, y } = projected[0];
+    // Hover 时边框大小直接跟随当前 tile 尺寸；选中与否都不再放大
+    const baseSize = computedImageSize;
+    const size = Math.max(6, baseSize);
+    setOutlineRect({
+      left: x - size / 2,
+      top: y - size / 2,
+      size,
+    });
+  }, [hoverInfo, deckRef, containerRef, computedImageSize]);
 
   if (!hoverInfo || !hoverInfo.object) return null;
 
   return (
-    <HoverCellTooltip
-      info={hoverInfo}
-      containerRef={containerRef}
-      iconMappingsByChunk={iconMappingsByChunk}
-      chunkUV={chunkUV}
-      atlasByChannel={atlasByChannel}
-      channels={channels}
-      colors={colors}
-      alphas={alphas}
-      windows={windows}
-    />
+    <>
+      {outlineRect && (
+        <div
+          className="hover-tile-outline"
+          style={{
+            left: outlineRect.left,
+            top: outlineRect.top,
+            width: outlineRect.size,
+            height: outlineRect.size,
+          }}
+        />
+      )}
+      <HoverCellTooltip
+        info={hoverInfo}
+        containerRef={containerRef}
+        iconMappingsByChunk={iconMappingsByChunk}
+        chunkUV={chunkUV}
+        atlasByChannel={atlasByChannel}
+        channels={channels}
+        colors={colors}
+        alphas={alphas}
+        windows={windows}
+      />
+    </>
   );
 }
 

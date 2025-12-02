@@ -196,13 +196,41 @@ const Viewer = ({
     [selectedRegions]
   );
 
+  // Helper: clear similarity ranking labels in this viewer and, via global
+  // helpers, in the paired viewer as well (Raw / UMAP).
+  const clearAllSimilarityRankings = () => {
+    setSimilarityRankings(new Map());
+    try {
+      if (typeof window !== "undefined") {
+        if (typeof window.__showSimilarityRanking === "function") {
+          window.__showSimilarityRanking(null);
+        }
+        if (typeof window.__showSimilarityRankingUMAP === "function") {
+          window.__showSimilarityRankingUMAP(null);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   const onClick = (info) => {
+    // 在 box / lasso 选择模式下，完全禁止通过点击进行单点选中或取消，
+    // 只能通过拖拽框选 / 套索来更新选区。
+    if (selectionMode !== SELECTION_NONE) {
+      return;
+    }
+
+    // 如果已经有选中的 ID，禁止通过点击进行任何修改（包括点击空白取消），
+    // 只能通过工具条上的叉叉清除。
+    if (selectedIds && selectedIds.size > 0) {
+      return;
+    }
     if (!info?.object) {
-      clearSelection();
       if (toolbar.show) setToolbar({ show: false, x: 0, y: 0, object: null });
       setPopoverOpen(false);
       setPopoverBounds(null);
-      setSimilarityRankings(new Map()); // clear similarity ranking labels
+      clearAllSimilarityRankings(); // clear similarity ranking labels
       return;
     }
     if (altPressed) {
@@ -379,6 +407,38 @@ const Viewer = ({
     setSimilarityRankings,
   });
 
+  // Screen-space positions for currently selected tiles (white outlines).
+  const [selectedTileScreens, setSelectedTileScreens] = useState([]);
+
+  useEffect(() => {
+    if (!selectedIds || selectedIds.size === 0 || !visiblePoints || visiblePoints.length === 0) {
+      setSelectedTileScreens([]);
+      return;
+    }
+    const selectedPointsForOutline = visiblePoints.filter((p) => selectedIds.has(p.id));
+    if (selectedPointsForOutline.length === 0) {
+      setSelectedTileScreens([]);
+      return;
+    }
+
+    const result = projectItemsToScreen({
+      deckRef,
+      containerRef,
+      items: selectedPointsForOutline,
+      getWorldPosition: (p) => [p.x, p.y, p.z ?? 0],
+      mapResult: (p, sx, sy, offsetX, offsetY) => ({
+        id: p.id,
+        x: sx + offsetX,
+        y: sy + offsetY,
+      }),
+    });
+    if (!result || result.length === 0) {
+      setSelectedTileScreens([]);
+      return;
+    }
+    setSelectedTileScreens(result);
+  }, [selectedIds, visiblePoints, viewState, deckRef, containerRef]);
+
   useEffect(() => {
     if (!similarityRankings || similarityRankings.size === 0) {
       setSimilarityRankingScreens([]);
@@ -544,6 +604,7 @@ const Viewer = ({
               setPopoverBounds={setPopoverBounds}
               setPopoverOpen={setPopoverOpen}
               clearSelection={clearSelection}
+        clearSimilarityRankings={clearAllSimilarityRankings}
             />
           </>
         )}
@@ -615,29 +676,26 @@ const Viewer = ({
         onClose={() => {
           setToolbar({ show: false, x: 0, y: 0, object: null });
           clearSelection();
-          setSimilarityRankings(new Map()); // clear similarity ranking labels
+          clearAllSimilarityRankings(); // clear similarity ranking labels
         }}
         onViewRaw={() => {
           // When clicking the "eye" button, ask the other projection view (Raw / UMAP)
           // to focus by id using its own projection coordinates.
-          try {
-            const obj = toolbar.object;
-            if (!obj || typeof window === "undefined") return;
+          const obj = toolbar.object;
+          if (!obj || typeof window === "undefined") return;
 
-            if (isUMAPView) {
-              // Currently in UMAP view → notify Raw view to focus by id
-              if (typeof window.__focusCell === "function") {
-                window.__focusCell({ id: obj.id });
-              }
-            } else {
-              // Currently in Raw view → notify UMAP view to focus by id
-              if (typeof window.__focusCellUMAP === "function") {
-                window.__focusCellUMAP({ id: obj.id });
-              }
+          if (isUMAPView) {
+            // Currently in UMAP view → notify Raw view to focus by id
+            if (typeof window.__focusCell === "function") {
+              window.__focusCell({ id: obj.id });
             }
-          } finally {
-            setToolbar((t) => ({ ...t, show: false }));
+          } else {
+            // Currently in Raw view → notify UMAP view to focus by id
+            if (typeof window.__focusCellUMAP === "function") {
+              window.__focusCellUMAP({ id: obj.id });
+            }
           }
+          // 注意：不要在这里隐藏 toolbar，让用户仍然可以点击叉叉来取消选中
         }}
         onFindTopK={() => {
           try {
@@ -704,7 +762,31 @@ const Viewer = ({
         colors={colors}
         alphas={alphas}
         windows={windows}
+        computedImageSize={computedImageSize}
+        // Disable hover preview in box / lasso selection modes.
+        hoverEnabled={selectionMode === SELECTION_NONE}
+        selectedIds={selectedIds}
       />
+
+      {/* Persistent selection outlines (slightly thinner than hover outline). */}
+      {selectedTileScreens &&
+        selectedTileScreens.length > 0 &&
+        selectedTileScreens.map(({ id, x, y }) => {
+          // 与实际 tile 尺寸一致，选中时不再放大
+          const size = Math.max(6, computedImageSize);
+          return (
+            <div
+              key={`selected-outline-${id}`}
+              className="selected-tile-outline"
+              style={{
+                left: x - size / 2,
+                top: y - size / 2,
+                width: size,
+                height: size,
+              }}
+            />
+          );
+        })}
 
       {/* Semantic Zoom Slider (Manual Control) */}
       {isUMAPView && (

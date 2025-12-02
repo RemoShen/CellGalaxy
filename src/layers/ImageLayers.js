@@ -89,13 +89,10 @@ export default function ImageLayers({
           filterRange: [0, samplingThreshold],
           // ----------------------------------
           getSize: (d) => {
-            const rIdx = getRegionIndexForId?.(d.id);
-            const scale = typeof rIdx === "number" && rIdx >= 0 ? 1.2 : 1.0;
-
             // —— Semantic zoom size adjustment ——
             // Raw view: semanticSizeOn=false, use the original size logic directly.
             if (!semanticSizeOn) {
-              return computedImageSize * scale;
+              return computedImageSize;
             }
 
             // UMAP view: scale size piecewise based on semanticLevel.
@@ -118,7 +115,7 @@ export default function ImageLayers({
               sizeFactor = 0.9;
             }
 
-            return computedImageSize * sizeFactor * scale;
+            return computedImageSize * sizeFactor;
           },
           sizeScale: 1,
           fovy: 45,
@@ -128,7 +125,8 @@ export default function ImageLayers({
           sizeUnits: "pixels",
           billboard: true,
           pickable: true,
-          autoHighlight: true,
+          // Disable built‑in blue highlight; we draw a custom white outline on hover instead.
+          autoHighlight: false,
           loadOptions: { image: { type: "imagebitmap" } },
           // Only animate positions; do not interpolate size changes (e.g. zoom-driven computedImageSize)
           transitions: transitionsEnabled
@@ -172,19 +170,23 @@ export default function ImageLayers({
                 windowMax: winMax01,
                 premultiply: true,
                 getColor: (d) => {
-                  const rIdx = getRegionIndexForId?.(d.id);
-                  if (typeof rIdx === "number" && rIdx >= 0)
-                    return regionColors[Math.min(rIdx, regionColors.length - 1)];
-                  if (hasSelection) {
-                    const dimA = Math.max(30, Math.round(a * 0.35));
-                    return [col[0] ?? 255, col[1] ?? 255, col[2] ?? 255, dimA];
-                  }
                   const activeFilter = filteredIds && filteredIds.size > 0;
+                  // 仅在过滤时变暗，其余保持原通道颜色，不因选中而变色/变暗
                   if (activeFilter && !filteredIds.has(d.id)) {
                     const dimA = Math.min(a, 24);
-                    return [col[0] ?? 255, col[1] ?? 255, col[2] ?? 255, dimA];
+                    return [
+                      col[0] ?? 255,
+                      col[1] ?? 255,
+                      col[2] ?? 255,
+                      dimA,
+                    ];
                   }
-                  return [col[0] ?? 255, col[1] ?? 255, col[2] ?? 255, a];
+                  return [
+                    col[0] ?? 255,
+                    col[1] ?? 255,
+                    col[2] ?? 255,
+                    a,
+                  ];
                 },
                 updateTriggers: {
                   ...baseConfig.updateTriggers,
@@ -207,12 +209,11 @@ export default function ImageLayers({
                 windowMin: 0.0,
                 windowMax: 1.0,
                 getColor: (d) => {
-                  const rIdx = getRegionIndexForId?.(d.id);
-                  if (typeof rIdx === "number" && rIdx >= 0)
-                    return regionColors[Math.min(rIdx, regionColors.length - 1)];
-                  if (hasSelection) return [255, 255, 255, 110];
                   const activeFilter = filteredIds && filteredIds.size > 0;
-                  if (activeFilter && !filteredIds.has(d.id)) return [255, 255, 255, 30];
+                  if (activeFilter && !filteredIds.has(d.id)) {
+                    return [255, 255, 255, 30];
+                  }
+                  // 不再因为选中而改变亮度，选中只通过白色边框表达
                   return [255, 255, 255, 255];
                 },
                 updateTriggers: {
@@ -336,7 +337,7 @@ export default function ImageLayers({
     const base = [];
     if (clusterColorOn) {
       const a = Math.round(Math.min(1, Math.max(0, clusterOpacity)) * 255);
-          base.push(
+      base.push(
         new ScatterplotLayer({
           id: "scatter-cluster-only",
           data: points ?? [],
@@ -364,9 +365,8 @@ export default function ImageLayers({
             return [rgb[0], rgb[1], rgb[2], a];
           },
           getRadius: (d) => {
-            const rIdx = getRegionIndexForId?.(d.id);
-            const scale = typeof rIdx === "number" && rIdx >= 0 ? 1.2 : 1.0;
-            return computedImageSize * 0.72 * scale;
+            // 选中时不再放大点，只通过白色边框表示选中
+            return computedImageSize * 0.72;
           },
           radiusUnits: "pixels",
           pickable: true,
@@ -400,24 +400,24 @@ export default function ImageLayers({
           filterRange: [0, samplingThreshold],
           // ---------------------
           getFillColor: (d) => {
-            const rIdx = getRegionIndexForId?.(d.id);
-            if (typeof rIdx === "number" && rIdx >= 0)
-              return regionColors[Math.min(rIdx, regionColors.length - 1)];
-            if (hasSelection) return [255, 255, 255, 110];
-            const activeFilter = filteredIds && filteredIds.size > 0;
-            if (activeFilter && !filteredIds.has(d.id)) return [255, 255, 255, 30];
+            const activeFilter =
+              filteredIds && filteredIds.size > 0;
+            if (activeFilter && !filteredIds.has(d.id)) {
+              return [255, 255, 255, 30];
+            }
+            // 不再因为选中而调暗其它点，统一保持白色
             return [255, 255, 255, 255];
           },
           stroked: false,
           getRadius: (d) => {
-            const rIdx = getRegionIndexForId?.(d.id);
-            const scale = typeof rIdx === "number" && rIdx >= 0 ? 1.22 : 1.0;
-            return computedImageSize * 0.75 * scale;
+            // 不因为选中而放大散点
+            return computedImageSize * 0.75;
           },
           radiusScale: 1,
           radiusUnits: "pixels",
           pickable: true,
-          autoHighlight: true,
+          // Disable built‑in highlight; we use a DOM outline instead.
+          autoHighlight: false,
           parameters: { depthTest: true },
           // Only animate positions; do not interpolate radius changes
           transitions: transitionsEnabled
@@ -425,8 +425,8 @@ export default function ImageLayers({
                 getPosition: { duration: 600, easing: ease },
               }
             : undefined,
-          updateTriggers: { 
-            getFillColor: [filteredIds, selectedPoints.length], 
+          updateTriggers: {
+            getFillColor: [filteredIds, selectedPoints.length],
             getRadius: [computedImageSize, selectedPoints.length],
             getFilterValue: [selectedPoints.length],
           },
