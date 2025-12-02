@@ -221,11 +221,17 @@ function drawViolinRow(canvas, gkde, skde, channelNames, colors, message, selCou
     };
     const cx = marginL + i * colW + colW * 0.5;
     const halfW = Math.max(8, Math.min(22, colW * 0.35));
+    // For selection, keep a mostly constant visual width so that
+    // the shape reflects intensity distribution rather than being
+    // dominated by absolute sample count. We still encode relative
+    // count very softly (0.4–1.0) so tiny selections don't look
+    // identical to huge ones.
     const denomSel =
       selCountMaxPerChannel && typeof selCountMaxPerChannel[i] === "number"
         ? Math.max(1, selCountMaxPerChannel[i])
         : Math.max(1, nG);
-    const selScale = Math.max(0, Math.min(1, nS / denomSel));
+    const rawScale = Math.max(0, Math.min(1, nS / denomSel));
+    const selScale = 0.4 + 0.6 * rawScale; // clamp to [0.4, 1.0]
     const halfW_sel = halfW * selScale;
 
     ctx.fillStyle = COLOR_GLOBAL;

@@ -299,29 +299,6 @@ export default function LocalFeaturePanel({
         return;
       }
     }
-    // median
-    if (Math.abs(mx - l.medX) < 6 && my >= l.band.top && my <= l.band.bottom) {
-      const wrap = wrapperRef.current;
-      const ww = wrap?.clientWidth || rect.width;
-      const wh = wrap?.clientHeight || rect.height;
-      const tipW = 180, tipH = 50;
-      const lx = Math.max(8, Math.min(mx + 12, ww - tipW - 8));
-      const ly = Math.max(8, Math.min(my + 12, wh - tipH - 8));
-      const mv = typeof l.medianVal === "number" && isFinite(l.medianVal) ? l.medianVal.toFixed(4) : "";
-      setGlobalTooltip({ x: lx, y: ly, lines: [`Median ≈ ${mv}`, "median: half on left, half on right"] });
-      return;
-    }
-    // std band
-    if (mx >= l.band.bl && mx <= l.band.br && my >= l.band.top && my <= l.band.bottom) {
-      const wrap = wrapperRef.current;
-      const ww = wrap?.clientWidth || rect.width;
-      const wh = wrap?.clientHeight || rect.height;
-      const tipW = 180, tipH = 50;
-      const lx = Math.max(8, Math.min(mx + 12, ww - tipW - 8));
-      const ly = Math.max(8, Math.min(my + 12, wh - tipH - 8));
-      setGlobalTooltip({ x: lx, y: ly, lines: ["Std band", "≈ mean ± std"] });
-      return;
-    }
     setGlobalTooltip(null);
   };
   const onMouseLeave = () => setGlobalTooltip(null);
