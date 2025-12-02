@@ -7,11 +7,14 @@ export default function useClusterSelection({
   setSelectedRegions = () => {},
   setSelectedIds = () => {},
   viewerId = "viewer",
+  // Which label field to use for cluster selection (e.g. 'label' or 'cluster_L0'...'cluster_L5')
+  labelKey = "label",
 }) {
   const idsByLabel = useMemo(() => {
     const map = new Map();
     for (const p of points ?? []) {
-      const label = p?.label;
+      const rawVal = p?.[labelKey];
+      const label = Number.isFinite(rawVal) ? rawVal : p?.label;
       const id = p?.id;
       if (label == null || id == null) continue;
       let s = map.get(label);

@@ -176,6 +176,8 @@ const Viewer = ({
     setSelectedRegions,
     setSelectedIds,
     viewerId,
+    // Use the same dynamic label key as outlines / colors, so Alt+点击按当前语义层级选整簇
+    labelKey: clusterLabelKey,
   });
 
   // —— Selection (using screen coordinates) ——
