@@ -30,7 +30,7 @@ uniform float flatColor;
 float t = color.a;
 // Optionally ignore texture intensity to render flat solid color
 if (flatColor < 0.5) {
-  // Windowing: map [windowMin, windowMax] → [0,1]，外侧裁剪，内侧线性拉伸
+  // Windowing: map [windowMin, windowMax] → [0,1]; clamp outside and scale linearly inside.
   if (t <= windowMin) {
     t = 0.0;
   } else if (t >= windowMax) {
@@ -42,9 +42,9 @@ if (flatColor < 0.5) {
 } else {
   t = 1.0;
 }
-// Brightness: 使用窗口后的 t 缩放 RGB（强度越高越亮）
+// Brightness: use windowed t to scale RGB (higher intensity → brighter)
 color.rgb *= t;
-// Alpha: 固定为 1.0，交给混合函数做纯颜色相加（类似 preview 的 plus‑lighter）
+// Alpha: fixed at 1.0; let blending do pure color addition (similar to preview plus‑lighter)
 color.a = 1.0;
 `,
       }

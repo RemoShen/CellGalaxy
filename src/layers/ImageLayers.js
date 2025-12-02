@@ -40,7 +40,7 @@ export default function ImageLayers({
   // GPU Sampling
   samplingThreshold = 1.0,
   selectedIds = null, // Set of IDs that should always be shown
-  // 是否启用点位/尺寸的过渡动画
+  // Whether to enable transition animations for point positions / sizes
   transitionsEnabled = true,
 }) {
 
@@ -130,7 +130,7 @@ export default function ImageLayers({
           pickable: true,
           autoHighlight: true,
           loadOptions: { image: { type: "imagebitmap" } },
-          // 只对位置做过渡动画，大小变化（缩放导致的 computedImageSize 变化）不做插值
+          // Only animate positions; do not interpolate size changes (e.g. zoom-driven computedImageSize)
           transitions: transitionsEnabled
             ? {
                 getPosition: { duration: 600, easing: ease },
@@ -164,8 +164,9 @@ export default function ImageLayers({
                 ...baseConfig,
                 id: `icon-ch${ch}-${chunkId}`,
                 iconAtlas: String(atlasGray),
-                // 使用 plus‑lighter（加法混合）：RGB 真正相加，红+蓝→品红、红+绿→黄，
-                // 更接近 preview 中多通道荧光的混色效果。
+                // Use plus‑lighter (additive blending): RGB values are added,
+                // e.g. red+blue→magenta, red+green→yellow, mimicking
+                // multi‑channel fluorescence mixing in the preview.
                 parameters: { depthTest: false, blend: true, blendFunc: [1, 1], blendEquation: 32774 },
                 windowMin: winMin01,
                 windowMax: winMax01,
@@ -371,7 +372,7 @@ export default function ImageLayers({
           pickable: true,
           autoHighlight: true,
           parameters: { depthTest: true, blend: false },
-          // 只对位置做过渡动画，半径变化（缩放或参数调整）不插值
+          // Only animate positions; do not interpolate radius changes (zoom or parameter adjustments)
           transitions: transitionsEnabled
             ? {
                 getPosition: { duration: 600, easing: ease },
@@ -418,7 +419,7 @@ export default function ImageLayers({
           pickable: true,
           autoHighlight: true,
           parameters: { depthTest: true },
-          // 只对位置做过渡动画，半径变化不做插值
+          // Only animate positions; do not interpolate radius changes
           transitions: transitionsEnabled
             ? {
                 getPosition: { duration: 600, easing: ease },

@@ -164,8 +164,8 @@ export function clampPositionToParent(node, x, y, margin = 8) {
 }
 
 /**
- * Clamp an absolute位置到浏览器可视区域（window），用于需要跨越多个 viewer
- * 容器的悬浮面板（如分析弹窗）。
+ * Clamp an absolute position to the browser viewport (window), useful for
+ * floating panels that may span multiple viewer containers (e.g. analysis popover).
  */
 export function clampPositionToViewport(node, x, y, margin = 8) {
   const rect = node?.getBoundingClientRect
@@ -294,5 +294,58 @@ export function computeConvexHull2D(pts) {
   const hull = lower.concat(upper).map(v => [v.x, v.y]);
   return hull;
 }
+
+
+/**
+ * Batch-project world coordinates from DeckGL into screen (DOM) coordinates.
+ * Suitable for scenarios where DOM elements are overlaid on top of the canvas:
+ *  - cluster representative previews
+ *  - cluster text annotations
+ *  - similarity ranking labels
+ *
+ * Note: this helper only handles coordinate conversion and offset, and is
+ * agnostic to business-specific fields.
+ *
+ * @param {Object} params
+ * @param {React.RefObject} params.deckRef - ref to DeckGL component (.current.deck)
+ * @param {React.RefObject} params.containerRef - outer container ref for DOM offset
+ * @param {Array} params.items - array of items to project
+ * @param {Function} params.getWorldPosition - (item) => [x, y, z] world coordinates
+ * @param {Function} params.mapResult - (item, sx, sy, offsetX, offsetY) => any, mapped result
+ * @returns {Array} array returned from mapResult
+ */
+export function projectItemsToScreen({
+  deckRef,
+  containerRef,
+  items,
+  getWorldPosition,
+  mapResult,
+}) {
+  const deckInstance = deckRef?.current?.deck;
+  const containerEl = containerRef?.current;
+  if (!deckInstance || !containerEl || !Array.isArray(items) || items.length === 0) {
+    return [];
+  }
+
+  const viewports = deckInstance.getViewports?.();
+  if (!viewports || viewports.length === 0) return [];
+  const viewport = viewports[0];
+  const canvas = deckInstance.canvas;
+  if (!canvas) return [];
+
+  const containerRect = containerEl.getBoundingClientRect();
+  const canvasRect = canvas.getBoundingClientRect();
+  const offsetX = canvasRect.left - containerRect.left;
+  const offsetY = canvasRect.top - containerRect.top;
+
+  return items.map((item) => {
+    const world = getWorldPosition(item);
+    const projected = viewport.project(world);
+    const sx = projected?.[0] ?? 0;
+    const sy = projected?.[1] ?? 0;
+    return mapResult(item, sx, sy, offsetX, offsetY);
+  });
+}
+
 
 

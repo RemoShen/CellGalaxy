@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import "./HoverPreview.css";
 
-// Canvas‑based hover preview（按当前 window 做强度映射）
-// 尽量与 WindowedIconLayer 的 shader 行为保持一致。
+// Canvas‑based hover preview (apply intensity mapping according to current window).
+// Try to stay consistent with the WindowedIconLayer shader behavior.
 
-// 简单的全局 Image 缓存，避免重复加载同一张 atlas PNG
+// Simple global Image cache to avoid re-loading the same atlas PNG.
 const _previewImageCache = new Map();
 
 function loadImageCached(src) {
@@ -66,7 +66,7 @@ export async function drawCellPreviewToCanvas({
   const bgX = mapping.x || 0;
   const bgY = mapping.y || 0;
 
-  // offscreen canvas 用于读取灰度值并做通道叠加
+  // Offscreen canvas used to read grayscale values and accumulate channels
   const off = document.createElement("canvas");
   off.width = tile;
   off.height = tile;
@@ -75,7 +75,7 @@ export async function drawCellPreviewToCanvas({
 
   const outW = tile;
   const outH = tile;
-  const out = new Float32Array(outW * outH * 4); // RGBA float 累加
+  const out = new Float32Array(outW * outH * 4); // RGBA float accumulation
 
   const chList =
     Array.isArray(channels) && channels.length > 0
@@ -84,7 +84,8 @@ export async function drawCellPreviewToCanvas({
 
   const byCh = atlasByChannel?.[chunkId] || {};
 
-  // 逐通道叠加：读取灰度 → 按 window 做裁剪 → 乘颜色和 alpha → plus‑lighter 累加
+  // Accumulate channel by channel:
+  // read grayscale → apply window clamp → multiply color and alpha → plus-lighter style sum
   for (const ch of chList) {
     const src = byCh?.[ch];
     if (!src) continue;
@@ -94,7 +95,7 @@ export async function drawCellPreviewToCanvas({
     const col = colors?.[ch] || [255, 255, 255];
     const alpha01 = Math.min(1, Math.max(0, alphas?.[ch] ?? 1));
 
-    // window：原始 0..65535 转成 0..1
+    // window: raw 0..65535 converted to 0..1
     const w = windows?.[ch] || {};
     const rawMin = Number.isFinite(w.min) ? w.min : 0;
     const rawMax = Number.isFinite(w.max) ? w.max : 65535;
@@ -105,7 +106,7 @@ export async function drawCellPreviewToCanvas({
     octx.clearRect(0, 0, outW, outH);
     octx.drawImage(img, bgX, bgY, tile, tile, 0, 0, outW, outH);
     const imageData = octx.getImageData(0, 0, outW, outH);
-    const data = imageData.data; // RGBA, 灰度图：R=G=B
+    const data = imageData.data; // RGBA, grayscale: R=G=B
 
     for (let y = 0; y < outH; y++) {
       for (let x = 0; x < outW; x++) {
@@ -133,12 +134,12 @@ export async function drawCellPreviewToCanvas({
   canvas.height = previewSize * dpr;
   finalCtx.setTransform(1, 0, 0, 1, 0, 0);
   finalCtx.scale(dpr, dpr);
-  // 使用浏览器内置插值，让缩放后的预览更平滑，看起来“分辨率更高”
+  // Use browser built‑in interpolation so scaled previews look smoother
   finalCtx.imageSmoothingEnabled = true;
 
   const outImg = octx.createImageData(outW, outH);
   const dst = outImg.data;
-  // 轻度提亮 + 裁剪，避免整体过暗
+  // Slight tone boost + clamp to avoid overall darkness
   const toneGain = 1.35;
   for (let i = 0; i < outW * outH; i++) {
     const base = i * 4;
@@ -253,7 +254,8 @@ function HoverCellTooltip({
   );
 }
 
-// 组合组件：内部管理 hoverInfo 状态，对外只需传递 deckRef / containerRef 等依赖
+// Composed component: manages internal hoverInfo state,
+// external callers only need to pass deckRef / containerRef and dependencies.
 export default function HoverPreview({
   deckRef,
   containerRef,
@@ -267,13 +269,14 @@ export default function HoverPreview({
 }) {
   const [hoverInfo, setHoverInfo] = useState(null);
 
-  // 使用 pickObject 在 Raw / UMAP 上统一获取 hover 的 cell
+  // Use pickObject to uniformly get hovered cells in Raw / UMAP views
   useEffect(() => {
     const containerEl = containerRef.current;
     if (!containerEl) return;
 
     const handleMove = (e) => {
-      // 如果鼠标当前在分析弹窗上方，则不做 hover preview，避免在 intensity 分布窗口上出现单细胞预览。
+      // If the mouse is over the analysis popover, disable hover preview
+      // to avoid showing single‑cell preview on top of intensity panels.
       const target = e.target;
       if (target && typeof target.closest === "function") {
         const inAnalysis = target.closest(".analysis-popover");
@@ -283,7 +286,8 @@ export default function HoverPreview({
         }
       }
 
-      // 同样，在 cluster 代表图 / cluster 文本标签上方时也不显示 hover preview。
+      // Similarly, when hovering over cluster representative previews / text labels,
+      // do not show hover preview.
       const xClient = e.clientX;
       const yClient = e.clientY;
       try {
@@ -301,7 +305,7 @@ export default function HoverPreview({
           }
         }
       } catch {
-        // 如果查询失败，继续正常逻辑
+        // If querying DOM fails, continue normal logic
       }
       const deckInstance = deckRef.current && deckRef.current.deck;
       const canvas = deckInstance && deckInstance.canvas;

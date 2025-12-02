@@ -15,9 +15,9 @@ export default function ChannelManager({
   // Slider read/write directly uses global windows (min/max for each channel)
   const [tooltip, setTooltip] = useState({ show: false, value: '', x: 0, y: 0 });
 
-  // 将后端 pixel_value_range 统一解析成：
-  // - dataMin/dataMax：真实全局范围（slider 边界）
-  // - autoMin/autoMax：推荐的自动窗位（基于 1%-99% 百分位）
+  // Normalize backend pixel_value_range into:
+  // - dataMin/dataMax: true global range (slider bounds)
+  // - autoMin/autoMax: recommended automatic window (based on 1%-99% percentiles)
   const getChannelRanges = (channel) => {
     const pv = channel?.pixel_value_range || {};
     const dataMin = Number.isFinite(pv.data_min)
@@ -109,7 +109,7 @@ export default function ChannelManager({
       const c = defaultColorFor(channel.id);
       setColors((prev) => ({ ...prev, [channel.id]: c }));
     }
-    // 如果窗口尚未初始化，使用推荐 autoMin/autoMax 作为默认窗位
+    // If window has not been initialized, use recommended autoMin/autoMax as default window.
     const { autoMin, autoMax } = getChannelRanges(channel);
     setWindows((prev) => (
       prev[channel.id]
@@ -240,7 +240,7 @@ export default function ChannelManager({
                 </div>
               </div>
 
-              {/* Auto button: 恢复到推荐自动窗位 */}
+              {/* Auto button: reset to recommended automatic window */}
               <button
                 className="auto-button"
                 onClick={() => {

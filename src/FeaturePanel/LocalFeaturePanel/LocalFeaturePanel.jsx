@@ -79,7 +79,7 @@ export default function LocalFeaturePanel({
   alphas,
   windows,
   points = [],
-  viewerId = "raw", // 用于决定聚焦到哪个 viewer
+  viewerId = "raw", // determine which viewer to focus
 }) {
   const [view, setView] = useState("all"); // 'all' | 'gallery' | 'compact' | 'hist' | 'diff'
   // Similarity histogram x-axis: fix left end at 0.9, right end at 1.0
@@ -388,21 +388,21 @@ export default function LocalFeaturePanel({
                 size={96}
                 label="query"
                 onClick={(obj) => {
-                  // 聚焦到选中的cell
+                  // Focus on the selected cell
                   if (obj && typeof window !== "undefined") {
-                    // 1) 在当前 viewer 中聚焦
+                    // 1) Focus in the current viewer
                     const focusKey = `__focusCell_${viewerId}`;
                     if (window[focusKey]) {
                       window[focusKey]({ id: obj.id });
                     }
-                    // 2) 在 Raw / UMAP 两个 viewer 中都聚焦
+                    // 2) Focus in both Raw and UMAP viewers
                     if (typeof window.__focusCell === "function") {
                       window.__focusCell({ id: obj.id });
                     }
                     if (typeof window.__focusCellUMAP === "function") {
                       window.__focusCellUMAP({ id: obj.id });
                     }
-                    // 3) 在两个 viewer 上都显示相似度排名（query 是 0，neighbors 是 1-N）
+                    // 3) Show similarity rankings in both viewers (query is 0, neighbors are 1-N)
                     if (data) {
                       const rankings = [data.query, ...(data.neighbors || []).map((n) => n.id)].filter(
                         (id) => id != null
@@ -439,21 +439,21 @@ export default function LocalFeaturePanel({
                 size={64}
                 label={`sim ${n.similarity.toFixed(2)}`}
                 onClick={(obj) => {
-                  // 聚焦到选中的cell
+                  // Focus on the selected cell
                   if (obj && typeof window !== "undefined") {
-                    // 1) 在当前 viewer 中聚焦
+                    // 1) Focus in the current viewer
                     const focusKey = `__focusCell_${viewerId}`;
                     if (window[focusKey]) {
                       window[focusKey]({ id: obj.id });
                     }
-                    // 2) 在 Raw / UMAP 两个 viewer 中都聚焦
+                    // 2) Focus in both Raw and UMAP viewers
                     if (typeof window.__focusCell === "function") {
                       window.__focusCell({ id: obj.id });
                     }
                     if (typeof window.__focusCellUMAP === "function") {
                       window.__focusCellUMAP({ id: obj.id });
                     }
-                    // 3) 在两个 viewer 上都显示相似度排名（query 是 0，neighbors 是 1-N）
+                    // 3) Show similarity rankings in both viewers (query is 0, neighbors are 1-N)
                     if (data) {
                       const rankings = [data.query, ...(data.neighbors || []).map((nn) => nn.id)].filter(
                         (id) => id != null

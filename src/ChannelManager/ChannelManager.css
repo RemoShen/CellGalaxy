@@ -165,7 +165,7 @@
   margin-right: 4px;
 }
 
-/* Auto 按钮：做成小号扁平按钮，避免占太大空间 */
+/* Auto button: small flat button to avoid taking too much space */
 .auto-button {
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.35);

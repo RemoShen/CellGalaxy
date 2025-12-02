@@ -97,7 +97,8 @@ export function prewarm(channel, tile) {
 }
 
 // ===== Features (T1/T2) =====
-// 默认只取前 8 个最近邻，以便和局部相似度直方图 / 图库展示保持一致
+// By default, use only the top 8 nearest neighbors to match local similarity
+// histogram / gallery displays.
 export async function fetchT1(queryId, k = 8, signal) {
   try {
     return await fetchJSON(`${API_BASE}/features/t1?q=${queryId}&k=${k}`, { signal });
@@ -141,10 +142,11 @@ export async function fetchRegionRepresentatives(regions, metric = "cosine_cente
 
 export async function fetchViolinSelectionKDE(ids, max = 30000, perc = 99.0, thr = 0.1, channels = null, grid = 192, signal) {
   try {
-    // 对很大的选区做**自适应下采样**：
-    // - 小选区（≤2k）保留更多 id，细节更高；
-    // - 中等选区（2k~1w）只取一部分；
-    // - 超大选区（>1w）只取少量代表点，使计算时间几乎与选区大小无关。
+    // Adaptive downsampling for very large selections:
+    // - small selections (≤2k): keep more ids for higher detail
+    // - medium selections (2k~1w): keep a subset
+    // - very large selections (>1w): keep only a small number of representative ids,
+    //   so computation time is almost independent of selection size.
     const rawIds = Array.isArray(ids) ? ids : [];
     const total = rawIds.length;
     let idLimit;
@@ -158,7 +160,7 @@ export async function fetchViolinSelectionKDE(ids, max = 30000, perc = 99.0, thr
 
     let effectiveIds = rawIds;
     if (effectiveIds.length > idLimit) {
-      // Fisher–Yates 洗牌后取前 idLimit 个，避免总是取前面的点
+      // Fisher–Yates shuffle then take first idLimit to avoid always picking front ids
       const temp = effectiveIds.slice();
       for (let i = temp.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -185,7 +187,7 @@ export async function fetchViolinSelectionKDE(ids, max = 30000, perc = 99.0, thr
   }
 }
 
-// ===== LLM / 预计算 =====
+// ===== LLM / precomputation helpers =====
 export async function runLLMClusterChannelAvg(signal) {
   try {
     const res = await fetch(`${API_BASE}/llm/compute_cluster_channel_avg`, {

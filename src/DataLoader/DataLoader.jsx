@@ -106,8 +106,8 @@ export default function useDataLoader() {
     return 2 * (v - minV) / span - 1;
   }
 
-  // —— Utility: 根据 atlas tile 尺寸推一个合适的默认 imageSize —— 
-  // 需求：tile=64 → 默认 1.5；tile=16 → 默认 0.3；中间线性插值。
+  // —— Utility: derive a reasonable default imageSize from atlas tile size —— 
+  // Requirements: tile=64 → default 1.5; tile=16 → default 0.3; linear interpolation in between.
   function defaultImageSizeForTile(tile) {
     const t = Number(tile) || 16;
     const minTile = 16;
@@ -190,7 +190,7 @@ export default function useDataLoader() {
       let metaJson = await fetchMeta(abort.signal);
       setMeta(metaJson);
 
-      // 根据当前数据的 tile 大小重置 Size Control 默认值
+      // Reset default size control value based on atlas tile size of current dataset
       if (metaJson && metaJson.atlas && metaJson.atlas.tile) {
         setImageSize(defaultImageSizeForTile(metaJson.atlas.tile));
       }

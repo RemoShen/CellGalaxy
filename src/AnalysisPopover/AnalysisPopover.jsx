@@ -32,7 +32,7 @@ export default function AnalysisPopover({
   pointsRaw = [],
   pointsUMAP = [],
   useUMAP = false,
-  viewerId = "raw", // 用于决定聚焦到哪个 viewer
+  viewerId = "raw", // determine which viewer to focus
   // selection highlight hook
   selectedIds = new Set(),
   setSelectedIds = () => {},
@@ -68,7 +68,7 @@ export default function AnalysisPopover({
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // 简单拖拽：允许用户用顶部细条拖动弹窗位置
+  // Simple drag: allow user to drag the popover using the top strip
   const handleDragMouseDown = (e) => {
     e.preventDefault();
     const node = rootRef.current;
@@ -94,7 +94,8 @@ export default function AnalysisPopover({
   useEffect(() => {
     const run = async () => {
       if (!open || !command) return;
-      // 根据选区包围盒 + 锚点自动定位弹窗，尽量避免覆盖选中的 cluster。
+      // Auto-place popover using selection bounding box + anchor,
+      // trying to avoid covering selected clusters.
       try {
         const viewportW = window.innerWidth || 1920;
         const viewportH = window.innerHeight || 1080;
@@ -104,20 +105,21 @@ export default function AnalysisPopover({
         let nx = x;
         let ny = y;
 
-        // 如果有选区包围盒，用简单打分在「上/下/左/右」四个候选位置里选一个与包围盒重叠最小的
+        // If there is a selection bounding box, score 4 candidate positions
+        // (top / bottom / left / right) and select the one with minimal overlap.
         if (selectionBounds && typeof selectionBounds.x0 === "number" && typeof selectionBounds.y0 === "number") {
           const sb = selectionBounds;
           const cxSel = (sb.x0 + sb.x1) / 2;
           const cySel = (sb.y0 + sb.y1) / 2;
           const margin = 16;
           const candidates = [
-            // 上方
+            // Top
             { x: cxSel - approxWidth / 2, y: sb.y0 - approxHeight - margin },
-            // 下方
+            // Bottom
             { x: cxSel - approxWidth / 2, y: sb.y1 + margin },
-            // 左侧
+            // Left
             { x: sb.x0 - approxWidth - margin, y: cySel - approxHeight / 2 },
-            // 右侧
+            // Right
             { x: sb.x1 + margin, y: cySel - approxHeight / 2 },
           ];
           const score = (cand) => {
@@ -125,7 +127,7 @@ export default function AnalysisPopover({
             const y0 = cand.y;
             const x1 = cand.x + approxWidth;
             const y1 = cand.y + approxHeight;
-            // 重叠面积
+            // Intersection area
             const ix0 = Math.max(x0, sb.x0);
             const iy0 = Math.max(y0, sb.y0);
             const ix1 = Math.min(x1, sb.x1);
@@ -133,7 +135,7 @@ export default function AnalysisPopover({
             const w = ix1 - ix0;
             const h = iy1 - iy0;
             const overlap = w > 0 && h > 0 ? w * h : 0;
-            // 超出视口的惩罚
+            // Penalty for exceeding viewport
             const outLeft = Math.max(0, -x0);
             const outRight = Math.max(0, x1 - viewportW);
             const outTop = Math.max(0, -y0);
@@ -153,7 +155,7 @@ export default function AnalysisPopover({
           nx = best.x;
           ny = best.y;
         } else {
-          // 没有包围盒就退回到基于锚点的简单逻辑
+          // Without a bounding box, fall back to simple anchor-based logic
           const preferRight = x < viewportW / 2;
           const preferBelow = y < viewportH / 2;
           nx = preferRight ? x + 24 : x - approxWidth - 24;
@@ -171,7 +173,8 @@ export default function AnalysisPopover({
           setMode("single");
           setT2(null);
           setTCompare(null);
-          // 这里改为 8，与局部指标面板中「相似度图库 + 直方图」使用的邻居数量保持一致
+          // Use k=8 to match the neighbor count used by the local metrics panel
+          // (similarity gallery + histogram).
           const res = await fetchT1(Number(command.q), 8, undefined);
           if (!res || res.error) return;
           setT1(res);
@@ -188,11 +191,13 @@ export default function AnalysisPopover({
           let ids = command.ids.map((v) => Number(v)).filter((v) => Number.isFinite(v));
           if (ids.length === 0) return;
 
-          // 大 group 分析的主要瓶颈在 /features/t2 里做谱排序和相似度矩阵（O(n^2)）。
-          // 这里在前端对 ids 做一次随机下采样，让计算量基本保持在几千级别：
-          //   - small  (<= 2500): 使用全部 ids
-          //   - medium (2500~8000): 控制在 ~4000
-          //   - large  (> 8000): 控制在 ~5000
+          // For large group analysis, the main bottleneck is spectral ordering
+          // and similarity matrix in /features/t2 (O(n^2)).
+          // Here we do a random downsampling of ids on the frontend to keep
+          // computation roughly in the thousands:
+          //   - small  (<= 2500): use all ids
+          //   - medium (2500~8000): limit to ~4000
+          //   - large  (> 8000): limit to ~5000
           const total = ids.length;
           let maxGroup = 2500;
           if (total > 8000) {
@@ -287,7 +292,8 @@ export default function AnalysisPopover({
       ref={rootRef}
       className="analysis-popover"
       style={{ left: pos.x, top: pos.y }}
-      // 在分析弹窗上悬停时，阻断下方 viewer 的 hover 事件，避免 HoverPreview 继续显示。
+      // While hovering on the analysis popover, block hover on the viewer underneath
+      // so HoverPreview does not continue to show single-cell previews.
       onMouseEnter={(e) => {
         try {
           e.stopPropagation();

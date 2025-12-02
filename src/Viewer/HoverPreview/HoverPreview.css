@@ -1,5 +1,5 @@
 .hover-preview-tooltip {
-  /* 复用全局 .deck-tooltip 的基础样式，这里只做细节调整 */
+  /* Reuse global .deck-tooltip base styles; only adjust details here. */
 }
 
 .hover-preview-canvas-wrapper {
@@ -16,7 +16,7 @@
   width: 128px;
   height: 128px;
   display: block;
-  /* 使用默认插值，让缩放后的预览更平滑 */
+  /* Use default interpolation so scaled previews look smoother. */
   image-rendering: auto;
 }
 

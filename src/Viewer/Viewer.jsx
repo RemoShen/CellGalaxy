@@ -19,6 +19,7 @@ import {
   buildIconMappingsByChunk,
   getEventCoordinates,
   ease,
+  projectItemsToScreen,
 } from "../utils/utils";
 import { buildOutlineData2D, clusterColor } from "../utils/clustering";
 import "./Viewer.css";
@@ -31,92 +32,11 @@ import ClusterOutlines from "../ClusterHoverMask/ClusterOutlines";
 import useClusterSelection from "./useClusterSelection";
 import useClusterAnnotations from "./useClusterAnnotations";
 import SemanticZoomControl from "./SemanticZoomControl/SemanticZoomControl";
-import HoverPreview, { drawCellPreviewToCanvas } from "./HoverPreview/HoverPreview";
-
-// Canvas‑based fixed cluster preview thumbnail, sharing the same
-// windowing logic as HoverPreview / main viewer.
-function ClusterPreviewThumb({
-  point,
-  x,
-  y,
-  previewSize,
-  borderColor,
-  iconMappingsByChunk,
-  chunkUV,
-  atlasByChannel,
-  channels,
-  colors,
-  alphas,
-  windows,
-}) {
-  const canvasRef = useRef(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !point) return;
-    let cancelled = false;
-    (async () => {
-      await drawCellPreviewToCanvas({
-        canvas,
-        object: point,
-        iconMappingsByChunk,
-        chunkUV,
-        atlasByChannel,
-        channels,
-        colors,
-        alphas,
-        windows,
-        previewSize,
-      });
-      if (cancelled) return;
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    point,
-    iconMappingsByChunk,
-    chunkUV,
-    atlasByChannel,
-    channels,
-    colors,
-    alphas,
-    windows,
-    previewSize,
-  ]);
-
-  if (!point) return null;
-
-  return (
-    <div
-      className="deck-tooltip cluster-preview-thumb"
-      style={{
-        position: "absolute",
-        left: x,
-        top: y,
-        transform: "translate(-50%, -125%)",
-        // 不拦截鼠标事件，让底层 DeckGL 继续响应缩放/拖拽；
-        // HoverPreview 会通过几何位置判断在代表图上方时抑制单细胞 preview。
-        pointerEvents: "none",
-        padding: 0,
-        background: "transparent",
-        borderRadius: 8,
-        border: `1px solid ${borderColor}`,
-        boxShadow: "none",
-      }}
-    >
-      <canvas
-        ref={canvasRef}
-        style={{
-          width: previewSize,
-          height: previewSize,
-          borderRadius: 8,
-          display: "block",
-        }}
-      />
-    </div>
-  );
-}
+import HoverPreview from "./HoverPreview/HoverPreview";
+import ClusterPreviewThumb from "./ClusterPreviewThumb/ClusterPreviewThumb";
+import ClusterAnnotationOverlay from "./ClusterAnnotationOverlay/ClusterAnnotationOverlay";
+import SimilarityRankingOverlay from "./SimilarityRankingOverlay/SimilarityRankingOverlay";
+import useGlobalCellFocusAndRanking from "./useGlobalCellFocusAndRanking";
 
 const Viewer = ({
   viewerId = "viewer",
@@ -161,7 +81,7 @@ const Viewer = ({
   setSharedZoom,
   // Zoom sensitivity (how strong scroll wheel changes camera distance)
   zoomSpeed = 0.01,
-  // 控制视图和点位置过渡动画（来自 App）
+  // Control view and point transition animations (from App)
   transitionsEnabled = true,
 }) => {
   const isUMAPView =
@@ -182,115 +102,6 @@ const Viewer = ({
     transitionsEnabled,
   });
 
-  // 注册全局聚焦函数，用于从 similarity gallery 等地方聚焦到 cell
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      // 为当前 viewer 注册聚焦函数
-      const focusKey = `__focusCell_${viewerId}`;
-      window[focusKey] = (cellPos) => {
-        if (!cellPos) return;
-        let cellX;
-        let cellY;
-        let cellZ;
-
-        // 支持通过 id 聚焦：在当前 viewer 的 points 里查找对应 cell，
-        // 由各自 viewer 使用自己的投影坐标（Raw / UMAP 独立）。
-        if (typeof cellPos.id === "number" && Array.isArray(points) && points.length > 0) {
-          const hit = points.find((p) => p.id === cellPos.id);
-          if (!hit) return;
-          cellX = hit.x ?? 0;
-          cellY = hit.y ?? 0;
-          cellZ = hit.z ?? 0;
-        } else if (typeof cellPos.x === "number" && typeof cellPos.y === "number") {
-          // 兼容旧逻辑：直接传入 canvas 空间坐标
-          cellX = cellPos.x ?? 0;
-          cellY = cellPos.y ?? 0;
-          cellZ = cellPos.z ?? 0;
-        } else {
-          return;
-        }
-
-        const targetZoom = 14; // 聚焦时的目标zoom级别
-        
-        setViewState((prev) => ({
-          ...prev,
-          target: [cellX, cellY, cellZ],
-          zoom: targetZoom,
-          transitionDuration: transitionsEnabled ? 800 : 0,
-          transitionEasing: transitionsEnabled ? ease : undefined,
-          transitionInterpolator: transitionsEnabled
-            ? new LinearInterpolator(["target", "zoom"])
-            : undefined,
-        }));
-      };
-      
-      // 注册显示相似度排名的函数
-      const rankingKey = `__showSimilarityRanking_${viewerId}`;
-      window[rankingKey] = (rankings) => {
-        if (rankings && typeof rankings === 'object') {
-          const map = new Map();
-          if (Array.isArray(rankings)) {
-            // 如果是数组，假设第一个是 query (rank 0)，后面是 neighbors (rank 1-N)
-            rankings.forEach((id, index) => {
-              if (id != null) {
-                map.set(id, index);
-              }
-            });
-          } else if (rankings instanceof Map) {
-            map = rankings;
-          } else {
-            // 如果是对象，key 是 id，value 是 rank
-            Object.entries(rankings).forEach(([id, rank]) => {
-              const numId = Number(id);
-              const numRank = Number(rank);
-              if (!isNaN(numId) && !isNaN(numRank)) {
-                map.set(numId, numRank);
-              }
-            });
-          }
-          setSimilarityRankings(map);
-        } else {
-          setSimilarityRankings(new Map());
-        }
-      };
-      
-      // 同时注册通用聚焦函数（用于从 similarity gallery 调用）
-      // 根据 viewerId 决定使用哪个 viewer 的聚焦函数
-      if (viewerId === "raw" || (viewerId === "single" && !useUMAP)) {
-        window.__focusCell = window[focusKey];
-        window.__showSimilarityRanking = window[rankingKey];
-      } else if (viewerId === "umap" || (viewerId === "single" && useUMAP)) {
-        window.__focusCellUMAP = window[focusKey];
-        window.__showSimilarityRankingUMAP = window[rankingKey];
-      }
-
-      return () => {
-        // 清理
-        if (window[focusKey]) {
-          delete window[focusKey];
-        }
-        if (window[rankingKey]) {
-          delete window[rankingKey];
-        }
-        if (viewerId === "raw" || (viewerId === "single" && !useUMAP)) {
-          if (window.__focusCell === window[focusKey]) {
-            delete window.__focusCell;
-          }
-          if (window.__showSimilarityRanking === window[rankingKey]) {
-            delete window.__showSimilarityRanking;
-          }
-        } else if (viewerId === "umap" || (viewerId === "single" && useUMAP)) {
-          if (window.__focusCellUMAP === window[focusKey]) {
-            delete window.__focusCellUMAP;
-          }
-          if (window.__showSimilarityRankingUMAP === window[rankingKey]) {
-            delete window.__showSimilarityRankingUMAP;
-          }
-        }
-      };
-    }
-  }, [viewerId, useUMAP, setViewState, transitionsEnabled, points]);
-  
   const [semanticLevel, setSemanticLevel] = useState(6); // Default to finest level (1..6)
   const [isSemanticAuto, setIsSemanticAuto] = useState(true);
   // UMAP view: use multi-level cluster columns (cluster_L0...), raw view: use original label
@@ -317,20 +128,20 @@ const Viewer = ({
     setSemanticLevel(lvl);
   }, [isUMAPView, isSemanticAuto, viewState?.zoom]);
 
-  // Sampling budget for each semantic level (1..6)
+  // Sampling budget for each semantic level (1..6).
   // Maximum number of points per level (controls sampling density); smaller numbers show fewer points.
   // To reduce further, decrease the values below.
   const SAMPLING_BUDGETS = useMemo(
-    // level 1..5 使用有限采样预算；level 6（finest）始终展示全部点。
+    // level 1..5 use limited sampling; level 6 (finest) always shows all points.
     () => [1000, 2500, 8000, 20000, 50000, Infinity],
     []
   );
 
   const samplingThreshold = useMemo(() => {
     if (!points || points.length === 0) return 1.0;
-    // Raw 视图不做采样/semantic zoom，始终使用全部点
+    // Raw view does not use sampling / semantic zoom, always show all points
     if (!isUMAPView) return 1.0;
-    // 如果是最高语义层级（6），展示全部；否则根据预算做下采样
+    // If highest semantic level (6), show all; otherwise downsample based on budget
     if (semanticLevel >= 6) return 1.0;
 
     const idx = Math.max(0, Math.min(SAMPLING_BUDGETS.length - 2, semanticLevel - 1));
@@ -391,7 +202,7 @@ const Viewer = ({
       if (toolbar.show) setToolbar({ show: false, x: 0, y: 0, object: null });
       setPopoverOpen(false);
       setPopoverBounds(null);
-      setSimilarityRankings(new Map()); // 清除排名标签
+      setSimilarityRankings(new Map()); // clear similarity ranking labels
       return;
     }
     if (altPressed) {
@@ -408,14 +219,14 @@ const Viewer = ({
     const { x, y } = getEventCoordinates(info, containerRef);
     setToolbar({ show: true, x, y, object: info.object });
 
-    // Auto-focus to selected cell if zoom is small (画面很小)
+    // Auto-focus to selected cell if current zoom is small (view is far out)
     const currentZoom = typeof viewState?.zoom === "number" ? viewState.zoom : 8;
-    const zoomThreshold = 9; // 如果zoom小于9，认为是"很小的画面"
+    const zoomThreshold = 9; // treat zoom < 9 as "small view"
     if (currentZoom < zoomThreshold && info?.object) {
       const cellX = info.object.x ?? 0;
       const cellY = info.object.y ?? 0;
       const cellZ = info.object.z ?? 0;
-      const targetZoom = 14; // 聚焦时的目标zoom级别
+      const targetZoom = 14; // target zoom level when focusing
       
       setViewState((prev) => ({
         ...prev,
@@ -453,7 +264,7 @@ const Viewer = ({
     if (!isUMAPView) return [];
     if (!clusterPreviewOn) return [];
     if (!points || points.length === 0) return [];
-    // 只在 level 1–5 显示 cluster 预览（倒数第二层也需要 representative image）
+    // Only show cluster previews at level 1–5 (coarse to mid levels)
     if (!clusterRankKey || semanticLevel < 1 || semanticLevel > 5) return [];
 
     const byLabel = new Map();
@@ -483,34 +294,21 @@ const Viewer = ({
       setClusterPreviewScreens([]);
       return;
     }
-    const deckInstance = deckRef.current && deckRef.current.deck;
-    const containerEl = containerRef.current;
-    if (!deckInstance || !containerEl) return;
 
-    const viewports = deckInstance.getViewports();
-    if (!viewports || viewports.length === 0) return;
-    const viewport = viewports[0];
-    const canvas = deckInstance.canvas;
-    if (!canvas) return;
-
-    const containerRect = containerEl.getBoundingClientRect();
-    const canvasRect = canvas.getBoundingClientRect();
-    const offsetX = canvasRect.left - containerRect.left;
-    const offsetY = canvasRect.top - containerRect.top;
-
-    const result = clusterPreviewPoints.map((p) => {
-      const world = [p.x, p.y, p.z ?? 0];
-      const projected = viewport.project(world);
-      const sx = projected?.[0] ?? 0;
-      const sy = projected?.[1] ?? 0;
-      return {
+    const result = projectItemsToScreen({
+      deckRef,
+      containerRef,
+      items: clusterPreviewPoints,
+      getWorldPosition: (p) => [p.x, p.y, p.z ?? 0],
+      mapResult: (p, sx, sy, offsetX, offsetY) => ({
         point: p,
         x: sx + offsetX,
         y: sy + offsetY,
         canvasX: sx,
         canvasY: sy,
-      };
+      }),
     });
+    if (result.length === 0) return;
     setClusterPreviewScreens(result);
   }, [isUMAPView, clusterPreviewOn, clusterPreviewPoints, viewState, deckRef, containerRef]);
 
@@ -541,32 +339,19 @@ const Viewer = ({
       setClusterAnnotationScreens([]);
       return;
     }
-    const deckInstance = deckRef.current && deckRef.current.deck;
-    const containerEl = containerRef.current;
-    if (!deckInstance || !containerEl) return;
 
-    const viewports = deckInstance.getViewports();
-    if (!viewports || viewports.length === 0) return;
-    const viewport = viewports[0];
-    const canvas = deckInstance.canvas;
-    if (!canvas) return;
-
-    const containerRect = containerEl.getBoundingClientRect();
-    const canvasRect = canvas.getBoundingClientRect();
-    const offsetX = canvasRect.left - containerRect.left;
-    const offsetY = canvasRect.top - containerRect.top;
-
-    const result = clusterAnnotationData.map((d) => {
-      const world = d.position || [0, 0, 0];
-      const projected = viewport.project(world);
-      const sx = projected?.[0] ?? 0;
-      const sy = projected?.[1] ?? 0;
-      return {
+    const result = projectItemsToScreen({
+      deckRef,
+      containerRef,
+      items: clusterAnnotationData,
+      getWorldPosition: (d) => d.position || [0, 0, 0],
+      mapResult: (d, sx, sy, offsetX, offsetY) => ({
         ...d,
         x: sx + offsetX,
         y: sy + offsetY,
-      };
+      }),
     });
+    if (result.length === 0) return;
     setClusterAnnotationScreens(result);
   }, [
     isUMAPView,
@@ -583,41 +368,42 @@ const Viewer = ({
   // Screen positions for similarity ranking labels (DOM overlay)
   const [similarityRankingScreens, setSimilarityRankingScreens] = useState([]);
 
+  // Register global focus and similarity ranking handlers,
+  // used by similarity gallery or other modules to focus cells across viewers
+  useGlobalCellFocusAndRanking({
+    viewerId,
+    useUMAP,
+    points,
+    setViewState,
+    transitionsEnabled,
+    setSimilarityRankings,
+  });
+
   useEffect(() => {
     if (!similarityRankings || similarityRankings.size === 0) {
       setSimilarityRankingScreens([]);
       return;
     }
-    const deckInstance = deckRef.current && deckRef.current.deck;
-    const containerEl = containerRef.current;
-    if (!deckInstance || !containerEl) return;
-
-    const viewports = deckInstance.getViewports();
-    if (!viewports || viewports.length === 0) return;
-    const viewport = viewports[0];
-    const canvas = deckInstance.canvas;
-    if (!canvas) return;
-
-    const containerRect = containerEl.getBoundingClientRect();
-    const canvasRect = canvas.getBoundingClientRect();
-    const offsetX = canvasRect.left - containerRect.left;
-    const offsetY = canvasRect.top - containerRect.top;
-
-    // 找到所有需要显示排名的 points
+    // Find all points that should display ranking labels
     const rankedPoints = points.filter((p) => similarityRankings.has(p.id));
-    const result = rankedPoints.map((p) => {
-      const world = [p.x, p.y, p.z ?? 0];
-      const projected = viewport.project(world);
-      const sx = projected?.[0] ?? 0;
-      const sy = projected?.[1] ?? 0;
-      const rank = similarityRankings.get(p.id);
-      return {
+    if (rankedPoints.length === 0) {
+      setSimilarityRankingScreens([]);
+      return;
+    }
+
+    const result = projectItemsToScreen({
+      deckRef,
+      containerRef,
+      items: rankedPoints,
+      getWorldPosition: (p) => [p.x, p.y, p.z ?? 0],
+      mapResult: (p, sx, sy, offsetX, offsetY) => ({
         id: p.id,
         x: sx + offsetX,
         y: sy + offsetY,
-        rank: rank,
-      };
+        rank: similarityRankings.get(p.id),
+      }),
     });
+    if (result.length === 0) return;
     setSimilarityRankingScreens(result);
   }, [similarityRankings, points, viewState, deckRef, containerRef]);
 
@@ -772,7 +558,7 @@ const Viewer = ({
         clusterPreviewScreens.length > 0 &&
         clusterPreviewScreens.map(({ point, x, y }) => {
           if (!point) return null;
-          // 固定代表图尺寸，避免在缩放过程中频繁重算缩略图，提高交互流畅度。
+          // Fixed preview size to avoid recomputing thumbnails during zoom for smoother interaction.
           const previewSize = 64;
           const val = point?.[clusterLabelKey];
           const lbl = Number.isFinite(val) ? val : (point.label ?? 0);
@@ -804,137 +590,22 @@ const Viewer = ({
         semanticLevel >= 1 &&
         semanticLevel <= 6 &&
         clusterAnnotationScreens &&
-        clusterAnnotationScreens.length > 0 &&
-        clusterAnnotationScreens.map((ann) => {
-          const { label, title, description, x, y } = ann;
-          if (!title) return null;
-          const rgb = clusterColor(label);
-          // Same font-size logic as in useClusterAnnotations
-          const z = typeof viewState?.zoom === "number" ? viewState.zoom : 8;
-          const baseSize = 14;
-          const scale = 1 + (z - 8) * 0.1;
-          const size = Math.max(10, Math.min(32, baseSize * scale));
-          return (
-            <div
-              key={`cluster-annotation-title-${label}`}
-              className="cluster-annotation-title"
-              style={{
-                position: "absolute",
-                left: x,
-                top: y,
-                transform: "translate(-50%, -50%)",
-                // 仅在按下 Alt 键查看描述时接收鼠标事件，其余时间让底层 DeckGL 处理缩放/拖拽。
-                pointerEvents: altPressed ? "auto" : "none",
-                zIndex: hoveredAnnotationLabel === label ? 100 : 10,
-                // Show default cursor, but no text insertion cursor
-                cursor: "default",
-                userSelect: "none",
-              }}
-              onMouseEnter={(e) => {
-                // Only show description when Option (Alt) is pressed
-                if (altPressed || e.altKey) {
-                  setHoveredAnnotationLabel(label);
-                }
-              }}
-              onMouseLeave={() =>
-                setHoveredAnnotationLabel((cur) => (cur === label ? null : cur))
-              }
-              onWheel={(e) => {
-                const el = descriptionRefs.current[label];
-                if (el) {
-                  el.scrollTop += e.deltaY;
-                  e.preventDefault();
-                }
-              }}
-            >
-              <div
-                style={{
-                  display: "inline-block",
-                  padding: "2px 6px",
-                  borderRadius: 4,
-                  backgroundColor: `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.67)`,
-                  color: "#fff",
-                  fontSize: `${size}px`,
-                  fontFamily:
-                    "Monaco, Menlo, 'DejaVu Sans Mono', 'Courier New', monospace",
-                  fontWeight: 400,
-                  lineHeight: 1.2,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {title}
-              </div>
-              {hoveredAnnotationLabel === label && description && altPressed && (
-                <div
-                  className="deck-tooltip"
-                  style={{
-                    position: "absolute",
-                    left: "50%",
-                    top: -12,
-                    transform: "translate(-50%, -110%)",
-                    pointerEvents: "none",
-                    width: 320,
-                    maxHeight: 180,
-                    overflowY: "hidden",
-                    textAlign: "left",
-                    whiteSpace: "normal",
-                  }}
-                  ref={(el) => {
-                    if (el) {
-                      descriptionRefs.current[label] = el;
-                    } else {
-                      delete descriptionRefs.current[label];
-                    }
-                  }}
-                >
-                  {description}
-                </div>
-              )}
-            </div>
-          );
-        })}
+        clusterAnnotationScreens.length > 0 && (
+          <ClusterAnnotationOverlay
+            annotations={clusterAnnotationScreens}
+            viewStateZoom={viewState?.zoom}
+            altPressed={altPressed}
+            clusterColor={clusterColor}
+            hoveredAnnotationLabel={hoveredAnnotationLabel}
+            setHoveredAnnotationLabel={setHoveredAnnotationLabel}
+            descriptionRefs={descriptionRefs}
+          />
+        )}
 
       {/* Similarity ranking labels (DOM overlay) */}
-      {similarityRankingScreens && similarityRankingScreens.length > 0 &&
-        similarityRankingScreens.map((item) => {
-          const { id, x, y, rank } = item;
-          const isQuery = rank === 0;
-          return (
-            <div
-              key={`similarity-rank-${id}`}
-              style={{
-                position: "absolute",
-                left: x,
-                top: y,
-                transform: "translate(-50%, -50%)",
-                pointerEvents: "none",
-                zIndex: 200,
-                userSelect: "none",
-              }}
-            >
-              <div
-                style={{
-                  display: "inline-block",
-                  padding: isQuery ? "4px 8px" : "3px 6px",
-                  borderRadius: 4,
-                  backgroundColor: isQuery 
-                    ? "rgba(255, 200, 0, 0.9)" // 查询 cell 用更亮的黄色
-                    : "rgba(255, 215, 0, 0.85)", // 相似 cells 用金黄色
-                  color: "#000",
-                  fontSize: isQuery ? "14px" : "12px",
-                  fontFamily: "Monaco, Menlo, 'DejaVu Sans Mono', 'Courier New', monospace",
-                  fontWeight: isQuery ? 700 : 600,
-                  lineHeight: 1.2,
-                  whiteSpace: "nowrap",
-                  border: `2px solid ${isQuery ? "rgba(255, 150, 0, 1)" : "rgba(255, 200, 0, 1)"}`,
-                  boxShadow: "0 2px 8px rgba(0, 0, 0, 0.4)",
-                }}
-              >
-                {isQuery ? "Q" : rank}
-              </div>
-            </div>
-          );
-        })}
+      {similarityRankingScreens && similarityRankingScreens.length > 0 && (
+        <SimilarityRankingOverlay items={similarityRankingScreens} />
+      )}
 
       {/* Click toolbar */}
       <ClickToolbar
@@ -944,21 +615,22 @@ const Viewer = ({
         onClose={() => {
           setToolbar({ show: false, x: 0, y: 0, object: null });
           clearSelection();
-          setSimilarityRankings(new Map()); // 清除排名标签
+          setSimilarityRankings(new Map()); // clear similarity ranking labels
         }}
         onViewRaw={() => {
-          // 在当前空间点击「眼睛」按钮时，让**另一种投影空间**使用自己的投影逻辑按 id 聚焦。
+          // When clicking the "eye" button, ask the other projection view (Raw / UMAP)
+          // to focus by id using its own projection coordinates.
           try {
             const obj = toolbar.object;
             if (!obj || typeof window === "undefined") return;
 
             if (isUMAPView) {
-              // 当前是 UMAP 视图 → 通知 Raw 视图根据 id 聚焦
+              // Currently in UMAP view → notify Raw view to focus by id
               if (typeof window.__focusCell === "function") {
                 window.__focusCell({ id: obj.id });
               }
             } else {
-              // 当前是 Raw 视图 → 通知 UMAP 视图根据 id 聚焦
+              // Currently in Raw view → notify UMAP view to focus by id
               if (typeof window.__focusCellUMAP === "function") {
                 window.__focusCellUMAP({ id: obj.id });
               }
@@ -972,7 +644,8 @@ const Viewer = ({
             const id = toolbar.object?.id;
             if (id != null) {
               setPopoverCmd({ type: ANALYSIS_SINGLE, q: id });
-              // 将 viewer 内部坐标转换成全局 viewport 坐标，支持跨两个 viewer 覆盖
+              // Convert internal viewer coordinates to global viewport coordinates
+              // so the popover can span across the two viewers.
               const container = containerRef.current;
               const rect = container?.getBoundingClientRect
                 ? container.getBoundingClientRect()

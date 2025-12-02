@@ -75,7 +75,7 @@ export default function App() {
               viewerId="single"
               points={rest.useUMAP ? pointsUMAP : pointsRaw}
               hoverMaskEnabled={!!rest.useUMAP}
-              clusterColorOn={rest.useUMAP ? clusterColorOn : clusterColorOn}
+              clusterColorOn={clusterColorOn}
               clusterOutlineOn={rest.useUMAP ? clusterOutlineOn : false}
               clusterAnnotationOn={rest.useUMAP ? clusterAnnotationOn : false}
               clusterAnnotationModel={clusterAnnotationModel}
