@@ -1,5 +1,5 @@
 import React from "react";
-import { VIEW_DUAL } from "./constants/view";
+import { VIEW_DUAL, VIEW_SINGLE } from "./constants/view";
 import useDataLoader from "./DataLoader/DataLoader";
 import Viewer from "./Viewer/Viewer";
 import Control from "./Control/Control";
@@ -18,7 +18,8 @@ export default function App() {
     ...rest
   } = dataLoader;
   // viewer mode: 'single' | 'dual'
-  const [viewMode, setViewMode] = React.useState(VIEW_DUAL);
+  // Default to single-view mode on first load.
+  const [viewMode, setViewMode] = React.useState(VIEW_SINGLE);
   // Disable transitions during mode switch for smoother UX
   const [disableTransitions, setDisableTransitions] = React.useState(false);
   React.useEffect(() => {

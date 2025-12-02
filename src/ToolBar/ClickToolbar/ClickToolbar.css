@@ -33,6 +33,15 @@
   background: rgba(255,255,255,0.12);
 }
 .tb-btn:active { transform: translateY(1px); }
+
+.tb-btn-disabled,
+.tb-btn-disabled:hover,
+.tb-btn-disabled:active {
+  opacity: 0.35;
+  cursor: default;
+  background: transparent;
+  transform: none;
+}
 .tb-divider {
   width: 1px;
   height: 24px;

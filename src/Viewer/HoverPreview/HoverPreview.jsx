@@ -217,10 +217,6 @@ function HoverCellTooltip({
   if (!info || !info.object) return null;
 
   const { object } = info;
-  const clusterVal = object?.label;
-  const effectiveLabel = Number.isFinite(clusterVal)
-    ? clusterVal
-    : object.label ?? object.id % 11;
 
   let left = info.x;
   let top = info.y;
@@ -243,8 +239,6 @@ function HoverCellTooltip({
         zIndex: 20,
       }}
     >
-      <div>id: {object.id}</div>
-      <div>cluster: {effectiveLabel}</div>
       <div className="hover-preview-canvas-wrapper">
         <canvas
           ref={canvasRef}

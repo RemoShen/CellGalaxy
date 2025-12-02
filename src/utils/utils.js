@@ -327,7 +327,14 @@ export function projectItemsToScreen({
     return [];
   }
 
-  const viewports = deckInstance.getViewports?.();
+  // deck.gl 可能在初始 mount / resize 切换时抛出断言错误，这里做一层保护；
+  // 如果获取 viewports 失败，就直接返回空结果，避免打断 React effect。
+  let viewports;
+  try {
+    viewports = deckInstance.getViewports?.();
+  } catch {
+    return [];
+  }
   if (!viewports || viewports.length === 0) return [];
   const viewport = viewports[0];
   const canvas = deckInstance.canvas;

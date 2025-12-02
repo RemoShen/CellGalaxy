@@ -691,25 +691,31 @@ const Viewer = ({
           clearSelection();
           clearAllSimilarityRankings(); // clear similarity ranking labels
         }}
-        onViewRaw={() => {
-          // When clicking the "eye" button, ask the other projection view (Raw / UMAP)
-          // to focus by id using its own projection coordinates.
-          const obj = toolbar.object;
-          if (!obj || typeof window === "undefined") return;
+        // 在 single 模式下禁用“跳转到另一视图”的导航按钮：
+        // 不传 onViewRaw，让 ClickToolbar 把该按钮渲染为灰色不可点击。
+        onViewRaw={
+          viewerId === "single"
+            ? undefined
+            : () => {
+                // When clicking the "eye" button, ask the other projection view (Raw / UMAP)
+                // to focus by id using its own projection coordinates.
+                const obj = toolbar.object;
+                if (!obj || typeof window === "undefined") return;
 
-          if (isUMAPView) {
-            // Currently in UMAP view → notify Raw view to focus by id
-            if (typeof window.__focusCell === "function") {
-              window.__focusCell({ id: obj.id });
-            }
-          } else {
-            // Currently in Raw view → notify UMAP view to focus by id
-            if (typeof window.__focusCellUMAP === "function") {
-              window.__focusCellUMAP({ id: obj.id });
-            }
-          }
-          // 注意：不要在这里隐藏 toolbar，让用户仍然可以点击叉叉来取消选中
-        }}
+                if (isUMAPView) {
+                  // Currently in UMAP view → notify Raw view to focus by id
+                  if (typeof window.__focusCell === "function") {
+                    window.__focusCell({ id: obj.id });
+                  }
+                } else {
+                  // Currently in Raw view → notify UMAP view to focus by id
+                  if (typeof window.__focusCellUMAP === "function") {
+                    window.__focusCellUMAP({ id: obj.id });
+                  }
+                }
+                // 注意：不要在这里隐藏 toolbar，让用户仍然可以点击叉叉来取消选中
+              }
+        }
         onFindTopK={() => {
           try {
             const id = toolbar.object?.id;

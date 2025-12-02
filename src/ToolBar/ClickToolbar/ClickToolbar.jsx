@@ -7,7 +7,7 @@ export default function ClickToolbar({
   x,
   y,
   onClose = () => {},
-  onViewRaw = () => {},
+  onViewRaw,
   onFindTopK = () => {},
 }) {
   const rootRef = useRef(null);
@@ -28,9 +28,15 @@ export default function ClickToolbar({
   }, []);
   if (!show) return null;
   const style = pos;
+  const viewNavDisabled = typeof onViewRaw !== "function";
   return (
     <div ref={rootRef} className="click-toolbar" style={style}>
-      <button className="tb-btn" title="View meta data" onClick={onViewRaw}>
+      <button
+        className={`tb-btn ${viewNavDisabled ? "tb-btn-disabled" : ""}`}
+        title={viewNavDisabled ? "View in other projection (disabled in single mode)" : "View meta data"}
+        onClick={viewNavDisabled ? undefined : onViewRaw}
+        disabled={viewNavDisabled}
+      >
         <span className="material-icons">visibility</span>
       </button>
       <button className="tb-btn" title="Find similar cells" onClick={onFindTopK}>
