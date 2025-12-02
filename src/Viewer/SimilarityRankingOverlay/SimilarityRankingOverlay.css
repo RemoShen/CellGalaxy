@@ -2,7 +2,8 @@
   position: absolute;
   transform: translate(-50%, -50%);
   pointer-events: none;
-  z-index: 200;
+  /* Keep similarity ranking labels below analysis popover (z-index: 200) */
+  z-index: 150;
   user-select: none;
 }
 
