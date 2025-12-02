@@ -374,7 +374,7 @@ export default function HoverPreview({
       return;
     }
     const { x, y } = projected[0];
-    // Hover 时边框大小直接跟随当前 tile 尺寸；选中与否都不再放大
+    // Match the hover outline size directly to the current tile size; do not enlarge on selection
     const baseSize = computedImageSize;
     const size = Math.max(6, baseSize);
     setOutlineRect({

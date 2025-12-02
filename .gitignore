@@ -10,7 +10,6 @@ public/raw.csv
 public/features.npy
 public/channel_list.csv
 public/cluster_channel_avg.csv
-public/cluster_labels.json
 public/cluster_multilevel_hierarchy.csv
 public/__MACOSX/
 server/__pycache__/

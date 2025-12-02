@@ -327,8 +327,8 @@ export function projectItemsToScreen({
     return [];
   }
 
-  // deck.gl 可能在初始 mount / resize 切换时抛出断言错误，这里做一层保护；
-  // 如果获取 viewports 失败，就直接返回空结果，避免打断 React effect。
+  // deck.gl may throw assertion errors during the initial mount / resize switch.
+  // Protect against that: if getViewports fails, return an empty result to avoid breaking React effects.
   let viewports;
   try {
     viewports = deckInstance.getViewports?.();

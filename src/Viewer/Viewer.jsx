@@ -176,7 +176,7 @@ const Viewer = ({
     setSelectedRegions,
     setSelectedIds,
     viewerId,
-    // Use the same dynamic label key as outlines / colors, so Alt+点击按当前语义层级选整簇
+    // Use the same dynamic label key as outlines/colors so Alt+click selects the whole cluster at the current semantic level
     labelKey: clusterLabelKey,
   });
 
@@ -217,14 +217,14 @@ const Viewer = ({
   };
 
   const onClick = (info) => {
-    // 在 box / lasso 选择模式下，完全禁止通过点击进行单点选中或取消，
-    // 只能通过拖拽框选 / 套索来更新选区。
+    // In box/lasso selection mode, completely disable click-based single selection/deselection;
+    // selection can only be changed via box/lasso drag.
     if (selectionMode !== SELECTION_NONE) {
       return;
     }
 
-    // 如果已经有选中的 ID，禁止通过点击进行任何修改（包括点击空白取消），
-    // 只能通过工具条上的叉叉清除。
+    // If there are already selected IDs, forbid changing anything via clicks (including clicking empty space to clear);
+    // the selection can only be cleared via the toolbar close (X) button.
     if (selectedIds && selectedIds.size > 0) {
       return;
     }
@@ -691,13 +691,13 @@ const Viewer = ({
           clearSelection();
           clearAllSimilarityRankings(); // clear similarity ranking labels
         }}
-        // 在 single 模式下禁用“跳转到另一视图”的导航按钮：
-        // 不传 onViewRaw，让 ClickToolbar 把该按钮渲染为灰色不可点击。
+        // In "single" mode, disable the navigation button that jumps to the other view:
+        // do not pass onViewRaw so ClickToolbar renders the button as disabled.
         onViewRaw={
           viewerId === "single"
             ? undefined
             : () => {
-                // When clicking the "eye" button, ask the other projection view (Raw / UMAP)
+                // When clicking the "eye" button, ask the other projection view (Raw/UMAP)
                 // to focus by id using its own projection coordinates.
                 const obj = toolbar.object;
                 if (!obj || typeof window === "undefined") return;
@@ -713,7 +713,7 @@ const Viewer = ({
                     window.__focusCellUMAP({ id: obj.id });
                   }
                 }
-                // 注意：不要在这里隐藏 toolbar，让用户仍然可以点击叉叉来取消选中
+                // Note: do not hide the toolbar here so the user can still click the X to clear selection
               }
         }
         onFindTopK={() => {
@@ -782,7 +782,7 @@ const Viewer = ({
         alphas={alphas}
         windows={windows}
         computedImageSize={computedImageSize}
-        // Disable hover preview in box / lasso selection modes.
+        // Disable hover preview in box/lasso selection modes
         hoverEnabled={selectionMode === SELECTION_NONE}
         selectedIds={selectedIds}
       />
@@ -791,7 +791,7 @@ const Viewer = ({
       {selectedTileScreens &&
         selectedTileScreens.length > 0 &&
         selectedTileScreens.map(({ id, x, y, color }) => {
-          // 与实际 tile 尺寸一致，选中时不再放大
+          // Match the actual tile size; do not enlarge on selection
           const size = Math.max(6, computedImageSize);
           let borderColor = "rgba(255, 255, 255, 0.9)";
           if (Array.isArray(color) && color.length >= 3) {

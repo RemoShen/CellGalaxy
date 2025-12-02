@@ -114,13 +114,13 @@ export default function GroupToolbarContainer({
       mode={mode}
       onAnalyze={onAnalyze}
       onClear={() => {
-        // 清空选中
+        // Clear current selection
         clearSelection();
-         // 同步清空相似度排序标签（Q / 1..8）—— 所有 viewer
+        // Also clear similarity ranking labels (Q / 1..8) across all viewers
         try {
           clearSimilarityRankings();
         } catch {}
-        // 同时关闭当前分析弹窗（如果有的话）
+        // Close the current analysis popover as well (if any)
         try {
           setPopoverOpen(false);
           if (typeof setPopoverBounds === "function") {

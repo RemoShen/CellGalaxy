@@ -171,7 +171,7 @@ export default function ImageLayers({
                 premultiply: true,
                 getColor: (d) => {
                   const activeFilter = filteredIds && filteredIds.size > 0;
-                  // 仅在过滤时变暗，其余保持原通道颜色，不因选中而变色/变暗
+                  // Only dim when filtered; otherwise keep the original channel color, unaffected by selection
                   if (activeFilter && !filteredIds.has(d.id)) {
                     const dimA = Math.min(a, 24);
                     return [
@@ -198,7 +198,7 @@ export default function ImageLayers({
           }
         }
         if (!clusterColorOn) {
-          const atlasMerged = !addedGray ? atlasURL?.[chunkId] : null;
+                  const atlasMerged = !addedGray ? atlasURL?.[chunkId] : null;
           if (atlasMerged) {
             all.push(
               new WindowedIconLayer({
@@ -213,7 +213,7 @@ export default function ImageLayers({
                   if (activeFilter && !filteredIds.has(d.id)) {
                     return [255, 255, 255, 30];
                   }
-                  // 不再因为选中而改变亮度，选中只通过白色边框表达
+                  // Do not change brightness based on selection; express selection only via the white outline
                   return [255, 255, 255, 255];
                 },
                 updateTriggers: {
@@ -364,8 +364,8 @@ export default function ImageLayers({
             
             return [rgb[0], rgb[1], rgb[2], a];
           },
-          getRadius: (d) => {
-            // 选中时不再放大点，只通过白色边框表示选中
+                getRadius: (d) => {
+                  // Do not enlarge points when selected; selection is indicated only by the white outline
             return computedImageSize * 0.72;
           },
           radiusUnits: "pixels",
@@ -405,12 +405,12 @@ export default function ImageLayers({
             if (activeFilter && !filteredIds.has(d.id)) {
               return [255, 255, 255, 30];
             }
-            // 不再因为选中而调暗其它点，统一保持白色
+            // Do not dim non-selected points; keep them uniformly white
             return [255, 255, 255, 255];
           },
           stroked: false,
           getRadius: (d) => {
-            // 不因为选中而放大散点
+            // Do not enlarge scatter points due to selection
             return computedImageSize * 0.75;
           },
           radiusScale: 1,
