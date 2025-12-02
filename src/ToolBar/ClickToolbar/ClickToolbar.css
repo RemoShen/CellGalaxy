@@ -6,11 +6,12 @@
   align-items: center;
   gap: 4px;
   padding: 6px;
-  background: rgba(28,28,31,0.95);
+  /* Make toolbar fully opaque and ensure it sits above selection outlines */
+  background: rgba(28,28,31,1.0);
   color: #fff;
   border-radius: 10px;
   box-shadow: 0 6px 18px rgba(0,0,0,0.35);
-  z-index: 2000;
+  z-index: 3000;
   backdrop-filter: blur(2px);
   border: 1px solid rgba(255,255,255,0.08);
 }

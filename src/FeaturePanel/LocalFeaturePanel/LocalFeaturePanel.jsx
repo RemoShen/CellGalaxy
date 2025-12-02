@@ -102,7 +102,11 @@ export default function LocalFeaturePanel({
   const canvasRef = useRef(null);
   const layoutRef = useRef({});
   useEffect(() => {
-    const sims = (data?.similarities || []).slice();
+    // Backend returns similarities in [-1, 1] (cosine). Map to [0, 1] for display:
+    //   s01 = (s + 1) / 2
+    const sims = (data?.similarities || [])
+      .map((s) => (typeof s === "number" ? (s + 1) * 0.5 : null))
+      .filter((s) => typeof s === "number" && Number.isFinite(s));
     const canvas = canvasRef.current;
     if (!canvas) return;
     if (view !== "all" && view !== "hist") return;
@@ -231,61 +235,25 @@ export default function LocalFeaturePanel({
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
 
-    // —— KDE smooth curve (distribution shape of embedding-only) ——
-    if (isFinite(span) && span > 0) {
-      const gaussian = (z) => Math.exp(-0.5 * z * z) / Math.sqrt(2 * Math.PI);
-      const bandwidth = Math.max(1e-6, span / bins * 1.2);
-      const steps = 160;
-      const xs = new Array(steps);
-      const ys = new Array(steps);
-      let maxY = 0;
-      for (let i = 0; i < steps; i++) {
-        const t = i / (steps - 1);
-        const xVal = X_MIN + t * X_SPAN;
-        let yVal = 0;
-        for (const s of base) {
-          yVal += gaussian((xVal - s) / bandwidth);
-        }
-        yVal /= ((base.length || 1) * bandwidth);
-        xs[i] = xVal; ys[i] = yVal;
-        if (yVal > maxY) maxY = yVal;
-      }
-      // outline only (grayscale)
+    // —— Smooth curve directly aligned with bar tops —— 
+    // Use bar centers + normalized counts, and draw a simple polyline.
+    if (maxCount > 0 && bins > 1) {
       ctx.strokeStyle = "rgba(255,255,255,0.85)";
       ctx.lineWidth = 1.2;
       ctx.beginPath();
-      for (let i = 0; i < steps; i++) {
-        const t = (xs[i] - X_MIN) / X_SPAN;
+      for (let i = 0; i < bins; i++) {
+        const centerVal = X_MIN + (i + 0.5) * (X_SPAN / bins);
+        const t = (centerVal - X_MIN) / X_SPAN;
         const xx = x0 + t * plotW;
-        const yy = y0 - (ys[i] / maxY) * plotH * 0.9;
+        const normCount = hist[i] / maxCount;
+        const yy = y0 - normCount * plotH * 0.9;
         if (i === 0) ctx.moveTo(xx, yy);
         else ctx.lineTo(xx, yy);
       }
       ctx.stroke();
     }
 
-    // ——  median and std band —— 
-    const sorted = base.slice().sort((a, b) => a - b);
-    const median = sorted[Math.floor(sorted.length / 2)] ?? mean;
-    const variance = base.reduce((acc, v) => acc + (v - mean) * (v - mean), 0) / (base.length || 1);
-    const std = Math.sqrt(Math.max(0, variance));
-    const bandL = Math.max(X_MIN, mean - std);
-    const bandR = Math.min(X_MAX, mean + std);
-    const bl = x0 + ((bandL - X_MIN) / X_SPAN) * plotW;
-    const br = x0 + ((bandR - X_MIN) / X_SPAN) * plotW;
-    ctx.fillStyle = "rgba(255,255,255,0.08)";
-    ctx.fillRect(bl, y0 - plotH, Math.max(0, br - bl), plotH);
-    const medX = x0 + ((median - X_MIN) / X_SPAN) * plotW;
-    ctx.strokeStyle = "rgba(255,255,255,0.6)";
-    ctx.setLineDash([6, 3]);
-    ctx.beginPath();
-    ctx.moveTo(medX, y0);
-    ctx.lineTo(medX, y0 - plotH);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // remove Δ label from the plot (Δ was span = max - min of similarities)
-    // save geometry for hover
+    // save geometry for hover (only bars now; median/std band removed)
     const barRects = [];
     {
       const barSlot2 = plotW / bins;
@@ -301,9 +269,9 @@ export default function LocalFeaturePanel({
     layoutRef.current = {
       x0, y0, plotW, plotH, X_MIN, X_SPAN,
       barRects,
-      medX,
-      medianVal: median,
-      band: { bl, br, top: y0 - plotH, bottom: y0 },
+      medX: null,
+      medianVal: null,
+      band: null,
     };
   }, [data, view]);
 
@@ -437,7 +405,11 @@ export default function LocalFeaturePanel({
                 alphas={alphas}
                 windows={windows}
                 size={64}
-                label={`sim ${n.similarity.toFixed(2)}`}
+              label={`sim ${(() => {
+                const s = typeof n.similarity === "number" ? n.similarity : 0;
+                const s01 = Math.max(0, Math.min(1, (s + 1) * 0.5));
+                return s01.toFixed(2);
+              })()}`}
                 onClick={(obj) => {
                   // Focus on the selected cell
                   if (obj && typeof window !== "undefined") {
