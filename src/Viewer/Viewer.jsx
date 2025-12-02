@@ -428,18 +428,29 @@ const Viewer = ({
       containerRef,
       items: selectedPointsForOutline,
       getWorldPosition: (p) => [p.x, p.y, p.z ?? 0],
-      mapResult: (p, sx, sy, offsetX, offsetY) => ({
-        id: p.id,
-        x: sx + offsetX,
-        y: sy + offsetY,
-      }),
+      mapResult: (p, sx, sy, offsetX, offsetY) => {
+        const rIdx = typeof getRegionIndexForId === "function"
+          ? getRegionIndexForId(p.id)
+          : -1;
+        const col =
+          typeof rIdx === "number" && rIdx >= 0 && regionColors && regionColors.length
+            ? regionColors[Math.min(rIdx, regionColors.length - 1)]
+            : null;
+        return {
+          id: p.id,
+          x: sx + offsetX,
+          y: sy + offsetY,
+          regionIndex: rIdx,
+          color: col,
+        };
+      },
     });
     if (!result || result.length === 0) {
       setSelectedTileScreens([]);
       return;
     }
     setSelectedTileScreens(result);
-  }, [selectedIds, visiblePoints, viewState, deckRef, containerRef]);
+  }, [selectedIds, visiblePoints, viewState, deckRef, containerRef, getRegionIndexForId, regionColors]);
 
   useEffect(() => {
     if (!similarityRankings || similarityRankings.size === 0) {
@@ -773,9 +784,16 @@ const Viewer = ({
       {/* Persistent selection outlines (slightly thinner than hover outline). */}
       {selectedTileScreens &&
         selectedTileScreens.length > 0 &&
-        selectedTileScreens.map(({ id, x, y }) => {
+        selectedTileScreens.map(({ id, x, y, color }) => {
           // 与实际 tile 尺寸一致，选中时不再放大
           const size = Math.max(6, computedImageSize);
+          let borderColor = "rgba(255, 255, 255, 0.9)";
+          if (Array.isArray(color) && color.length >= 3) {
+            const [r, g, b, a] = color;
+            const alpha =
+              typeof a === "number" && a >= 0 && a <= 255 ? a / 255 : 0.95;
+            borderColor = `rgba(${r},${g},${b},${alpha})`;
+          }
           return (
             <div
               key={`selected-outline-${id}`}
@@ -785,6 +803,7 @@ const Viewer = ({
                 top: y - size / 2,
                 width: size,
                 height: size,
+                borderColor,
               }}
             />
           );

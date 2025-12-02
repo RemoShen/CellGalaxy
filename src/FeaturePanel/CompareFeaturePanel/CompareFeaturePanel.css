@@ -44,6 +44,18 @@
   color: rgba(235, 235, 240, 0.9);
 }
 
+/* Match viewer region colors:
+   Region 1 → orange  [255,140,0]
+   Region 2 → cyan    [0,200,255]
+*/
+.region1-label {
+  color: rgba(255, 140, 0, 0.95);
+}
+
+.region2-label {
+  color: rgba(0, 200, 255, 0.95);
+}
+
 .compare-card {
   background: rgba(20, 22, 28, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.08);

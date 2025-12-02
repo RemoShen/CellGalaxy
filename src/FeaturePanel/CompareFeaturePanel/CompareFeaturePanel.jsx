@@ -369,7 +369,7 @@ export default function CompareFeaturePanel({
               alphas={alphas}
               windows={windows}
             />
-            <div className="compare-rep-label">Region 1</div>
+            <div className="compare-rep-label region1-label">Region 1</div>
           </div>
           <div className="compare-rep-item">
             <RegionThumb
@@ -384,7 +384,7 @@ export default function CompareFeaturePanel({
               alphas={alphas}
               windows={windows}
             />
-            <div className="compare-rep-label">Region 2</div>
+            <div className="compare-rep-label region2-label">Region 2</div>
           </div>
         </div>
       </div>
@@ -406,12 +406,12 @@ export default function CompareFeaturePanel({
 
         <div className="compare-violin-stack">
           <div className="compare-row-head">
-            <span>Region 1</span>
+            <span className="region1-label">Region 1</span>
             <span className="compare-row-sub">cells: {regionA?.size ?? regionA?.ids?.length ?? 0}</span>
           </div>
           <canvas ref={row1Ref} className="compare-violin-canvas" />
           <div className="compare-row-head">
-            <span>Region 2</span>
+            <span className="region2-label">Region 2</span>
             <span className="compare-row-sub">cells: {regionB?.size ?? regionB?.ids?.length ?? 0}</span>
           </div>
           <canvas ref={row2Ref} className="compare-violin-canvas" />
