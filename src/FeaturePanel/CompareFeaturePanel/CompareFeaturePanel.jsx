@@ -4,9 +4,10 @@ import "./CompareFeaturePanel.css";
 import { drawCellPreviewToCanvas } from "../../Viewer/HoverPreview/HoverPreview";
 import { API_BASE } from "../../api/api";
 
-// Use grayscale colors for violin plots (avoid conflicting with per-channel colors)
-const COLOR_GLOBAL = "rgba(200,200,200,0.95)"; // global: lighter gray
-const COLOR_SEL = "rgba(120,120,120,0.95)";    // selection: darker gray
+// 使用与 Viewer 一致的区域颜色：
+// Region 1 → 橙色，Region 2 → 青色，仅对两块区域做对比，不再显示全局
+const COLOR_REGION1 = "rgba(255,140,0,0.95)";
+const COLOR_REGION2 = "rgba(0,200,255,0.95)";
 
 function RegionThumb({
   repId,
@@ -102,15 +103,21 @@ function useChannelNames() {
   return channelNames;
 }
 
-function drawViolinRow(canvas, gkde, skde, channelNames, colors, message, selCountMaxPerChannel = null) {
+// 只对两个选区做 intensity 对比：
+// 左半边 = Region 1，右半边 = Region 2
+function drawViolinRow(canvas, kdeA, kdeB, channelNames, colors, message) {
   if (!canvas) return;
-  const chs = Array.isArray(gkde?.channels) ? gkde.channels : null;
+  const chs = Array.isArray(kdeA?.channels)
+    ? kdeA.channels
+    : Array.isArray(kdeB?.channels)
+    ? kdeB.channels
+    : null;
   const hasData =
     chs &&
-    Array.isArray(gkde?.xs) &&
-    Array.isArray(gkde?.ys) &&
-    Array.isArray(skde?.xs) &&
-    Array.isArray(skde?.ys);
+    Array.isArray(kdeA?.xs) &&
+    Array.isArray(kdeA?.ys) &&
+    Array.isArray(kdeB?.xs) &&
+    Array.isArray(kdeB?.ys);
   const ctx0 = canvas.getContext("2d");
   if (!ctx0) return;
   const dpr0 = window.devicePixelRatio || 1;
@@ -168,6 +175,7 @@ function drawViolinRow(canvas, gkde, skde, channelNames, colors, message, selCou
     return marginT + (1 - nonlin) * plotH;
   };
 
+  // 固定使用 16-bit 强度范围，方便不同视野之间对齐。
   let uLo = 0;
   let uHi = 65535;
   const mapToUnion01 = (v) => (v - uLo) / (uHi - uLo + 1e-6);
@@ -197,55 +205,41 @@ function drawViolinRow(canvas, gkde, skde, channelNames, colors, message, selCou
 
   ctx.lineWidth = 1;
   for (let i = 0; i < C; i++) {
-    const xsG = Array.isArray(gkde?.xs?.[i]) ? gkde.xs[i] : [];
-    const ysG = Array.isArray(gkde?.ys?.[i]) ? gkde.ys[i] : [];
-    const maxYG = Math.max(1e-6, ...(ysG || []));
-    const nG = Array.isArray(gkde?.n) && typeof gkde.n[i] === "number" ? gkde.n[i] : 0;
-    const dg = {
-      lo: Array.isArray(xsG) && xsG.length ? xsG[0] : 0,
-      hi: Array.isArray(xsG) && xsG.length ? xsG[xsG.length - 1] : 1,
-      xs: xsG,
-      ys: (ysG || []).map((v) => v / maxYG),
-      n: nG,
+    const xsA = Array.isArray(kdeA?.xs?.[i]) ? kdeA.xs[i] : [];
+    const ysA = Array.isArray(kdeA?.ys?.[i]) ? kdeA.ys[i] : [];
+    const maxYA = Math.max(1e-6, ...(ysA || []));
+    const d1 = {
+      lo: Array.isArray(xsA) && xsA.length ? xsA[0] : 0,
+      hi: Array.isArray(xsA) && xsA.length ? xsA[xsA.length - 1] : 1,
+      xs: xsA,
+      ys: (ysA || []).map((v) => v / maxYA),
     };
-    const xsS = Array.isArray(skde?.xs?.[i]) ? skde.xs[i] : [];
-    const ysS = Array.isArray(skde?.ys?.[i]) ? skde.ys[i] : [];
-    const maxYS = Math.max(1e-6, ...(ysS || []));
-    const nS = Array.isArray(skde?.n) && typeof skde.n[i] === "number" ? skde.n[i] : 0;
-    const ds = {
-      lo: Array.isArray(xsS) && xsS.length ? xsS[0] : 0,
-      hi: Array.isArray(xsS) && xsS.length ? xsS[xsS.length - 1] : 1,
-      xs: xsS,
-      ys: (ysS || []).map((v) => v / maxYS),
-      n: nS,
+
+    const xsB = Array.isArray(kdeB?.xs?.[i]) ? kdeB.xs[i] : [];
+    const ysB = Array.isArray(kdeB?.ys?.[i]) ? kdeB.ys[i] : [];
+    const maxYB = Math.max(1e-6, ...(ysB || []));
+    const d2 = {
+      lo: Array.isArray(xsB) && xsB.length ? xsB[0] : 0,
+      hi: Array.isArray(xsB) && xsB.length ? xsB[xsB.length - 1] : 1,
+      xs: xsB,
+      ys: (ysB || []).map((v) => v / maxYB),
     };
     const cx = marginL + i * colW + colW * 0.5;
     const halfW = Math.max(8, Math.min(22, colW * 0.35));
-    // For selection, keep a mostly constant visual width so that
-    // the shape reflects intensity distribution rather than being
-    // dominated by absolute sample count. We still encode relative
-    // count very softly (0.4–1.0) so tiny selections don't look
-    // identical to huge ones.
-    const denomSel =
-      selCountMaxPerChannel && typeof selCountMaxPerChannel[i] === "number"
-        ? Math.max(1, selCountMaxPerChannel[i])
-        : Math.max(1, nG);
-    const rawScale = Math.max(0, Math.min(1, nS / denomSel));
-    const selScale = 0.4 + 0.6 * rawScale; // clamp to [0.4, 1.0]
-    const halfW_sel = halfW * selScale;
 
-    ctx.fillStyle = COLOR_GLOBAL;
+    // Region 1：左侧
+    ctx.fillStyle = COLOR_REGION1;
     ctx.beginPath();
-    for (let b = 0; b < (dg.xs?.length || 0); b++) {
-      const v = dg.xs[b];
+    for (let b = 0; b < (d1.xs?.length || 0); b++) {
+      const v = d1.xs[b];
       const tUnion = mapToUnion01(v);
       const y = toY(tUnion);
-      const wLeft = (dg.ys[b] || 0) * halfW;
+      const wLeft = (d1.ys[b] || 0) * halfW;
       if (b === 0) ctx.moveTo(cx, y);
       ctx.lineTo(cx - wLeft, y);
     }
-    for (let b = (dg.xs?.length || 0) - 1; b >= 0; b--) {
-      const v = dg.xs[b];
+    for (let b = (d1.xs?.length || 0) - 1; b >= 0; b--) {
+      const v = d1.xs[b];
       const tUnion = mapToUnion01(v);
       const y = toY(tUnion);
       ctx.lineTo(cx, y);
@@ -258,18 +252,19 @@ function drawViolinRow(canvas, gkde, skde, channelNames, colors, message, selCou
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    ctx.fillStyle = COLOR_SEL;
+    // Region 2：右侧
+    ctx.fillStyle = COLOR_REGION2;
     ctx.beginPath();
-    for (let b = 0; b < (ds.xs?.length || 0); b++) {
-      const v = ds.xs[b];
+    for (let b = 0; b < (d2.xs?.length || 0); b++) {
+      const v = d2.xs[b];
       const tUnion = mapToUnion01(v);
       const y = toY(tUnion);
-      const wRight = (ds.ys[b] || 0) * halfW_sel;
+      const wRight = (d2.ys[b] || 0) * halfW;
       if (b === 0) ctx.moveTo(cx, y);
       ctx.lineTo(cx + wRight, y);
     }
-    for (let b = (ds.xs?.length || 0) - 1; b >= 0; b--) {
-      const v = ds.xs[b];
+    for (let b = (d2.xs?.length || 0) - 1; b >= 0; b--) {
+      const v = d2.xs[b];
       const tUnion = mapToUnion01(v);
       const y = toY(tUnion);
       ctx.lineTo(cx, y);
@@ -309,49 +304,22 @@ export default function CompareFeaturePanel({
     for (const p of points) m.set(p.id, p);
     return m;
   }, [points]);
-  const row1Ref = useRef(null);
-  const row2Ref = useRef(null);
+
+  const violinRef = useRef(null);
 
   const regionA = data?.regions?.[0] || {};
   const regionB = data?.regions?.[1] || {};
-  const gkde = data?.global_kde;
-
-  const selCountsA = Array.isArray(regionA?.sel_kde?.n) ? regionA.sel_kde.n : [];
-  const selCountsB = Array.isArray(regionB?.sel_kde?.n) ? regionB.sel_kde.n : [];
-  const selCountMaxPerChannel = useMemo(() => {
-    const len = Math.max(selCountsA.length, selCountsB.length);
-    const out = new Array(len);
-    for (let i = 0; i < len; i++) {
-      const a = typeof selCountsA[i] === "number" ? selCountsA[i] : 0;
-      const b = typeof selCountsB[i] === "number" ? selCountsB[i] : 0;
-      out[i] = Math.max(a, b);
-    }
-    return out;
-  }, [selCountsA, selCountsB]);
 
   useEffect(() => {
     drawViolinRow(
-      row1Ref.current,
-      gkde,
+      violinRef.current,
       regionA?.sel_kde,
-      channelNames,
-      colors,
-      "Region 1: no data",
-      selCountMaxPerChannel
-    );
-  }, [gkde, regionA, channelNames, colors, selCountMaxPerChannel]);
-
-  useEffect(() => {
-    drawViolinRow(
-      row2Ref.current,
-      gkde,
       regionB?.sel_kde,
       channelNames,
       colors,
-      "Region 2: no data",
-      selCountMaxPerChannel
+      "No intensity data for the two regions"
     );
-  }, [gkde, regionB, channelNames, colors, selCountMaxPerChannel]);
+  }, [regionA, regionB, channelNames, colors]);
 
   if (!data) {
     return <div className="loading">No comparison data</div>;
@@ -401,11 +369,11 @@ export default function CompareFeaturePanel({
           <div className="gfp-legend">
             <div className="gfp-legend-item">
               <span className="gfp-swatch gfp-swatch--global" />
-              <span className="gfp-legend-label">Global</span>
+              <span className="gfp-legend-label">Region 1</span>
             </div>
             <div className="gfp-legend-item">
               <span className="gfp-swatch gfp-swatch--selection" />
-              <span className="gfp-legend-label">Selection</span>
+              <span className="gfp-legend-label">Region 2</span>
             </div>
           </div>
         </div>
@@ -415,12 +383,11 @@ export default function CompareFeaturePanel({
             <span className="region1-label">Region 1</span>
             <span className="compare-row-sub">cells: {regionA?.size ?? regionA?.ids?.length ?? 0}</span>
           </div>
-          <canvas ref={row1Ref} className="compare-violin-canvas" />
           <div className="compare-row-head">
             <span className="region2-label">Region 2</span>
             <span className="compare-row-sub">cells: {regionB?.size ?? regionB?.ids?.length ?? 0}</span>
           </div>
-          <canvas ref={row2Ref} className="compare-violin-canvas" />
+          <canvas ref={violinRef} className="compare-violin-canvas" />
         </div>
       </div>
     </div>
