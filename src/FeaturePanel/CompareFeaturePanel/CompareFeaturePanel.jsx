@@ -4,10 +4,10 @@ import "./CompareFeaturePanel.css";
 import { drawCellPreviewToCanvas } from "../../Viewer/HoverPreview/HoverPreview";
 import { API_BASE } from "../../api/api";
 
-// 使用与 Viewer 一致的区域颜色：
-// Region 1 → 橙色，Region 2 → 青色，仅对两块区域做对比，不再显示全局
-const COLOR_REGION1 = "rgba(255,140,0,0.95)";
-const COLOR_REGION2 = "rgba(0,200,255,0.95)";
+// Violin 形状本身仍然用中性白/灰两色区分 Region 1 / Region 2，
+// 颜色提示通过文字（Region 1 橙色 / Region 2 青色）来表达。
+const COLOR_REGION1 = "rgba(230,230,230,0.95)"; // Region 1 → 较亮的白
+const COLOR_REGION2 = "rgba(130,130,130,0.95)"; // Region 2 → 较深的灰
 
 function RegionThumb({
   repId,
@@ -103,8 +103,6 @@ function useChannelNames() {
   return channelNames;
 }
 
-// 只对两个选区做 intensity 对比：
-// 左半边 = Region 1，右半边 = Region 2
 function drawViolinRow(canvas, kdeA, kdeB, channelNames, colors, message) {
   if (!canvas) return;
   const chs = Array.isArray(kdeA?.channels)
@@ -180,15 +178,15 @@ function drawViolinRow(canvas, kdeA, kdeB, channelNames, colors, message) {
   let uHi = 65535;
   const mapToUnion01 = (v) => (v - uLo) / (uHi - uLo + 1e-6);
 
+  // y 轴显示改为 0–1（归一化强度），只是显示，不改变内部使用的 0–65535 映射。
   ctx.textAlign = "right";
   ctx.fillStyle = "rgba(255,255,255,0.55)";
   const numTicks = 4;
   for (let i = 0; i < numTicks; i++) {
     const p = i / (numTicks - 1);
     const y = marginT + p * plotH;
-    const t = Math.pow(1 - p, 1 / gammaY);
-    const v = uLo + t * (uHi - uLo);
-    const label = Math.round(v).toString();
+    const v01 = 1 - p; // 顶部 1，底部 0
+    const label = v01.toFixed(2).replace(/\.00$/, "");
     ctx.fillText(label, marginL - 6, y + 4);
   }
 
@@ -326,10 +324,19 @@ export default function CompareFeaturePanel({
   }
 
   return (
-    <div>
-      <div className="feature-section">
-        <div className="feature-title">Representative cells</div>
-        <div className="compare-reps">
+    <div className="feature-section">
+      <div className="gfp-header gfp-header--center">
+        <div className="feature-title">Comparative Analysis of the Two Selected Regions</div>
+      </div>
+
+      {/* 第二行：左侧小标题 + 右侧两个代表性细胞缩略图 */}
+      <div className="compare-reps-row">
+        <div className="compare-reps-title">
+          <span>Representative</span>
+          <br />
+          <span>images</span>
+        </div>
+        <div className="compare-reps compare-reps-inline">
           <div className="compare-rep-item">
             <RegionThumb
               repId={regionA?.representative}
@@ -363,32 +370,24 @@ export default function CompareFeaturePanel({
         </div>
       </div>
 
-      <div className="feature-section">
-        <div className="gfp-header">
-          <div className="feature-title">Two-region comparison</div>
+      <div className="compare-violin-stack">
+        <div className="compare-violin-caption-row">
+          <div className="compare-violin-caption">
+          Distribution of Intensity Values 
+          in Two Regions
+          </div>
           <div className="gfp-legend">
             <div className="gfp-legend-item">
               <span className="gfp-swatch gfp-swatch--global" />
-              <span className="gfp-legend-label">Region 1</span>
+              <span className="gfp-legend-label region1-label">Region 1</span>
             </div>
             <div className="gfp-legend-item">
               <span className="gfp-swatch gfp-swatch--selection" />
-              <span className="gfp-legend-label">Region 2</span>
+              <span className="gfp-legend-label region2-label">Region 2</span>
             </div>
           </div>
         </div>
-
-        <div className="compare-violin-stack">
-          <div className="compare-row-head">
-            <span className="region1-label">Region 1</span>
-            <span className="compare-row-sub">cells: {regionA?.size ?? regionA?.ids?.length ?? 0}</span>
-          </div>
-          <div className="compare-row-head">
-            <span className="region2-label">Region 2</span>
-            <span className="compare-row-sub">cells: {regionB?.size ?? regionB?.ids?.length ?? 0}</span>
-          </div>
-          <canvas ref={violinRef} className="compare-violin-canvas" />
-        </div>
+        <canvas ref={violinRef} className="compare-violin-canvas" />
       </div>
     </div>
   );

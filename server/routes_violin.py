@@ -141,7 +141,7 @@ def _sample_channel_selection(arr, channel_idx: int, sel_ids: np.ndarray, max_sa
 def _sample_channel_selection_cell_means(arr, channel_idx: int, sel_ids: np.ndarray, max_cells: int) -> np.ndarray:
     """
     For a given channel and a list of **cell ids**, sample up to `max_cells`
-    cells and return their per‑cell mean intensities over all pixels.
+    cells and return one scalar per cell as its intensity summary.
 
     Compared to pixel-level sampling, this:
       - treats each cell equally (not weighted by area),
@@ -174,10 +174,10 @@ def _sample_channel_selection_cell_means(arr, channel_idx: int, sel_ids: np.ndar
                 continue
             # Flatten to [n_cells_in_chunk, H*W]
             flat2d = block_sel.reshape(block_sel.shape[0], -1)
-            # Use a high percentile (e.g. 99th) per cell as its intensity proxy.
-            # This focuses on the bright foreground pixels and avoids the mean
-            # being dominated by dark background inside the cell mask.
-            per_cell = np.percentile(flat2d, 99.0, axis=1).astype(np.float32)
+            # Use a **high but not extreme percentile (95th)** per cell as the
+            # summary intensity. Compared with pure mean,这会把真正亮的细胞
+            # 拉得更开，但又不会像 99/100 分位那样被单点噪声主导。
+            per_cell = np.percentile(flat2d, 95.0, axis=1).astype(np.float32)
             vals.append(per_cell)
         except Exception:
             continue
@@ -307,7 +307,8 @@ def violin_selection(payload: Dict = Body(...)):
         arr = open_zarr()
         C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(arr)
         if isinstance(chs, list) and len(chs) > 0:
-            ch_sel = [int(c) for c in chs if 0 <= int(c) < int(C)]
+            ch_str = ",".join(str(int(c)) for c in chs)
+            ch_sel = _ensure_channel_list(int(C), ch_str)
         else:
             ch_sel = list(range(int(C)))
         ids_arr = np.array([int(x) for x in ids], dtype=np.int64)
@@ -352,17 +353,17 @@ def violin_selection_kde(payload: Dict = Body(...)):
         if not isinstance(ids, list) or len(ids) == 0:
             raise HTTPException(status_code=400, detail="ids must be a non-empty list")
         chs = payload.get("channels", None)
-        # max_samples 控制每个通道用于 KDE 的前景像素上限。
-        # 把默认值从 100000 略微降到 60000，在大区域时可以明显减轻
-        # CPU 负担，同时形状仍然足够平滑。
+
         max_samples = int(payload.get("max", 60000))
         perc = float(payload.get("perc", 99.0))
         thr = float(payload.get("thr", 0))
         grid = int(payload.get("grid", 256))
         arr = open_zarr()
         C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(arr)
+
         if isinstance(chs, list) and len(chs) > 0:
-            ch_sel = [int(c) for c in chs if 0 <= int(c) < int(C)]
+            ch_str = ",".join(str(int(c)) for c in chs)
+            ch_sel = _ensure_channel_list(int(C), ch_str)
         else:
             ch_sel = list(range(int(C)))
         ids_arr = np.array([int(x) for x in ids], dtype=np.int64)
