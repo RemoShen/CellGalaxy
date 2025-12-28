@@ -57,10 +57,8 @@ export default function ClusterAnnotationOverlay({
         <div
           className="cluster-annotation-title-text"
           style={{
-            // 使用固定的深色半透明背景，避免金黄色/亮黄色影响可读性
-            backgroundColor: "rgba(0, 0, 0, 0.7)",
-            // 文本颜色沿用聚类颜色，这样仍然可以通过文字颜色区分不同簇
-            color: `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`,
+            backgroundColor: `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.95)`,
+            color: "#ffffff",
             fontSize: `${size}px`,
           }}
         >
