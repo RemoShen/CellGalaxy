@@ -166,26 +166,44 @@ function drawViolinRow(canvas, kdeA, kdeB, channelNames, colors, message) {
   ctx.fillRect(0, 0, w, h);
 
   const colW = plotW / C;
-  const gammaY = 4.0;
+  // 低值很多时压缩底部、拉伸高值区，让上方分布可见。gammaY > 1 时高值占更多纵轴
+  const gammaY = 0.5;
   const toY = (t01) => {
     const u = Math.max(0, Math.min(1, t01));
     const nonlin = Math.pow(u, gammaY);
     return marginT + (1 - nonlin) * plotH;
   };
 
-  // 固定使用 16-bit 强度范围，方便不同视野之间对齐。
-  let uLo = 0;
-  let uHi = 65535;
-  const mapToUnion01 = (v) => (v - uLo) / (uHi - uLo + 1e-6);
+  // 每通道用两区域实际数据范围 [lo,hi] 的并集映射 Y，避免整条压到底部
+  const unionRangeForChannel = (i) => {
+    const loA = Array.isArray(kdeA?.lo) ? kdeA.lo[i] : undefined;
+    const hiA = Array.isArray(kdeA?.hi) ? kdeA.hi[i] : undefined;
+    const loB = Array.isArray(kdeB?.lo) ? kdeB.lo[i] : undefined;
+    const hiB = Array.isArray(kdeB?.hi) ? kdeB.hi[i] : undefined;
+    let uLo = 0;
+    let uHi = 65535;
+    if (typeof loA === "number" && typeof hiA === "number" && typeof loB === "number" && typeof hiB === "number") {
+      uLo = Math.min(loA, loB);
+      uHi = Math.max(hiA, hiB);
+    } else {
+      const xsA = Array.isArray(kdeA?.xs?.[i]) ? kdeA.xs[i] : [];
+      const xsB = Array.isArray(kdeB?.xs?.[i]) ? kdeB.xs[i] : [];
+      const allX = [...xsA, ...xsB].filter((x) => typeof x === "number");
+      if (allX.length) {
+        uLo = Math.min(...allX);
+        uHi = Math.max(...allX);
+      }
+    }
+    if (uHi <= uLo) uHi = uLo + 1;
+    return { uLo, uHi };
+  };
 
-  // y 轴显示改为 0–1（归一化强度），只是显示，不改变内部使用的 0–65535 映射。
+  // Y 轴刻度：与 toY 一致，按数据值 0 / 0.33 / 0.67 / 1 标在对应像素位置
   ctx.textAlign = "right";
   ctx.fillStyle = "rgba(255,255,255,0.55)";
-  const numTicks = 4;
-  for (let i = 0; i < numTicks; i++) {
-    const p = i / (numTicks - 1);
-    const y = marginT + p * plotH;
-    const v01 = 1 - p; // 顶部 1，底部 0
+  const tickValues = [1, 0.67, 0.33, 0];
+  for (const v01 of tickValues) {
+    const y = toY(v01);
     const label = v01.toFixed(2).replace(/\.00$/, "");
     ctx.fillText(label, marginL - 6, y + 4);
   }
@@ -203,80 +221,76 @@ function drawViolinRow(canvas, kdeA, kdeB, channelNames, colors, message) {
 
   ctx.lineWidth = 1;
   for (let i = 0; i < C; i++) {
+    const { uLo, uHi } = unionRangeForChannel(i);
+    const mapToUnion01 = (v) => (v - uLo) / (uHi - uLo + 1e-6);
+
     const xsA = Array.isArray(kdeA?.xs?.[i]) ? kdeA.xs[i] : [];
     const ysA = Array.isArray(kdeA?.ys?.[i]) ? kdeA.ys[i] : [];
     const maxYA = Math.max(1e-6, ...(ysA || []));
-    const d1 = {
-      lo: Array.isArray(xsA) && xsA.length ? xsA[0] : 0,
-      hi: Array.isArray(xsA) && xsA.length ? xsA[xsA.length - 1] : 1,
-      xs: xsA,
-      ys: (ysA || []).map((v) => v / maxYA),
-    };
+    const d1 = { xs: xsA, ys: (ysA || []).map((v) => v / maxYA) };
 
     const xsB = Array.isArray(kdeB?.xs?.[i]) ? kdeB.xs[i] : [];
     const ysB = Array.isArray(kdeB?.ys?.[i]) ? kdeB.ys[i] : [];
     const maxYB = Math.max(1e-6, ...(ysB || []));
-    const d2 = {
-      lo: Array.isArray(xsB) && xsB.length ? xsB[0] : 0,
-      hi: Array.isArray(xsB) && xsB.length ? xsB[xsB.length - 1] : 1,
-      xs: xsB,
-      ys: (ysB || []).map((v) => v / maxYB),
-    };
-    const cx = marginL + i * colW + colW * 0.5;
-    const halfW = Math.max(8, Math.min(22, colW * 0.35));
+    const d2 = { xs: xsB, ys: (ysB || []).map((v) => v / maxYB) };
 
-    // Region 1：左侧
+    const cx = marginL + i * colW + colW * 0.5;
+    // 宽度严格按密度，不加最小比例，避免变成等宽柱状图；halfW 稍大让“肚子”可见
+    const halfW = Math.max(20, Math.min(30, colW * 0.45));
+    const minPx = 1;
+
+    // 轮廓点：宽度 = 密度×halfW（仅 2px 下限防断线），再插值一次使轮廓圆滑
+    const buildOutline = (xs, ys, sign) => {
+      const raw = [];
+      for (let b = 0; b < (xs?.length || 0); b++) {
+        const y = toY(mapToUnion01(xs[b]));
+        const w = Math.max((ys[b] || 0) * halfW, minPx) * (sign === "left" ? -1 : 1);
+        raw.push({ y, w });
+      }
+      if (raw.length === 0) return raw;
+      raw.sort((a, b) => a.y - b.y);
+      const out = [];
+      for (let j = 0; j < raw.length; j++) {
+        out.push(raw[j]);
+        if (j < raw.length - 1)
+          out.push({ y: (raw[j].y + raw[j + 1].y) / 2, w: (raw[j].w + raw[j + 1].w) / 2 });
+      }
+      return out;
+    };
+
+    const pts1 = buildOutline(d1.xs, d1.ys, "left");
+    const pts2 = buildOutline(d2.xs, d2.ys, "right");
+
+    // Region 1：左侧提琴
     ctx.fillStyle = COLOR_REGION1;
     ctx.beginPath();
-    for (let b = 0; b < (d1.xs?.length || 0); b++) {
-      const v = d1.xs[b];
-      const tUnion = mapToUnion01(v);
-      const y = toY(tUnion);
-      const wLeft = (d1.ys[b] || 0) * halfW;
-      if (b === 0) ctx.moveTo(cx, y);
-      ctx.lineTo(cx - wLeft, y);
-    }
-    for (let b = (d1.xs?.length || 0) - 1; b >= 0; b--) {
-      const v = d1.xs[b];
-      const tUnion = mapToUnion01(v);
-      const y = toY(tUnion);
-      ctx.lineTo(cx, y);
-    }
+    if (pts1.length) ctx.moveTo(cx, pts1[0].y);
+    for (let j = 0; j < pts1.length; j++) ctx.lineTo(cx + pts1[j].w, pts1[j].y);
+    for (let j = pts1.length - 1; j >= 0; j--) ctx.lineTo(cx, pts1[j].y);
     ctx.closePath();
-    ctx.globalAlpha = 0.85;
+    ctx.globalAlpha = 0.88;
     ctx.fill();
     ctx.globalAlpha = 1.0;
-    ctx.strokeStyle = "rgba(255,255,255,0.2)";
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Region 2：右侧
+    // Region 2：右侧提琴
     ctx.fillStyle = COLOR_REGION2;
     ctx.beginPath();
-    for (let b = 0; b < (d2.xs?.length || 0); b++) {
-      const v = d2.xs[b];
-      const tUnion = mapToUnion01(v);
-      const y = toY(tUnion);
-      const wRight = (d2.ys[b] || 0) * halfW;
-      if (b === 0) ctx.moveTo(cx, y);
-      ctx.lineTo(cx + wRight, y);
-    }
-    for (let b = (d2.xs?.length || 0) - 1; b >= 0; b--) {
-      const v = d2.xs[b];
-      const tUnion = mapToUnion01(v);
-      const y = toY(tUnion);
-      ctx.lineTo(cx, y);
-    }
+    if (pts2.length) ctx.moveTo(cx, pts2[0].y);
+    for (let j = 0; j < pts2.length; j++) ctx.lineTo(cx + pts2[j].w, pts2[j].y);
+    for (let j = pts2.length - 1; j >= 0; j--) ctx.lineTo(cx, pts2[j].y);
     ctx.closePath();
-    ctx.globalAlpha = 0.85;
+    ctx.globalAlpha = 0.88;
     ctx.fill();
     ctx.globalAlpha = 1.0;
-    ctx.strokeStyle = "rgba(255,255,255,0.2)";
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    ctx.strokeStyle = "rgba(255,255,255,0.35)";
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(255,255,255,0.4)";
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(cx, marginT);
     ctx.lineTo(cx, marginT + plotH);
