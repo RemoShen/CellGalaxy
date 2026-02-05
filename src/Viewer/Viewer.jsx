@@ -92,6 +92,7 @@ const Viewer = ({
     handleViewStateChange,
     computedImageSize,
     altPressed,
+    autoRotate,
   } = DeckViewState({
     points,
     is3D,
@@ -600,6 +601,13 @@ const Viewer = ({
                   <path key={i} d={s.d} fill="none" stroke={s.color} strokeWidth={clusterLineWidth} />
                 ))}
               </svg>
+            )}
+
+            {/* 3D mode: spacebar toggles auto-rotate hint */}
+            {is3D && (
+              <div className="viewer-3d-autorotate-hint" aria-hidden="true">
+                Space: auto-rotate {autoRotate ? "On" : "Off"}
+              </div>
             )}
 
             {/* Group analysis toolbar */}
