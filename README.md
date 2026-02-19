@@ -108,6 +108,9 @@ Two columns: `channel_id`, `channel_name`
 ### Features (npy)
 High-dim features from vit(or other) model, each tile is a high-dimensional vector, and the tiles are stored sequentially.
 
+## LLM 
+A request template is provided below the prompt. Please adapt the data description in the template to make it appropriate.
+
 ## License
 
 MIT License
