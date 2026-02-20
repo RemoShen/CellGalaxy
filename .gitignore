@@ -15,4 +15,4 @@ public/__MACOSX/
 server/__pycache__/
 .cache/
 .DS_Store
-server/secrets/
+server/secrets/hf_token.txt
