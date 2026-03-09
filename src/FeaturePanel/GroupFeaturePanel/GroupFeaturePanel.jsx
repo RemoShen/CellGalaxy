@@ -13,7 +13,6 @@ export default function GroupFeaturePanel({
   // ============== Violin (Global vs Selection) ==============
   const [violinData, setViolinData] = useState(null);
   const [violinMsg, setViolinMsg] = useState("Loading...");
-  const [violinYScale, setViolinYScale] = useState("linear"); // "linear" | "log"
   const violinRef = useRef(null);
   const [channelNames, setChannelNames] = useState(new Map()); // id -> name (from channel_info.json)
   useEffect(() => {
@@ -158,20 +157,14 @@ export default function GroupFeaturePanel({
 
     const uLo = 0;
     const uHi = 65535;
-    const isLog = violinYScale === "log";
-    const logMin = Math.log(11);
-    const logMax = Math.log(1 + uHi);
-    const logSpan = logMax - logMin;
-    // 
-    const rawKdeToLogSpace = (xs, ys) => {
-      if (!Array.isArray(xs) || !Array.isArray(ys) || xs.length === 0) return { ts: [], ds: [] };
-      const n = 120;
-      const ts = [];
-      const ds = [];
+    const rawKdeToLogSpaceOnLinearAxis = (xs, ys) => {
+      if (!Array.isArray(xs) || !Array.isArray(ys) || xs.length === 0) return { xs: [], ys: [] };
+      const n = 200;
+      const xsOut = [];
+      const ysOut = [];
       for (let i = 0; i <= n; i++) {
-        const t = logMin + (i / n) * logSpan;
-        ts.push(t);
-        const x = Math.exp(t) - 1;
+        const x = (i / n) * uHi;
+        xsOut.push(x);
         let densityX = 0;
         for (let j = 0; j < xs.length - 1; j++) {
           if (x >= xs[j] && x <= xs[j + 1]) {
@@ -180,39 +173,30 @@ export default function GroupFeaturePanel({
             break;
           }
           if (j === 0 && x < xs[0]) break;
-          if (j === xs.length - 2 && x > xs[xs.length - 1]) {
-            densityX = ys[xs.length - 1] ?? 0;
-            break;
-          }
+          // x > max(xs): do not extrapolate — leave densityX 0 so violin tapers at high intensity
         }
-        ds.push(densityX * (x + 1)); // Jacobian: 密度是 log(1+X) 的分布
+        ysOut.push(densityX * (x + 1));
       }
-      const maxD = Math.max(1e-12, ...ds);
-      return { ts, ds: ds.map((d) => d / maxD) };
+      const maxD = Math.max(1e-12, ...ysOut);
+      const out = { xs: xsOut, ys: ysOut.map((d) => d / maxD) };
+      const rampThr = 0.02;
+      let k = 0;
+      while (k < out.ys.length && out.ys[k] < rampThr) k++;
+      if (k > 0 && k < out.ys.length) {
+        const yk = out.ys[k];
+        for (let j = 0; j <= k; j++) out.ys[j] = (j / k) * yk;
+      }
+      return out;
     };
-    const mapToUnion01 = isLog ? null : (v) => (v - uLo) / (uHi - uLo + 1e-6);
-    const logT01 = (t) => (t - logMin) / logSpan;
-    const logYGamma = 2;
-    const toYFromT01 = (t01) => {
-      const u = Math.max(0, Math.min(1, t01));
-      const expanded = Math.pow(u, logYGamma);
-      return marginT + (1 - expanded) * plotH;
-    };
+    const mapToUnion01 = (v) => (v - uLo) / (uHi - uLo + 1e-6);
     ctx.textAlign = "right";
     ctx.fillStyle = "rgba(255,255,255,0.55)";
-    if (isLog) {
-      for (const v of [10, 100, 1000, 10000, 65535]) {
-        const t01 = logT01(Math.log(1 + v));
-        ctx.fillText(v >= 1000 ? Math.round(v / 1000) + "k" : v.toString(), marginL - 6, toYFromT01(t01) + 4);
-      }
-    } else {
-      const numTicks = 4;
-      for (let i = 0; i < numTicks; i++) {
-        const f = i / (numTicks - 1);
-        const y = marginT + (1 - f) * plotH;
-        const v = uLo + f * (uHi - uLo);
-        ctx.fillText(Math.round(v).toString(), marginL - 6, y + 4);
-      }
+    const numTicks = 4;
+    for (let i = 0; i < numTicks; i++) {
+      const f = i / (numTicks - 1);
+      const y = marginT + (1 - f) * plotH;
+      const v = uLo + f * (uHi - uLo);
+      ctx.fillText(Math.round(v).toString(), marginL - 6, y + 4);
     }
     // x-axis channel names (using channel colors + displaying real channel names from channel_info.json)
     ctx.textAlign = "center";
@@ -234,24 +218,18 @@ export default function GroupFeaturePanel({
       const ysS = Array.isArray(skde?.ys?.[i]) ? skde.ys[i] : [];
       const maxYS = Math.max(1e-6, ...(ysS || []));
       const nS = (Array.isArray(skde?.n) && typeof skde.n[i] === "number") ? skde.n[i] : 0;
-      let dg, ds;
-      if (isLog) {
-        dg = rawKdeToLogSpace(xsG, (ysG || []).map((v) => v / maxYG));
-        ds = rawKdeToLogSpace(xsS, (ysS || []).map((v) => v / maxYS));
-      } else {
-        dg = { xs: xsG, ys: (ysG || []).map((v) => v / maxYG) };
-        ds = { xs: xsS, ys: (ysS || []).map((v) => v / maxYS) };
-      }
+      const dg = rawKdeToLogSpaceOnLinearAxis(xsG, (ysG || []).map((v) => v / maxYG));
+      const ds = rawKdeToLogSpaceOnLinearAxis(xsS, (ysS || []).map((v) => v / maxYS));
       const cx = marginL + i * colW + colW * 0.5;
       const halfW = Math.max(8, Math.min(22, colW * 0.35));
       const selScale = Math.max(0, Math.min(1, nS / Math.max(1, nG)));
       const halfW_sel = halfW * selScale;
-      const pointsG = isLog ? dg.ts.length : dg.xs?.length ?? 0;
-      const getYG = isLog ? (b) => toYFromT01(logT01(dg.ts[b])) : (b) => toY(mapToUnion01(dg.xs[b]));
-      const getWG = (b) => (isLog ? dg.ds[b] : dg.ys[b]) * halfW;
-      const pointsS = isLog ? ds.ts.length : ds.xs?.length ?? 0;
-      const getYS = isLog ? (b) => toYFromT01(logT01(ds.ts[b])) : (b) => toY(mapToUnion01(ds.xs[b]));
-      const getWS = (b) => (isLog ? ds.ds[b] : ds.ys[b]) * halfW_sel;
+      const pointsG = dg.xs?.length ?? 0;
+      const pointsS = ds.xs?.length ?? 0;
+      const getYG = (b) => toY(mapToUnion01(dg.xs[b]));
+      const getWG = (b) => (dg.ys[b] ?? 0) * halfW;
+      const getYS = (b) => toY(mapToUnion01(ds.xs[b]));
+      const getWS = (b) => (ds.ys[b] ?? 0) * halfW_sel;
       ctx.fillStyle = colorGlobal;
       ctx.beginPath();
       for (let b = 0; b < pointsG; b++) {
@@ -291,7 +269,7 @@ export default function GroupFeaturePanel({
       ctx.lineTo(cx, marginT + plotH);
       ctx.stroke();
     }
-  }, [violinData, channels, violinYScale]);
+  }, [violinData, channels]);
 
   // High-dimensional Similarity Field (seriation-based)
   const fieldRef = useRef(null);
@@ -721,14 +699,6 @@ export default function GroupFeaturePanel({
         <div className="gfp-header">
           <div className="feature-title">Expression Distribution: Local vs Global</div>
           <div className="gfp-legend">
-            <button
-              type="button"
-              className="gfp-y-scale-btn"
-              onClick={() => setViolinYScale((s) => (s === "linear" ? "log" : "linear"))}
-              title="Linear: original intensity distribution; Log: log(1+x) distribution, standard log scale"
-            >
-              Y: {violinYScale === "linear" ? "Linear" : "Log"}
-            </button>
             <div className="gfp-legend-item">
               <span className="gfp-swatch gfp-swatch--global" />
               <span className="gfp-legend-label">Global</span>
