@@ -4,10 +4,8 @@ import "./CompareFeaturePanel.css";
 import { drawCellPreviewToCanvas } from "../../Viewer/HoverPreview/HoverPreview";
 import { API_BASE } from "../../api/api";
 
-// Violin 形状本身仍然用中性白/灰两色区分 Region 1 / Region 2，
-// 颜色提示通过文字（Region 1 橙色 / Region 2 青色）来表达。
-const COLOR_REGION1 = "rgba(230,230,230,0.95)"; // Region 1 → 较亮的白
-const COLOR_REGION2 = "rgba(130,130,130,0.95)"; // Region 2 → 较深的灰
+const COLOR_REGION1 = "rgba(230,230,230,0.95)"; // Region 1 → light white
+const COLOR_REGION2 = "rgba(130,130,130,0.95)"; // Region 2 → dark gray
 
 function RegionThumb({
   repId,
@@ -166,7 +164,6 @@ function drawViolinRow(canvas, kdeA, kdeB, channelNames, colors, message) {
   ctx.fillRect(0, 0, w, h);
 
   const colW = plotW / C;
-  // 低值很多时压缩底部、拉伸高值区，让上方分布可见。gammaY > 1 时高值占更多纵轴
   const gammaY = 0.5;
   const toY = (t01) => {
     const u = Math.max(0, Math.min(1, t01));
@@ -174,7 +171,6 @@ function drawViolinRow(canvas, kdeA, kdeB, channelNames, colors, message) {
     return marginT + (1 - nonlin) * plotH;
   };
 
-  // 每通道用两区域实际数据范围 [lo,hi] 的并集映射 Y，避免整条压到底部
   const unionRangeForChannel = (i) => {
     const loA = Array.isArray(kdeA?.lo) ? kdeA.lo[i] : undefined;
     const hiA = Array.isArray(kdeA?.hi) ? kdeA.hi[i] : undefined;
@@ -198,7 +194,6 @@ function drawViolinRow(canvas, kdeA, kdeB, channelNames, colors, message) {
     return { uLo, uHi };
   };
 
-  // Y 轴刻度：与 toY 一致，按数据值 0 / 0.33 / 0.67 / 1 标在对应像素位置
   ctx.textAlign = "right";
   ctx.fillStyle = "rgba(255,255,255,0.55)";
   const tickValues = [1, 0.67, 0.33, 0];
@@ -235,11 +230,9 @@ function drawViolinRow(canvas, kdeA, kdeB, channelNames, colors, message) {
     const d2 = { xs: xsB, ys: (ysB || []).map((v) => v / maxYB) };
 
     const cx = marginL + i * colW + colW * 0.5;
-    // 宽度严格按密度，不加最小比例，避免变成等宽柱状图；halfW 稍大让“肚子”可见
     const halfW = Math.max(20, Math.min(30, colW * 0.45));
     const minPx = 1;
 
-    // 轮廓点：宽度 = 密度×halfW（仅 2px 下限防断线），再插值一次使轮廓圆滑
     const buildOutline = (xs, ys, sign) => {
       const raw = [];
       for (let b = 0; b < (xs?.length || 0); b++) {
@@ -261,7 +254,7 @@ function drawViolinRow(canvas, kdeA, kdeB, channelNames, colors, message) {
     const pts1 = buildOutline(d1.xs, d1.ys, "left");
     const pts2 = buildOutline(d2.xs, d2.ys, "right");
 
-    // Region 1：左侧提琴
+    // Region 1：left violin
     ctx.fillStyle = COLOR_REGION1;
     ctx.beginPath();
     if (pts1.length) ctx.moveTo(cx, pts1[0].y);
@@ -275,7 +268,7 @@ function drawViolinRow(canvas, kdeA, kdeB, channelNames, colors, message) {
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Region 2：右侧提琴
+    // Region 2：right violin
     ctx.fillStyle = COLOR_REGION2;
     ctx.beginPath();
     if (pts2.length) ctx.moveTo(cx, pts2[0].y);
@@ -343,7 +336,6 @@ export default function CompareFeaturePanel({
         <div className="feature-title">Comparative Analysis of the Two Selected Regions</div>
       </div>
 
-      {/* 第二行：左侧小标题 + 右侧两个代表性细胞缩略图 */}
       <div className="compare-reps-row">
         <div className="compare-reps-title">
           <span>Representative</span>

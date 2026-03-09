@@ -143,7 +143,6 @@ export default function GroupFeaturePanel({
     // x-axis layout for each channel (x-axis layout for each channel)
     const colW = plotW / C;
 
-    // 与双区域对比一致：Y 轴 gamma 略低，压缩低值区、拉伸高值区，让分布更不均匀、高值区更易见
     const gammaY = 0.5;
     const toY = (t01) => {
       const u = Math.max(0, Math.min(1, t01));
