@@ -320,6 +320,14 @@ public/cluster_labels.json
 
 ---
 
+# Interaction
+
+- Click to select a tile. You can also use lasso or box selection to select areas.
+- Hold **Shift** and use box or lasso, you can select two regions for comparison.
+- **Option + Hover (on cluster title)** — View the cluster description.
+
+
 # License
 
 MIT License
+
