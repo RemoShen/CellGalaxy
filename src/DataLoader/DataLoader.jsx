@@ -126,7 +126,8 @@ export default function useDataLoader() {
   // Use a small reference viewport and safety margin so tiles stay within one grid cell on typical
   // viewports (avoid overlap when pane is smaller than reference).
   const RAW_REFERENCE_VIEWPORT = 500;
-  const RAW_GRID_SAFETY = 0.88;
+  // Slightly smaller gap between spatial tiles (0.97 → ~3% gap; was 0.88 → ~12% gap).
+  const RAW_GRID_SAFETY = 1;
   function imageSizeFromTileAndRawRange(tilePx, coords) {
     if (!coords?.length || tilePx == null || tilePx <= 0) return null;
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
