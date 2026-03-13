@@ -181,8 +181,9 @@ const Viewer = ({
   // —— Selection (using screen coordinates) ——
   const deckRef = useRef(null);
   const containerRef = useRef(null);
-  // Defer DeckGL mount until container has valid size to avoid luma.gl resize path
-  // reading device.limits.maxTextureDimension2D before WebGL context is ready.
+  // Defer DeckGL mount until container has valid size, then one more frame, so that
+  // luma.gl's internal ResizeObserver does not fire before device.limits is ready
+  // (avoids "Cannot read properties of undefined (reading 'maxTextureDimension2D')" on slower machines).
   const [containerReady, setContainerReady] = useState(false);
   useLayoutEffect(() => {
     const el = containerRef.current;
@@ -191,7 +192,9 @@ const Viewer = ({
       for (const entry of entries) {
         if (entry.target !== el) continue;
         const { width, height } = entry.contentRect;
-        if (width > 0 && height > 0) setContainerReady(true);
+        if (width > 0 && height > 0) {
+          requestAnimationFrame(() => setContainerReady(true));
+        }
       }
     });
     ro.observe(el);

@@ -127,7 +127,8 @@ export default function ImageLayers({
           pickable: true,
           // Disable built‑in blue highlight; we draw a custom white outline on hover instead.
           autoHighlight: false,
-          loadOptions: { image: { type: "imagebitmap" } },
+          // Use default Image loading (not ImageBitmap) so WebGL texture upload works reliably
+          // across browsers/GPUs; ImageBitmap can fail on some environments and cause sprites not to render.
           // Only animate positions; do not interpolate size changes (e.g. zoom-driven computedImageSize)
           transitions: transitionsEnabled
             ? {
