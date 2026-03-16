@@ -200,7 +200,6 @@
   border-radius: 0 3px 3px 0;
 }
 
-/* 百分比文字在 bar 外侧：左侧在 bar 左外，右侧在 bar 右外 */
 .annotation-stats-pct-outside {
   flex-shrink: 0;
   font-size: 10px;

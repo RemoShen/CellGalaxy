@@ -1,7 +1,7 @@
 // =============================
 // Viewer.jsx  (screen-space lasso overlay + accurate selection in 2D/3D)
 // =============================
-import React, { useMemo, useState, useRef, useEffect, useLayoutEffect } from "react";
+import React, { useMemo, useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import DeckGL from "@deck.gl/react";
 import AnalysisPopover from "../AnalysisPopover/AnalysisPopover";
 import SelectionOverlay from "../SelectionOverlay/SelectionOverlay";
@@ -20,6 +20,7 @@ import {
   getEventCoordinates,
   ease,
   projectItemsToScreen,
+  computeCenter,
 } from "../utils/utils";
 import { buildOutlineData2D, clusterColor } from "../utils/clustering";
 import "./Viewer.css";
@@ -71,7 +72,7 @@ const Viewer = ({
   // Clustering overlay
   clusterColorOn = false,
   clusterOpacity = 0.25,
-  clusterLineWidth = 1.5,
+  clusterLineWidth = 1,
   clusterOutlineOn = false,
   // Cluster annotation (LLM titles/descriptions)
   clusterAnnotationOn = false,
@@ -212,6 +213,8 @@ const Viewer = ({
   const [popoverPos, setPopoverPos] = useState({ x: 0, y: 0 });
   const [popoverBounds, setPopoverBounds] = useState(null);
   const [annotationStatsOpen, setAnnotationStatsOpen] = useState(false);
+  // Zoom-to-selection: restore goes to default initial view (center + zoom 8), not a saved state
+  const [isZoomedToSelection, setIsZoomedToSelection] = useState(false);
   // Similarity ranking: Map of cell ID -> rank (0 for query, 1-N for neighbors)
   const [similarityRankings, setSimilarityRankings] = useState(new Map());
   // Distinct highlight colors for up to two regions
@@ -238,6 +241,48 @@ const Viewer = ({
       // ignore
     }
   };
+
+  // Zoom viewer to center on selected region
+  const zoomToSelection = useCallback(() => {
+    if (!points?.length || !selectedIds?.size) return;
+    const selected = points.filter((p) => selectedIds.has(p.id));
+    if (selected.length === 0) return;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const p of selected) {
+      const x = p.x ?? 0, y = p.y ?? 0, z = p.z ?? 0;
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+      if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+    }
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2, cz = (minZ + maxZ) / 2;
+    setIsZoomedToSelection(true);
+    setViewState((prev) => ({
+      ...prev,
+      target: [cx, cy, cz],
+      zoom: 12,
+      transitionDuration: transitionsEnabled ? 600 : 0,
+      transitionEasing: transitionsEnabled ? ease : undefined,
+      transitionInterpolator: transitionsEnabled
+        ? new LinearInterpolator(["target", "zoom"])
+        : undefined,
+    }));
+  }, [points, selectedIds, setViewState, transitionsEnabled]);
+
+  // Restore to default initial view (data center + zoom 8), not a previously saved state
+  const initialTarget = useMemo(() => computeCenter(points || []), [points]);
+  const restoreView = useCallback(() => {
+    setViewState((prev) => ({
+      ...prev,
+      target: initialTarget,
+      zoom: 8,
+      transitionDuration: transitionsEnabled ? 600 : 0,
+      transitionEasing: transitionsEnabled ? ease : undefined,
+      transitionInterpolator: transitionsEnabled
+        ? new LinearInterpolator(["target", "zoom"])
+        : undefined,
+    }));
+    setIsZoomedToSelection(false);
+  }, [initialTarget, setViewState, transitionsEnabled]);
 
   const onClick = (info) => {
     // In box/lasso selection mode, completely disable click-based single selection/deselection;
@@ -809,6 +854,9 @@ const Viewer = ({
               rawAnnotationColumns={rawAnnotationColumns}
               onShowAnnotationStats={() => setAnnotationStatsOpen(true)}
               onCloseAnnotationStats={() => setAnnotationStatsOpen(false)}
+              onZoomToSelection={zoomToSelection}
+              onRestoreView={restoreView}
+              isZoomedToSelection={isZoomedToSelection}
             />
           </>
         )}

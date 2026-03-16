@@ -20,6 +20,9 @@ export default function GroupToolbarContainer({
   rawAnnotationColumns = { celltype: false, neigh_names: false },
   onShowAnnotationStats = () => {},
   onCloseAnnotationStats = () => {},
+  onZoomToSelection,
+  onRestoreView,
+  isZoomedToSelection = false,
 }) {
   const hasRawAnnotationColumns =
     rawAnnotationColumns && rawAnnotationColumns.celltype && rawAnnotationColumns.neigh_names;
@@ -119,6 +122,7 @@ export default function GroupToolbarContainer({
       mode={mode}
       onAnalyze={onAnalyze}
       onClear={() => {
+        if (typeof onRestoreView === "function") onRestoreView();
         clearSelection();
         try {
           clearSimilarityRankings();
@@ -138,6 +142,9 @@ export default function GroupToolbarContainer({
       }}
       hasRawAnnotationColumns={hasRawAnnotationColumns}
       onShowAnnotationStats={onShowAnnotationStats}
+      onZoomToSelection={onZoomToSelection}
+      onRestoreView={onRestoreView}
+      isZoomedToSelection={isZoomedToSelection}
     />
   );
 }

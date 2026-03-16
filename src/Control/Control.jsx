@@ -43,7 +43,7 @@ export default function Control({
   setClusterOutlineOn = () => {},
   clusterOpacity = 0.25,
   setClusterOpacity = () => {},
-  clusterLineWidth = 1.5,
+  clusterLineWidth = 1,
   setClusterLineWidth = () => {},
   clusterAnnotationOn = false,
   setClusterAnnotationOn = () => {},

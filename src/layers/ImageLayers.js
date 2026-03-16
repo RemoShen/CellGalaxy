@@ -21,7 +21,7 @@ export default function ImageLayers({
   // cluster overlay
   clusterColorOn = false,
   clusterOpacity = 0.25,
-  clusterLineWidth = 1.5,
+  clusterLineWidth = 1,
   clusterOutlineOn = false,
   // outlines (2D)
   outlineData = [],

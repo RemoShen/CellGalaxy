@@ -46,7 +46,7 @@ export default function useDataLoader() {
   // opacity for color overlay [0..1]
   const [clusterOpacity, setClusterOpacity] = useState(1.0);
   // line width (px) for outline mode
-  const [clusterLineWidth, setClusterLineWidth] = useState(1.5);
+  const [clusterLineWidth, setClusterLineWidth] = useState(1);
   // cluster text annotation (LLM titles/descriptions)
   const [clusterAnnotationOn, setClusterAnnotationOn] = useState(false);
   const [clusterAnnotationModel, setClusterAnnotationModel] = useState("MedGemma");

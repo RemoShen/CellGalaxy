@@ -9,13 +9,29 @@ export default function GroupToolbar({
   onClear = () => {},
   hasRawAnnotationColumns = false,
   onShowAnnotationStats = () => {},
+  onZoomToSelection,
+  onRestoreView,
+  isZoomedToSelection = false,
 }) {
   if (!show) return null;
   const isCompare = mode === ANALYSIS_COMPARE;
   const icon = isCompare ? "compare_arrows" : "analytics";
   const title = isCompare ? "Compare two regions" : "Group analysis";
+  const canZoomToSelection = typeof onZoomToSelection === "function" && typeof onRestoreView === "function";
   return (
     <div className={`group-toolbar${isCompare ? " compare" : ""}`}>
+      {canZoomToSelection && (
+        <>
+          <button
+            className="gtb-btn"
+            title={isZoomedToSelection ? "Restore view" : "Zoom to selection"}
+            onClick={isZoomedToSelection ? onRestoreView : onZoomToSelection}
+          >
+            <span className="material-icons">{isZoomedToSelection ? "fullscreen_exit" : "zoom_in"}</span>
+          </button>
+          <div className="gtb-divider" />
+        </>
+      )}
       <button className="gtb-btn" title={title} onClick={onAnalyze}>
         <span className="material-icons">{icon}</span>
       </button>
