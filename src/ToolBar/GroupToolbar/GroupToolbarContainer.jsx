@@ -17,7 +17,12 @@ export default function GroupToolbarContainer({
   setPopoverOpen,
   clearSelection,
   clearSimilarityRankings = () => {},
+  rawAnnotationColumns = { celltype: false, neigh_names: false },
+  onShowAnnotationStats = () => {},
+  onCloseAnnotationStats = () => {},
 }) {
+  const hasRawAnnotationColumns =
+    rawAnnotationColumns && rawAnnotationColumns.celltype && rawAnnotationColumns.neigh_names;
   const regions = Array.isArray(selectedRegions)
     ? selectedRegions.filter((r) => r && r.size > 0)
     : [];
@@ -114,14 +119,12 @@ export default function GroupToolbarContainer({
       mode={mode}
       onAnalyze={onAnalyze}
       onClear={() => {
-        // Clear current selection
         clearSelection();
-        // Also clear similarity ranking labels (Q / 1..8) across all viewers
         try {
           clearSimilarityRankings();
         } catch {}
-        // Close the current analysis popover as well (if any)
         try {
+          onCloseAnnotationStats();
           setPopoverOpen(false);
           if (typeof setPopoverBounds === "function") {
             setPopoverBounds(null);
@@ -133,6 +136,8 @@ export default function GroupToolbarContainer({
           // ignore
         }
       }}
+      hasRawAnnotationColumns={hasRawAnnotationColumns}
+      onShowAnnotationStats={onShowAnnotationStats}
     />
   );
 }

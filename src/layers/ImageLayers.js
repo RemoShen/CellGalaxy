@@ -172,15 +172,9 @@ export default function ImageLayers({
                 premultiply: true,
                 getColor: (d) => {
                   const activeFilter = filteredIds && filteredIds.size > 0;
-                  // Only dim when filtered; otherwise keep the original channel color, unaffected by selection
+                  // When filter is active, hide points that don't pass the filter (fully transparent)
                   if (activeFilter && !filteredIds.has(d.id)) {
-                    const dimA = Math.min(a, 24);
-                    return [
-                      col[0] ?? 255,
-                      col[1] ?? 255,
-                      col[2] ?? 255,
-                      dimA,
-                    ];
+                    return [col[0] ?? 255, col[1] ?? 255, col[2] ?? 255, 0];
                   }
                   return [
                     col[0] ?? 255,
@@ -212,7 +206,7 @@ export default function ImageLayers({
                 getColor: (d) => {
                   const activeFilter = filteredIds && filteredIds.size > 0;
                   if (activeFilter && !filteredIds.has(d.id)) {
-                    return [255, 255, 255, 30];
+                    return [255, 255, 255, 0];
                   }
                   // Do not change brightness based on selection; express selection only via the white outline
                   return [255, 255, 255, 255];
@@ -401,10 +395,9 @@ export default function ImageLayers({
           filterRange: [0, samplingThreshold],
           // ---------------------
           getFillColor: (d) => {
-            const activeFilter =
-              filteredIds && filteredIds.size > 0;
+            const activeFilter = filteredIds && filteredIds.size > 0;
             if (activeFilter && !filteredIds.has(d.id)) {
-              return [255, 255, 255, 30];
+              return [0, 0, 0, 0];
             }
             // Do not dim non-selected points; keep them uniformly white
             return [255, 255, 255, 255];
