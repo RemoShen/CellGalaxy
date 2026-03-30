@@ -91,7 +91,7 @@ export function prewarm(channel, tile) {
   } catch {}
 }
 
-/** @param {AbortSignal} [signal] @param {'umap'|'embedding'} [neighborSpace] */
+/** T1 neighbors; neighborSpace: umap | embedding */
 export async function fetchT1(queryId, k = 8, signal, neighborSpace = "umap") {
   try {
     const sp = neighborSpace === "embedding" ? "embedding" : "umap";
@@ -139,11 +139,7 @@ export async function fetchRegionRepresentatives(regions, metric = "cosine_cente
 
 export async function fetchViolinSelectionKDE(ids, max = 30000, perc = 99.0, thr = 0.1, channels = null, grid = 192, signal) {
   try {
-    // Adaptive downsampling for very large selections:
-    // - small selections (≤2k): keep more ids for higher detail
-    // - medium selections (2k~1w): keep a subset
-    // - very large selections (>1w): keep only a small number of representative ids,
-    //   so computation time is almost independent of selection size.
+    // Cap ids sent to KDE so cost stays bounded (800 / 400 / 200 by selection size).
     const rawIds = Array.isArray(ids) ? ids : [];
     const total = rawIds.length;
     let idLimit;
@@ -157,7 +153,7 @@ export async function fetchViolinSelectionKDE(ids, max = 30000, perc = 99.0, thr
 
     let effectiveIds = rawIds;
     if (effectiveIds.length > idLimit) {
-      // Fisher–Yates shuffle then take first idLimit to avoid always picking front ids
+      // Shuffle then take first idLimit (avoid always using prefix of list).
       const temp = effectiveIds.slice();
       for (let i = temp.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));

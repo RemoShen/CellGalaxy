@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { API_BASE } from "../api/api";
 
-/** Map from numeric channel id to display name (from `/public/channel_info.json`). */
+// id → display name from channel_info.json
 export function useChannelNames() {
   const [channelNames, setChannelNames] = useState(() => new Map());
   useEffect(() => {

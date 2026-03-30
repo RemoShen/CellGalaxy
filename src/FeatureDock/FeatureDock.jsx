@@ -14,7 +14,7 @@ export default function FeatureDock({
   colors,
   alphas,
   windows,
-  // points for two projections (used to locate thumbnails metadata)
+  // pointsRaw / pointsUMAP for thumbs
   pointsRaw = [],
   pointsUMAP = [],
   useUMAP = false,
