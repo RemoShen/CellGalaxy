@@ -8,6 +8,18 @@ function cosineSimTo01(sim) {
   return Math.max(0, Math.min(1, (s + 1) * 0.5));
 }
 
+function clearSimilarityRankingGlobals(viewerId) {
+  if (typeof window === "undefined") return;
+  const rankingKey = `__showSimilarityRanking_${viewerId}`;
+  if (window[rankingKey]) window[rankingKey](null);
+  if (typeof window.__showSimilarityRanking === "function") {
+    window.__showSimilarityRanking(null);
+  }
+  if (typeof window.__showSimilarityRankingUMAP === "function") {
+    window.__showSimilarityRankingUMAP(null);
+  }
+}
+
 function Thumb({
   object,
   iconMappingsByChunk,
@@ -322,6 +334,7 @@ export default function LocalFeaturePanel({
     if (typeof window.__showSimilarityRankingUMAP === "function") {
       window.__showSimilarityRankingUMAP(rankingIds);
     }
+    return () => clearSimilarityRankingGlobals(viewerId);
   }, [data, viewerId, rankingIds]);
 
   const wrapperRef = useRef(null);

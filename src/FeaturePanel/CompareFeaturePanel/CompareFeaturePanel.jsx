@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import "../../FeatureDock/FeatureDock.css";
 import "./CompareFeaturePanel.css";
 import { drawCellPreviewToCanvas } from "../../Viewer/HoverPreview/HoverPreview";
-import { API_BASE } from "../../api/api";
+import { useChannelNames } from "../../hooks/useChannelNames";
 
 const COLOR_REGION1 = "rgba(230,230,230,0.95)"; // Region 1 → light white
 const COLOR_REGION2 = "rgba(130,130,130,0.95)"; // Region 2 → dark gray
@@ -70,35 +70,6 @@ function RegionThumb({
       ) : null}
     </div>
   );
-}
-
-function useChannelNames() {
-  const [channelNames, setChannelNames] = useState(new Map()); // id -> name
-  useEffect(() => {
-    let abort = false;
-    const run = async () => {
-      try {
-        const url = `${API_BASE}/public/channel_info.json?ts=${Date.now()}`;
-        const res = await fetch(url, { cache: "no-store" });
-        if (!res.ok) return;
-        const json = await res.json();
-        const m = new Map();
-        if (json && Array.isArray(json.channels)) {
-          for (const ch of json.channels) {
-            if (typeof ch?.id === "number" && typeof ch?.name === "string") {
-              m.set(ch.id, ch.name);
-            }
-          }
-        }
-        if (!abort) setChannelNames(m);
-      } catch {}
-    };
-    run();
-    return () => {
-      abort = true;
-    };
-  }, []);
-  return channelNames;
 }
 
 const U_HI = 65535;

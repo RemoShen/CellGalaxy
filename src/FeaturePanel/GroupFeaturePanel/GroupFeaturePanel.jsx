@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import "../../FeatureDock/FeatureDock.css";
 import "./GroupFeaturePanel.css";
-import { API_BASE, fetchViolinGlobalKDE, fetchViolinSelectionKDE } from "../../api/api";
+import { fetchViolinGlobalKDE, fetchViolinSelectionKDE } from "../../api/api";
+import { useChannelNames } from "../../hooks/useChannelNames";
 import { kde1d } from "../../utils/utils";
 
 export default function GroupFeaturePanel({
@@ -10,33 +11,11 @@ export default function GroupFeaturePanel({
   colors,
 
 }) {
-  // ============== Violin (Global vs Selection) ==============
   const [violinData, setViolinData] = useState(null);
   const [violinMsg, setViolinMsg] = useState("Loading...");
   const violinRef = useRef(null);
-  const [channelNames, setChannelNames] = useState(new Map()); // id -> name (from channel_info.json)
-  useEffect(() => {
-    let abort = false;
-    const run = async () => {
-      try {
-        const url = `${API_BASE}/public/channel_info.json?ts=${Date.now()}`;
-        const res = await fetch(url, { cache: "no-store" });
-        if (!res.ok) return;
-        const json = await res.json();
-        const m = new Map();
-        if (json && Array.isArray(json.channels)) {
-          for (const ch of json.channels) {
-            if (typeof ch?.id === "number" && typeof ch?.name === "string") {
-              m.set(ch.id, ch.name);
-            }
-          }
-        }
-        if (!abort) setChannelNames(m);
-      } catch {}
-    };
-    run();
-    return () => { abort = true; };
-  }, []);
+  const channelNames = useChannelNames();
+
   useEffect(() => {
     let abort = false;
     const run = async () => {

@@ -1020,6 +1020,8 @@ const Viewer = ({
         onClose={() => {
           setPopoverOpen(false);
           setPopoverBounds(null);
+          setPopoverCmd(null);
+          clearAllSimilarityRankings();
         }}
         meta={meta}
         chunkUV={chunkUV}

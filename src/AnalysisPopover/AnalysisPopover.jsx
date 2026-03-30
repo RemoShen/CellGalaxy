@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import "./AnalysisPopover.css";
 import {
   fetchT1,
@@ -39,6 +39,8 @@ export default function AnalysisPopover({
     [meta, chunkUV]
   );
   const rootRef = useRef(null);
+  const openRef = useRef(open);
+  openRef.current = open;
   const [mode, setMode] = useState("none");
   const [t1, setT1] = useState(null);
   const [t1NeighborSpace, setT1NeighborSpace] = useState("umap");
@@ -63,6 +65,17 @@ export default function AnalysisPopover({
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  useEffect(() => {
+    if (!open) {
+      setMode("none");
+      setT1(null);
+      setT2(null);
+      setTCompare(null);
+      setT1NeighborSpace("umap");
+      setBusy(false);
+    }
+  }, [open]);
 
   const handleDragMouseDown = (e) => {
     e.preventDefault();
@@ -158,6 +171,7 @@ export default function AnalysisPopover({
           setTCompare(null);
           setT1NeighborSpace("umap");
           const res = await fetchT1(Number(command.q), 8, undefined, "umap");
+          if (!openRef.current) return;
           if (!res || res.error) return;
           setT1(res);
           try {
@@ -191,6 +205,7 @@ export default function AnalysisPopover({
           }
 
           const res = await fetchT2(ids, undefined);
+          if (!openRef.current) return;
           if (!res || res.error) return;
           setT2(res);
         } else if (command.type === ANALYSIS_COMPARE && Array.isArray(command.regions)) {
@@ -212,6 +227,7 @@ export default function AnalysisPopover({
             fetchRegionRepresentatives([idsA, idsB], "cosine_centered", undefined),
           ]);
           if (!selA || selA.error || !selB || selB.error) return;
+          if (!openRef.current) return;
           const repsArr = Array.isArray(reps?.regions) ? reps.regions : [];
           setTCompare({
             regions: [
@@ -297,6 +313,7 @@ export default function AnalysisPopover({
               setBusy(true);
               try {
                 const res = await fetchT1(Number(command.q), 8, undefined, next);
+                if (!openRef.current) return;
                 if (!res || res.error) return;
                 setT1(res);
                 try {
