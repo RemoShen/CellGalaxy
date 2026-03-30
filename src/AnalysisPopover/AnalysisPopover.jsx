@@ -45,6 +45,7 @@ export default function AnalysisPopover({
   const rootRef = useRef(null);
   const [mode, setMode] = useState("none"); // 'none' | 't1' | 't2' | 'compare'
   const [t1, setT1] = useState(null);
+  const [t1NeighborSpace, setT1NeighborSpace] = useState("umap");
   const [t2, setT2] = useState(null);
   const [tCompare, setTCompare] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -174,9 +175,10 @@ export default function AnalysisPopover({
           setMode("single");
           setT2(null);
           setTCompare(null);
+          setT1NeighborSpace("umap");
           // Use k=8 to match the neighbor count used by the local metrics panel
           // (similarity gallery + histogram).
-          const res = await fetchT1(Number(command.q), 8, undefined);
+          const res = await fetchT1(Number(command.q), 8, undefined, "umap");
           if (!res || res.error) return;
           setT1(res);
           // Highlight query + neighbors
@@ -320,6 +322,23 @@ export default function AnalysisPopover({
             windows={windows}
             points={points}
             viewerId={viewerId}
+            similarityNeighborSpace={t1NeighborSpace}
+            onSimilarityNeighborSpaceChange={async (next) => {
+              if (command?.type !== ANALYSIS_SINGLE || !Number.isFinite(command.q)) return;
+              setT1NeighborSpace(next);
+              setBusy(true);
+              try {
+                const res = await fetchT1(Number(command.q), 8, undefined, next);
+                if (!res || res.error) return;
+                setT1(res);
+                try {
+                  const neighborIds = (res.neighbors || []).map((n) => n.id);
+                  setSelectedIds(new Set([Number(command.q), ...neighborIds]));
+                } catch {}
+              } finally {
+                setBusy(false);
+              }
+            }}
           />
         ) : mode === "group" ? (
           <GroupAnalysisPanel

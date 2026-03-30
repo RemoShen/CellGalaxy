@@ -99,9 +99,14 @@ export function prewarm(channel, tile) {
 // ===== Features (T1/T2) =====
 // By default, use only the top 8 nearest neighbors to match local similarity
 // histogram / gallery displays.
-export async function fetchT1(queryId, k = 8, signal) {
+/** @param {AbortSignal} [signal] @param {'umap'|'embedding'} [neighborSpace] */
+export async function fetchT1(queryId, k = 8, signal, neighborSpace = "umap") {
   try {
-    return await fetchJSON(`${API_BASE}/features/t1?q=${queryId}&k=${k}`, { signal });
+    const sp = neighborSpace === "embedding" ? "embedding" : "umap";
+    return await fetchJSON(
+      `${API_BASE}/features/t1?q=${queryId}&k=${k}&neighbor_space=${encodeURIComponent(sp)}`,
+      { signal }
+    );
   } catch (e) {
     console.error("fetchT1 failed", e);
     return { error: "Failed to fetch T1" };

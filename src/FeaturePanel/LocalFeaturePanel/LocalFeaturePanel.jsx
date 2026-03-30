@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { drawCellPreviewToCanvas } from "../../Viewer/HoverPreview/HoverPreview";
 import "../../FeatureDock/FeatureDock.css";
 import "./LocalFeaturePanel.css";
@@ -80,7 +80,35 @@ export default function LocalFeaturePanel({
   windows,
   points = [],
   viewerId = "raw", // determine which viewer to focus
+  similarityNeighborSpace = "umap",
+  onSimilarityNeighborSpaceChange,
 }) {
+  const gallerySpace = similarityNeighborSpace === "embedding" ? "embedding" : "umap";
+  const effectiveNeighborSpace =
+    (data?.neighbor_space ?? gallerySpace) === "embedding" ? "embedding" : "umap";
+  const galleryTitle =
+    effectiveNeighborSpace === "embedding"
+      ? "Similarity Gallery (Embedding Space)"
+      : "Similarity Gallery (UMAP Space)";
+  const localMetricsTitle =
+    effectiveNeighborSpace === "embedding"
+      ? "Local Metrics (embedding neighbors, feature space)"
+      : "Local Metrics (UMAP neighbors, feature space)";
+  const similarityHistTitle =
+    effectiveNeighborSpace === "embedding"
+      ? "Similarity histogram · embedding kNN"
+      : "Similarity histogram · UMAP kNN";
+
+  const cycleGallerySpace = useCallback(
+    (delta) => {
+      if (!onSimilarityNeighborSpaceChange) return;
+      const order = ["umap", "embedding"];
+      const i = order.indexOf(gallerySpace);
+      const next = order[(i + delta + order.length) % order.length];
+      if (next !== gallerySpace) onSimilarityNeighborSpaceChange(next);
+    },
+    [gallerySpace, onSimilarityNeighborSpaceChange]
+  );
   const [view, setView] = useState("all"); // 'all' | 'gallery' | 'compact' | 'hist' | 'diff'
   // Similarity histogram x-axis: fix left end at 0.9, right end at 1.0
   const mapById = useMemo(() => {
@@ -275,6 +303,20 @@ export default function LocalFeaturePanel({
     };
   }, [data, view]);
 
+  // Keep Raw + UMAP viewer ranking badges in sync with the current T1 neighbor list (e.g. gallery space toggle).
+  useEffect(() => {
+    if (!data || typeof window === "undefined") return;
+    const rankings = [data.query, ...(data.neighbors || []).map((n) => n.id)].filter((id) => id != null);
+    const rankingKey = `__showSimilarityRanking_${viewerId}`;
+    if (window[rankingKey]) window[rankingKey](rankings);
+    if (typeof window.__showSimilarityRanking === "function") {
+      window.__showSimilarityRanking(rankings);
+    }
+    if (typeof window.__showSimilarityRankingUMAP === "function") {
+      window.__showSimilarityRankingUMAP(rankings);
+    }
+  }, [data, viewerId]);
+
   // Hover tooltip: bar / median / std band
   const wrapperRef = useRef(null);
   const onMouseMove = (e) => {
@@ -316,120 +358,144 @@ export default function LocalFeaturePanel({
 
       {(view === "all" || view === "gallery") && (
       <div className="feature-section">
-        <div className="feature-title">Similarity Gallery (UMAP Space)</div>
-        <div className="gallery-t1">
-          <div className="gallery-query">
-            {queryObj && (
-              <Thumb
-                object={queryObj}
-                iconMappingsByChunk={iconMappingsByChunk}
-                chunkUV={chunkUV}
-                atlasByChannel={atlasByChannel}
-                atlasURL={atlasURL}
-                channels={channels}
-                colors={colors}
-                alphas={alphas}
-                windows={windows}
-                size={96}
-                label="query"
-                onClick={(obj) => {
-                  // Focus on the selected cell
-                  if (obj && typeof window !== "undefined") {
-                    // 1) Focus in the current viewer
-                    const focusKey = `__focusCell_${viewerId}`;
-                    if (window[focusKey]) {
-                      window[focusKey]({ id: obj.id });
-                    }
-                    // 2) Focus in both Raw and UMAP viewers
-                    if (typeof window.__focusCell === "function") {
-                      window.__focusCell({ id: obj.id });
-                    }
-                    if (typeof window.__focusCellUMAP === "function") {
-                      window.__focusCellUMAP({ id: obj.id });
-                    }
-                    // 3) Show similarity rankings in both viewers (query is 0, neighbors are 1-N)
-                    if (data) {
-                      const rankings = [data.query, ...(data.neighbors || []).map((n) => n.id)].filter(
-                        (id) => id != null
-                      );
-                      const rankingKey = `__showSimilarityRanking_${viewerId}`;
-                      if (window[rankingKey]) {
-                        window[rankingKey](rankings);
+        <div className={onSimilarityNeighborSpaceChange ? "gallery-space-shell" : undefined}>
+          {onSimilarityNeighborSpaceChange ? (
+            <button
+              type="button"
+              className="gallery-space-arrow gallery-space-arrow-left"
+              aria-label="Previous: switch between UMAP and embedding neighbor space"
+              onClick={() => cycleGallerySpace(-1)}
+            >
+              ‹
+            </button>
+          ) : null}
+          <div className={onSimilarityNeighborSpaceChange ? "gallery-space-inner" : undefined}>
+            <div className="feature-title">{galleryTitle}</div>
+            <div className="gallery-t1">
+              <div className="gallery-query">
+                {queryObj && (
+                  <Thumb
+                    object={queryObj}
+                    iconMappingsByChunk={iconMappingsByChunk}
+                    chunkUV={chunkUV}
+                    atlasByChannel={atlasByChannel}
+                    atlasURL={atlasURL}
+                    channels={channels}
+                    colors={colors}
+                    alphas={alphas}
+                    windows={windows}
+                    size={96}
+                    label="query"
+                    onClick={(obj) => {
+                      // Focus on the selected cell
+                      if (obj && typeof window !== "undefined") {
+                        // 1) Focus in the current viewer
+                        const focusKey = `__focusCell_${viewerId}`;
+                        if (window[focusKey]) {
+                          window[focusKey]({ id: obj.id });
+                        }
+                        // 2) Focus in both Raw and UMAP viewers
+                        if (typeof window.__focusCell === "function") {
+                          window.__focusCell({ id: obj.id });
+                        }
+                        if (typeof window.__focusCellUMAP === "function") {
+                          window.__focusCellUMAP({ id: obj.id });
+                        }
+                        // 3) Show similarity rankings in both viewers (query is 0, neighbors are 1-N)
+                        if (data) {
+                          const rankings = [data.query, ...(data.neighbors || []).map((n) => n.id)].filter(
+                            (id) => id != null
+                          );
+                          const rankingKey = `__showSimilarityRanking_${viewerId}`;
+                          if (window[rankingKey]) {
+                            window[rankingKey](rankings);
+                          }
+                          if (typeof window.__showSimilarityRanking === "function") {
+                            window.__showSimilarityRanking(rankings);
+                          }
+                          if (typeof window.__showSimilarityRankingUMAP === "function") {
+                            window.__showSimilarityRankingUMAP(rankings);
+                          }
+                        }
                       }
-                      if (typeof window.__showSimilarityRanking === "function") {
-                        window.__showSimilarityRanking(rankings);
+                    }}
+                  />
+                )}
+              </div>
+              <div className="neighbors-grid">
+                {neighborObjs.slice(0, 8).map((n) => (
+                  <Thumb
+                    key={n.id}
+                    object={n.object}
+                    iconMappingsByChunk={iconMappingsByChunk}
+                    chunkUV={chunkUV}
+                    atlasByChannel={atlasByChannel}
+                    atlasURL={atlasURL}
+                    channels={channels}
+                    colors={colors}
+                    alphas={alphas}
+                    windows={windows}
+                    size={64}
+                    label={`sim ${(() => {
+                      const s = typeof n.similarity === "number" ? n.similarity : 0;
+                      const s01 = Math.max(0, Math.min(1, (s + 1) * 0.5));
+                      return s01.toFixed(2);
+                    })()}`}
+                    onClick={(obj) => {
+                      // Focus on the selected cell
+                      if (obj && typeof window !== "undefined") {
+                        // 1) Focus in the current viewer
+                        const focusKey = `__focusCell_${viewerId}`;
+                        if (window[focusKey]) {
+                          window[focusKey]({ id: obj.id });
+                        }
+                        // 2) Focus in both Raw and UMAP viewers
+                        if (typeof window.__focusCell === "function") {
+                          window.__focusCell({ id: obj.id });
+                        }
+                        if (typeof window.__focusCellUMAP === "function") {
+                          window.__focusCellUMAP({ id: obj.id });
+                        }
+                        // 3) Show similarity rankings in both viewers (query is 0, neighbors are 1-N)
+                        if (data) {
+                          const rankings = [data.query, ...(data.neighbors || []).map((nn) => nn.id)].filter(
+                            (id) => id != null
+                          );
+                          const rankingKey = `__showSimilarityRanking_${viewerId}`;
+                          if (window[rankingKey]) {
+                            window[rankingKey](rankings);
+                          }
+                          if (typeof window.__showSimilarityRanking === "function") {
+                            window.__showSimilarityRanking(rankings);
+                          }
+                          if (typeof window.__showSimilarityRankingUMAP === "function") {
+                            window.__showSimilarityRankingUMAP(rankings);
+                          }
+                        }
                       }
-                      if (typeof window.__showSimilarityRankingUMAP === "function") {
-                        window.__showSimilarityRankingUMAP(rankings);
-                      }
-                    }
-                  }
-                }}
-              />
-            )}
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
-          <div className="neighbors-grid">
-            {neighborObjs.slice(0, 8).map((n) => (
-              <Thumb
-                key={n.id}
-                object={n.object}
-                iconMappingsByChunk={iconMappingsByChunk}
-                chunkUV={chunkUV}
-                atlasByChannel={atlasByChannel}
-                atlasURL={atlasURL}
-                channels={channels}
-                colors={colors}
-                alphas={alphas}
-                windows={windows}
-                size={64}
-              label={`sim ${(() => {
-                const s = typeof n.similarity === "number" ? n.similarity : 0;
-                const s01 = Math.max(0, Math.min(1, (s + 1) * 0.5));
-                return s01.toFixed(2);
-              })()}`}
-                onClick={(obj) => {
-                  // Focus on the selected cell
-                  if (obj && typeof window !== "undefined") {
-                    // 1) Focus in the current viewer
-                    const focusKey = `__focusCell_${viewerId}`;
-                    if (window[focusKey]) {
-                      window[focusKey]({ id: obj.id });
-                    }
-                    // 2) Focus in both Raw and UMAP viewers
-                    if (typeof window.__focusCell === "function") {
-                      window.__focusCell({ id: obj.id });
-                    }
-                    if (typeof window.__focusCellUMAP === "function") {
-                      window.__focusCellUMAP({ id: obj.id });
-                    }
-                    // 3) Show similarity rankings in both viewers (query is 0, neighbors are 1-N)
-                    if (data) {
-                      const rankings = [data.query, ...(data.neighbors || []).map((nn) => nn.id)].filter(
-                        (id) => id != null
-                      );
-                      const rankingKey = `__showSimilarityRanking_${viewerId}`;
-                      if (window[rankingKey]) {
-                        window[rankingKey](rankings);
-                      }
-                      if (typeof window.__showSimilarityRanking === "function") {
-                        window.__showSimilarityRanking(rankings);
-                      }
-                      if (typeof window.__showSimilarityRankingUMAP === "function") {
-                        window.__showSimilarityRankingUMAP(rankings);
-                      }
-                    }
-                  }
-                }}
-              />
-            ))}
-          </div>
+          {onSimilarityNeighborSpaceChange ? (
+            <button
+              type="button"
+              className="gallery-space-arrow gallery-space-arrow-right"
+              aria-label="Next: switch between UMAP and embedding neighbor space"
+              onClick={() => cycleGallerySpace(1)}
+            >
+              ›
+            </button>
+          ) : null}
         </div>
       </div>
       )}
 
       {(view === "all" || view === "compact") && (
       <div className="feature-section">
-        <div className="feature-title">Local Metrics (High-Dim Feature Space)</div>
+        <div className="feature-title">{localMetricsTitle}</div>
         <div className="metrics-wrap">
         <div className="metric-card">
           {/* Compactness gauge (smaller is better → use percentile directly) */}
@@ -505,7 +571,7 @@ export default function LocalFeaturePanel({
 
       {(view === "all" || view === "hist") && (
       <div className="feature-section">
-        <div className="feature-title">Similarity histogram</div>
+        <div className="feature-title">{similarityHistTitle}</div>
         <div ref={wrapperRef} className="hist-wrapper">
         <canvas
             className="hist-canvas"
