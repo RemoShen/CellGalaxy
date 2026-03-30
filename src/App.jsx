@@ -1,5 +1,5 @@
 import React from "react";
-import { VIEW_DUAL, VIEW_SINGLE } from "./constants/view";
+import { VIEW_SINGLE } from "./constants/view";
 import useDataLoader from "./DataLoader/DataLoader";
 import Viewer from "./Viewer/Viewer";
 import Control from "./Control/Control";

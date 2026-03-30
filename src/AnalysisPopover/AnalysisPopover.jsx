@@ -3,8 +3,6 @@ import "./AnalysisPopover.css";
 import {
   fetchT1,
   fetchT2,
-  fetchViolinGlobalKDE,
-  fetchViolinSelectionKDE,
   fetchViolinSelectionCellKDE,
   fetchRegionRepresentatives,
 } from "../api/api";
@@ -16,12 +14,11 @@ import { buildIconMappingsByChunk, clampPositionToViewport } from "../utils/util
 
 export default function AnalysisPopover({
   open,
-  command, // { type:'t1', q } | { type:'t2', ids:number[] }
+  command,
   x = 0,
   y = 0,
   selectionBounds = null,
   onClose = () => {},
-  // rendering context
   meta,
   chunkUV,
   atlasURL,
@@ -33,8 +30,7 @@ export default function AnalysisPopover({
   pointsRaw = [],
   pointsUMAP = [],
   useUMAP = false,
-  viewerId = "raw", // determine which viewer to focus
-  // selection highlight hook
+  viewerId = "raw",
   selectedIds = new Set(),
   setSelectedIds = () => {},
 }) {
@@ -43,16 +39,14 @@ export default function AnalysisPopover({
     [meta, chunkUV]
   );
   const rootRef = useRef(null);
-  const [mode, setMode] = useState("none"); // 'none' | 't1' | 't2' | 'compare'
+  const [mode, setMode] = useState("none");
   const [t1, setT1] = useState(null);
   const [t1NeighborSpace, setT1NeighborSpace] = useState("umap");
   const [t2, setT2] = useState(null);
   const [tCompare, setTCompare] = useState(null);
   const [busy, setBusy] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
-  const globalKDECache = useRef({ key: "", data: null });
 
-  // Clamp into viewport after mount or when size changes
   const clampIntoViewport = () => {
     const node = rootRef.current;
     if (!node) return;
@@ -70,7 +64,6 @@ export default function AnalysisPopover({
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // Simple drag: allow user to drag the popover using the top strip
   const handleDragMouseDown = (e) => {
     e.preventDefault();
     const node = rootRef.current;
@@ -92,12 +85,9 @@ export default function AnalysisPopover({
     window.addEventListener("mouseup", onUp);
   };
 
-  // Execute analysis when command changes
   useEffect(() => {
     const run = async () => {
       if (!open || !command) return;
-      // Auto-place popover using selection bounding box + anchor,
-      // trying to avoid covering selected clusters.
       try {
         const viewportW = window.innerWidth || 1920;
         const viewportH = window.innerHeight || 1080;
@@ -107,21 +97,15 @@ export default function AnalysisPopover({
         let nx = x;
         let ny = y;
 
-        // If there is a selection bounding box, score 4 candidate positions
-        // (top / bottom / left / right) and select the one with minimal overlap.
         if (selectionBounds && typeof selectionBounds.x0 === "number" && typeof selectionBounds.y0 === "number") {
           const sb = selectionBounds;
           const cxSel = (sb.x0 + sb.x1) / 2;
           const cySel = (sb.y0 + sb.y1) / 2;
           const margin = 16;
           const candidates = [
-            // Top
             { x: cxSel - approxWidth / 2, y: sb.y0 - approxHeight - margin },
-            // Bottom
             { x: cxSel - approxWidth / 2, y: sb.y1 + margin },
-            // Left
             { x: sb.x0 - approxWidth - margin, y: cySel - approxHeight / 2 },
-            // Right
             { x: sb.x1 + margin, y: cySel - approxHeight / 2 },
           ];
           const score = (cand) => {
@@ -129,7 +113,6 @@ export default function AnalysisPopover({
             const y0 = cand.y;
             const x1 = cand.x + approxWidth;
             const y1 = cand.y + approxHeight;
-            // Intersection area
             const ix0 = Math.max(x0, sb.x0);
             const iy0 = Math.max(y0, sb.y0);
             const ix1 = Math.min(x1, sb.x1);
@@ -137,7 +120,6 @@ export default function AnalysisPopover({
             const w = ix1 - ix0;
             const h = iy1 - iy0;
             const overlap = w > 0 && h > 0 ? w * h : 0;
-            // Penalty for exceeding viewport
             const outLeft = Math.max(0, -x0);
             const outRight = Math.max(0, x1 - viewportW);
             const outTop = Math.max(0, -y0);
@@ -157,7 +139,6 @@ export default function AnalysisPopover({
           nx = best.x;
           ny = best.y;
         } else {
-          // Without a bounding box, fall back to simple anchor-based logic
           const preferRight = x < viewportW / 2;
           const preferBelow = y < viewportH / 2;
           nx = preferRight ? x + 24 : x - approxWidth - 24;
@@ -176,12 +157,9 @@ export default function AnalysisPopover({
           setT2(null);
           setTCompare(null);
           setT1NeighborSpace("umap");
-          // Use k=8 to match the neighbor count used by the local metrics panel
-          // (similarity gallery + histogram).
           const res = await fetchT1(Number(command.q), 8, undefined, "umap");
           if (!res || res.error) return;
           setT1(res);
-          // Highlight query + neighbors
           try {
             const neighborIds = (res.neighbors || []).map((n) => n.id);
             const all = new Set([Number(command.q), ...neighborIds]);
@@ -194,13 +172,6 @@ export default function AnalysisPopover({
           let ids = command.ids.map((v) => Number(v)).filter((v) => Number.isFinite(v));
           if (ids.length === 0) return;
 
-          // For large group analysis, the main bottleneck is spectral ordering
-          // and similarity matrix in /features/t2 (O(n^2)).
-          // Here we do a random downsampling of ids on the frontend to keep
-          // computation roughly in the thousands:
-          //   - small  (<= 2500): use all ids
-          //   - medium (2500~8000): limit to ~4000
-          //   - large  (> 8000): limit to ~5000
           const total = ids.length;
           let maxGroup = 2500;
           if (total > 8000) {
@@ -283,8 +254,6 @@ export default function AnalysisPopover({
       ref={rootRef}
       className="analysis-popover"
       style={{ left: pos.x, top: pos.y }}
-      // While hovering on the analysis popover, block hover on the viewer underneath
-      // so HoverPreview does not continue to show single-cell previews.
       onMouseEnter={(e) => {
         try {
           e.stopPropagation();
@@ -315,7 +284,6 @@ export default function AnalysisPopover({
             iconMappingsByChunk={iconMappingsByChunk}
             chunkUV={chunkUV}
             atlasByChannel={atlasByChannel}
-            atlasURL={atlasURL}
             channels={channels}
             colors={colors}
             alphas={alphas}

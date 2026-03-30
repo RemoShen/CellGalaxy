@@ -1,6 +1,3 @@
-// =============================
-// api.js - centralized API helpers
-// =============================
 /* eslint-disable no-console */
 
 export const API_BASE =
@@ -35,8 +32,6 @@ export async function fetchMeta(signal) {
   }
 }
 
-// ===== Violin density (backend KDE) =====
-// NOTE: max/grid kept moderate to avoid heavy I/O when called interactively.
 export async function fetchViolinGlobalKDE(max = 80000, perc = 99.0, thr = 0.1, channels = null, grid = 256, signal) {
   try {
     const chParam = Array.isArray(channels) && channels.length > 0 ? `&channels=${channels.join(",")}` : "";
@@ -96,9 +91,6 @@ export function prewarm(channel, tile) {
   } catch {}
 }
 
-// ===== Features (T1/T2) =====
-// By default, use only the top 8 nearest neighbors to match local similarity
-// histogram / gallery displays.
 /** @param {AbortSignal} [signal] @param {'umap'|'embedding'} [neighborSpace] */
 export async function fetchT1(queryId, k = 8, signal, neighborSpace = "umap") {
   try {
@@ -192,10 +184,6 @@ export async function fetchViolinSelectionKDE(ids, max = 30000, perc = 99.0, thr
   }
 }
 
-// KDE over **per-cell mean intensities** for a selection.
-// This is used for Region‑vs‑Region comparison, so that
-// the curves directly reflect "how bright are the cells"
-// in each region for a given channel.
 export async function fetchViolinSelectionCellKDE(
   ids,
   maxCells = 400,
@@ -220,7 +208,6 @@ export async function fetchViolinSelectionCellKDE(
   }
 }
 
-// ===== LLM / precomputation helpers =====
 export async function runLLMClusterChannelAvg(signal) {
   try {
     const res = await fetch(`${API_BASE}/llm/compute_cluster_channel_avg`, {

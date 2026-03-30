@@ -78,7 +78,6 @@ export default function FeatureDock({
           iconMappingsByChunk={iconMappingsByChunk}
           chunkUV={chunkUV}
           atlasByChannel={atlasByChannel}
-          atlasURL={atlasURL}
           channels={channels}
           colors={colors}
           alphas={alphas}
