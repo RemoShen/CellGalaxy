@@ -80,7 +80,7 @@ export default function DeckViewState({
   }, [is3D]);
 
   // Space: 3D auto-rotate (rAF)
-  const autoRotateSpeed = 0.15; // degrees per frame
+  const autoRotateSpeed = 0.3; // deg/frame (was 0.15)
   useEffect(() => {
     if (!is3D || !autoRotate) return;
     let rafId;

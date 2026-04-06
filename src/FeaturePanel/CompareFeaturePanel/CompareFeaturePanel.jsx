@@ -37,7 +37,7 @@ function RegionThumb({
         colors,
         alphas,
         windows,
-        previewSize: 110,
+        previewSize: 84,
       });
       if (cancelled) return;
     })();
@@ -61,8 +61,8 @@ function RegionThumb({
         <canvas
           ref={canvasRef}
           style={{
-            width: 72,
-            height: 72,
+            width: 56,
+            height: 56,
             borderRadius: 8,
             display: "block",
           }}

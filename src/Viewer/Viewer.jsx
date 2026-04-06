@@ -866,7 +866,7 @@ const Viewer = ({
         clusterPreviewScreens.map(({ point, x, y }) => {
           if (!point) return null;
           // Fixed thumb size (avoid resize on zoom)
-          const previewSize = 64;
+          const previewSize = 48;
           const val = point?.[clusterLabelKey];
           const lbl = Number.isFinite(val) ? val : (point.label ?? 0);
           const rgb = clusterColor(lbl);
