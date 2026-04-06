@@ -91,6 +91,8 @@ const Viewer = ({
 }) => {
   const isUMAPView =
     viewerId === "umap" || (viewerId === "single" && !!useUMAP);
+  // Raw space is always 2D; only UMAP respects the global 3D toggle.
+  const viewIs3D = isUMAPView && is3D;
   // Slider size: UMAP only; raw uses rawImageSize from tile/range.
   const effectiveImageSize = isUMAPView ? imageSize : (rawImageSize ?? imageSize);
   const {
@@ -102,7 +104,7 @@ const Viewer = ({
     autoRotate,
   } = DeckViewState({
     points,
-    is3D,
+    is3D: viewIs3D,
     sharedZoom,
     setSharedZoom,
     initialZoom: 8,
@@ -342,12 +344,12 @@ const Viewer = ({
 
   // 2D cluster hull outlines
   const outlineData = useMemo(() => {
-    if (is3D || !visiblePoints || visiblePoints.length < 3) return [];
+    if (viewIs3D || !visiblePoints || visiblePoints.length < 3) return [];
     return buildOutlineData2D(visiblePoints, clusterLabelKey);
-  }, [is3D, visiblePoints, clusterLabelKey]);
+  }, [viewIs3D, visiblePoints, clusterLabelKey]);
 
   const screenOutlines = ClusterOutlines({
-    is3D,
+    is3D: viewIs3D,
     clusterOutlineOn,
     forceCompute: clusterAnnotationOn,
     points: visiblePoints,
@@ -496,7 +498,7 @@ const Viewer = ({
     clusterAnnotationModel,
     outlineData,
     viewState,
-    is3D,
+    is3D: viewIs3D,
     screenOutlines3D: screenOutlines,
     level: semanticLevel,
     filteredDominantAnnotations,
@@ -711,7 +713,7 @@ const Viewer = ({
     colors,
     alphas,
     windows,
-    is3D,
+    is3D: viewIs3D,
     filteredIds,
     clusterColorOn,
     clusterOpacity,
@@ -729,7 +731,7 @@ const Viewer = ({
 
   const controller =
     selectionMode === SELECTION_NONE
-      ? is3D
+      ? viewIs3D
         ? { 
             type: OrbitController,
             scrollZoom: true,
@@ -778,7 +780,7 @@ const Viewer = ({
           <>
             <ClusterHoverMask
               outlineData={outlineData}
-              is3D={is3D}
+              is3D={viewIs3D}
               deckRef={deckRef}
               containerRef={containerRef}
               active={hoverMaskEnabled && clusterOutlineOn}
@@ -789,7 +791,7 @@ const Viewer = ({
                 <DeckGL
                   ref={deckRef}
                   views={
-                    is3D
+                    viewIs3D
                       ? [new OrbitView({ id: "3d", orbitAxis: "Y", flipY: false })]
                       : [new OrthographicView({ id: "2d", flipY: false })]
                   }
@@ -812,7 +814,7 @@ const Viewer = ({
             </ClusterHoverMask>
 
             {/* 3D cluster outlines (SVG) */}
-            {is3D && clusterOutlineOn && screenOutlines.length > 0 && (
+            {viewIs3D && clusterOutlineOn && screenOutlines.length > 0 && (
               <svg className="cluster-outline-svg">
                 {screenOutlines.map((s, i) => (
                   <path key={i} d={s.d} fill="none" stroke={s.color} strokeWidth={clusterLineWidth} />
@@ -821,7 +823,7 @@ const Viewer = ({
             )}
 
             {/* Space: auto-rotate */}
-            {is3D && (
+            {viewIs3D && (
               <div className="viewer-3d-autorotate-hint" aria-hidden="true">
                 Space: auto-rotate {autoRotate ? "On" : "Off"}
               </div>
