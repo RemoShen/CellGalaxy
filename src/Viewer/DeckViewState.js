@@ -10,15 +10,15 @@ export default function DeckViewState({
   initialZoom = 8,
   imageSize = 4,
   transitionsEnabled = true,
-  /** 非 null 时，与 OME 底图一致：世界坐标 y = pixelYFlipHeight - raw_y */
+  /** If set, match OME base: world y = pixelYFlipHeight - raw_y */
   pixelYFlipHeight = null,
   /**
-   * 变化时重置相机对准新 points 的 center（单视图 Spatial↔UMAP 共用同一 Viewer 时必须）。
-   * 双视图可传稳定 id（如 viewerId）。
+   * When changed, reset camera target to new points center (needed for single-view Spatial↔UMAP).
+   * Dual view: pass stable id (e.g. viewerId).
    */
   cameraSpaceId = "default",
   /**
-   * 递增时把「散点/选中框尺寸」用的 zoom 基准设为当前 deck zoom（用于 OME 首帧 fit 后相机 zoom 骤降、避免 computedImageSize 相对旧 base 崩掉）。
+   * Bump to set scatter/selection size zoom baseline to current deck zoom (after OME fit zoom drop).
    */
   markerZoomBaselineSeq = null,
 }) {
@@ -72,7 +72,7 @@ export default function DeckViewState({
       initialized.current = true;
       return;
     }
-    // OME 图像高度在首帧之后才就绪：从「未翻转中心」切到翻转后的 center 一次
+    // OME height ready after first frame: one jump from unflipped to flipped-y center
     if (prevH == null && h != null && Number.isFinite(h)) {
       setViewState((prev) => ({ ...prev, target: center }));
     }
@@ -144,7 +144,7 @@ export default function DeckViewState({
     };
   }, [is3D, autoRotate]);
 
-  // OME 首帧 fit 在同一 commit 内把 zoom 从 initial 拉到整幅视野；须在渲染期把尺寸基准对齐到当前 zoom，否则 computedImageSize 会按旧 base 崩掉。
+  // OME first-fit pulls zoom in one commit; align size baseline to current zoom or computedImageSize breaks
   if (markerZoomBaselineSeq != null && markerZoomBaselineSeq > 0) {
     if (prevMarkerZoomBaselineSeqRef.current !== markerZoomBaselineSeq) {
       prevMarkerZoomBaselineSeqRef.current = markerZoomBaselineSeq;

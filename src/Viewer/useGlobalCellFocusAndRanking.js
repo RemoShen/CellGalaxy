@@ -14,7 +14,7 @@ export default function useGlobalCellFocusAndRanking({
   setViewState,
   transitionsEnabled,
   setSimilarityRankings,
-  /** (p) => [x,y,z] 与 Deck 世界坐标一致（如 raw+OME 的 y 翻转） */
+  /** (p) => [x,y,z] in Deck world space (incl. raw+OME y-flip) */
   mapWorldPosition = null,
 }) {
   useEffect(() => {

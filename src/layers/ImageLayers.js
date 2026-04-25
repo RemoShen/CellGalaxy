@@ -37,9 +37,9 @@ export default function ImageLayers({
   dotOutlineForBrightBackground = false,
   /** When true, never composite Zarr tile atlases (OME-TIFF / Viv is the image source). */
   suppressSpriteAtlases = false,
-  /** 非 null 时与 OME 底图一致：世界 y = pixelYFlipHeight - raw_y */
+  /** If set, match OME base: world y = pixelYFlipHeight - raw_y */
   pixelYFlipHeight = null,
-  /** OME 空间白点层：全透明但仍可 hover/框选；选中格略显示 */
+  /** OME spatial: invisible scatter for pick/lasso; selection via DOM ring */
   omeSpatialScatterPickOnly = false,
 }) {
   const worldPos = (d) => {
@@ -390,7 +390,7 @@ export default function ImageLayers({
               if (activeFilter && !filteredIds.has(d.id)) {
                 return [0, 0, 0, 0];
               }
-              // 散点层全透明，选中仅由 Viewer 的 DOM 方框表示（避免黄圆盖住 OME）
+              // Transparent scatter; selection ring in Viewer DOM (avoids disk over OME)
               return [255, 255, 255, 0];
             }
             if (activeFilter && !filteredIds.has(d.id)) {

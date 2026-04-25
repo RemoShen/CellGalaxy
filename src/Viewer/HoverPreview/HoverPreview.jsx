@@ -278,9 +278,9 @@ export default function HoverPreview({
   rawAnnotationById = new Map(),
   filteredIds = null,
   getWorldPosition = null,
-  /** deck pickObject 半径；Spatial+OME 透明散点时可略大便于命中 */
+  /** deck pickObject radius; larger for transparent OME spatial scatter */
   pickRadius = 6,
-  /** hover 方框相对 computedImageSize 的倍数（OME 上轮廓可略放大） */
+  /** Hover ring scale vs computedImageSize (slightly larger on OME) */
   hoverRingScale = 1,
 }) {
   const toWorld =
@@ -390,7 +390,7 @@ export default function HoverPreview({
     const { x, y } = projected[0];
     // Outline ≈ tile size
     const baseSize = computedImageSize * hoverRingScale;
-    // 与 Viewer 中 selected-tile-outline 的 Math.max(6, computedImageSize) 一致
+    // Match Viewer selected-tile-outline: Math.max(6, computedImageSize)
     const size = Math.max(6, baseSize);
     setOutlineRect({
       left: x - size / 2,

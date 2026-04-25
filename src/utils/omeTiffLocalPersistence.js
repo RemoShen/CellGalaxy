@@ -1,7 +1,6 @@
 /**
- * 在支持 File System Access API 的浏览器（Chromium 系）中，将 OME-TIFF 的
- * FileSystemFileHandle 存入 IndexedDB，刷新后可在授权下再次 getFile()，
- * 无需把整份 TIFF 拷进内存或经后端。
+ * Chromium File System Access API: persist OME-TIFF FileSystemFileHandle in IndexedDB
+ * for getFile() after reload (no full-file copy / no backend).
  */
 
 const DB_NAME = "MultiScaleImageProjection";

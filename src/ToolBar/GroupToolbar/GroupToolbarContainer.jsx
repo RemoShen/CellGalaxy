@@ -127,7 +127,7 @@ export default function GroupToolbarContainer({
       mode={mode}
       onAnalyze={onAnalyze}
       onClear={() => {
-        // 仅当用户点过「缩放到选中」时才恢复相机；否则只清选择，避免 OME 等空间视图被错误拉回 zoom=8
+        // Restore camera only if user had zoomed-to-selection; else clear pick only (avoids bad zoom=8 on OME spatial)
         if (
           isZoomedToSelection &&
           typeof onRestoreView === "function"

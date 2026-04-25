@@ -12,7 +12,7 @@ export default function FileUpload({
   /** Local OME-TIFF (browser File) — no upload API */
   omeTiffFile = null,
   setOmeTiffFile = () => {},
-  /** 清除本地 OME-TIFF 并移除 IndexedDB 中的 file handle（若曾保存） */
+  /** Clear local OME-TIFF and remove persisted FileSystemFileHandle from IndexedDB */
   onClearLocalOmeTiff,
   omeTiffRestoreNeedsClick = false,
   onRestoreOmeTiffFromDisk = async () => {},
@@ -374,7 +374,7 @@ export default function FileUpload({
         {omeTiffRestoreNeedsClick && !omeTiffFile && (
           <div className="ome-tiff-restore-hint" role="status">
             <span className="ome-tiff-restore-text">
-              已保存本机 OME-TIFF 引用，刷新后需再次授权读取。
+              OME-TIFF path saved. After reload, grant access again to read.
             </span>
             <button
               type="button"
@@ -382,7 +382,7 @@ export default function FileUpload({
               disabled={busy}
               onClick={() => onRestoreOmeTiffFromDisk()}
             >
-              恢复读取
+              Restore file
             </button>
           </div>
         )}

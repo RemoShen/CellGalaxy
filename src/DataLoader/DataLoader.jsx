@@ -70,10 +70,10 @@ export default function useDataLoader() {
   const [omeTiffPresent, setOmeTiffPresent] = useState(false);
   /** Local OME-TIFF (browser File) — Viv path, no backend / no Zarr tiles */
   const [omeTiffFile, setOmeTiffFile] = useState(null);
-  /** 已存磁盘 handle，但刷新后需用户点击才能完成 requestPermission */
+  /** Handle persisted; after reload user must click to complete requestPermission. */
   const [omeTiffRestoreNeedsClick, setOmeTiffRestoreNeedsClick] = useState(false);
   const omeTiffSpatialActive = Boolean(omeTiffFile) || omeTiffPresent;
-  /** channel_id (UI) → OME-TIFF 0-based channel index c，来自 channel_info.json 的 ome_c（由 raw_index 生成） */
+  /** channel_id (UI) → OME 0-based c from channel_info.json ome_c (from raw_index). */
   const [channelOmeIndexById, setChannelOmeIndexById] = useState({});
   /** channel_id (UI) -> channel display name, from channel_info.json */
   const [channelNameById, setChannelNameById] = useState({});
@@ -107,7 +107,7 @@ export default function useDataLoader() {
           n[id] = typeof ch?.name === "string" ? ch.name : "";
           const raw = ch.raw_index != null && ch.raw_index !== "" ? Number(ch.raw_index) : NaN;
           let omeC;
-          // raw_index：该通道在 OME-TIFF 里的 channel 序号，从 1 起 → Viv 的 c 为 0 起
+          // raw_index: 1-based OME channel index in file → Viv c = raw_index - 1
           if (Number.isFinite(raw) && raw >= 1) {
             omeC = Math.max(0, Math.floor(raw) - 1);
             explicit[id] = true;
@@ -634,7 +634,7 @@ export default function useDataLoader() {
     }
   };
 
-  // Prefetch UV + gray atlas per chunk/channel（UMAP sprites 与 spatial hover 预览均依赖，不可因 OME 存在而跳过）
+  // Prefetch UV + gray atlas (UMAP sprites + spatial hover); keep even with OME
   useEffect(() => {
     if (!meta || loading) return;
     const chunks = new Set((allCoords || []).map((p) => p.chunk_id));

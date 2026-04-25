@@ -8,7 +8,7 @@ export default function SelectionOverlay({
   viewerId = "viewer",
   selectionMode = "none", // 'none' | 'box' | 'lasso'
   points = [],
-  /** 可选：与 Deck 中散点一致的世界坐标（如 raw + OME 时 y 翻转） */
+  /** Optional: world coords like Deck scatter (e.g. raw+OME y-flip) */
   getWorldPositionForSelection,
   filteredIds = new Set(),
   selectedRegions = [],

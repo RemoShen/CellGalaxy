@@ -105,7 +105,7 @@ const Viewer = ({
   omeTiffUrl = null,
   /** Local OME-TIFF file (browser) — takes precedence over omeTiffUrl */
   omeTiffFile = null,
-  /** channel_id → OME 0-based c，来自 channel_info.json（channel_list.csv 的 raw_index） */
+  /** channel_id → OME 0-based c (from channel_info.json / channel_list raw_index). */
   channelOmeIndexById = {},
 }) => {
   const isUMAPView =
@@ -113,8 +113,7 @@ const Viewer = ({
   const rawUsesOmeTiff = Boolean(omeTiffUrl || omeTiffFile) && !isUMAPView;
   // Raw space is always 2D; only UMAP respects the global 3D toggle.
   const viewIs3D = isUMAPView && is3D;
-  // UMAP：直接使用统一的 Image size 滑条尺度（single/dual 一致）。
-  // OME-Spatial：固定等价滑条=OME_SPATIAL_IMAGE_SIZE_FIXED（默认 0.3）时的同一公式，不随滑条变。
+  // UMAP: same Image size slider as dual view. OME spatial: fixed as OME_SPATIAL_IMAGE_SIZE_FIXED (~0.3), not slider-driven.
   const UMAP_SLIDER_MIN = 0.3;
   const UMAP_SLIDER_MAX = 6;
   const markerViewportScale = 1;
@@ -134,14 +133,14 @@ const Viewer = ({
     : rawUsesOmeTiff
       ? omeSpatialFixedMarkerSize
       : (rawImageSize ?? imageSize);
-  // Spatial+OME：强制散点层叠在 Viv 上；UMAP 永远走 atlas（与全局「点/精灵」切换解耦）
+  // Spatial+OME: points on Viv; UMAP: sprites (decoupled from global points/sprites toggle).
   const effectiveRenderMode = rawUsesOmeTiff
     ? "points"
     : isUMAPView
       ? "sprites"
       : renderMode;
 
-  /** 单视图 Spatial↔UMAP 切换时必须让 Deck 相机按新坐标系重对 center */
+  /** Single-view Spatial↔UMAP: id so Deck camera re-centers on coordinate change. */
   const cameraSpaceId =
     viewerId === "single"
       ? isUMAPView
@@ -154,7 +153,7 @@ const Viewer = ({
   const [omeTiffSource, setOmeTiffSource] = useState(null);
   const [omeTiffLoadError, setOmeTiffLoadError] = useState(null);
   const omeFittedRef = useRef(false);
-  /** OME fit 完成后递增，用于 Deck 内把 marker 尺寸的 zoom 基准对齐到 fit 后相机 */
+  /** Bump after OME fit so marker size zoom baseline matches post-fit camera. */
   const [omeMarkerZoomBaselineSeq, setOmeMarkerZoomBaselineSeq] = useState(0);
 
   useEffect(() => {
@@ -726,7 +725,7 @@ const Viewer = ({
       deckRef,
       containerRef,
       items: clusterAnnotationData,
-      // position 已在 useClusterAnnotations 中与 Deck 世界坐标对齐（含 OME y 翻转）
+      // position already in Deck world space (incl. OME y-flip) from useClusterAnnotations
       getWorldPosition: (d) => d.position || [0, 0, 0],
       mapResult: (d, sx, sy, offsetX, offsetY) => ({
         ...d,
@@ -998,7 +997,7 @@ const Viewer = ({
           }}
           role="alert"
         >
-          OME-TIFF 加载失败：{omeTiffLoadError}
+          OME-TIFF failed to load: {omeTiffLoadError}
         </div>
       )}
       {!containerReady ? (
@@ -1296,7 +1295,7 @@ const Viewer = ({
       {selectedTileScreens &&
         selectedTileScreens.length > 0 &&
         selectedTileScreens.map(({ id, x, y, color }) => {
-          // Outline ~ tile size（与 UMAP 共用 effectiveImageSize + 同一 zoom 基准）
+          // Outline ~ tile size; same effectiveImageSize / zoom base as UMAP
           const size = Math.max(6, computedImageSize);
           let borderColor = "rgba(255, 255, 255, 0.9)";
           if (Array.isArray(color) && color.length >= 3) {

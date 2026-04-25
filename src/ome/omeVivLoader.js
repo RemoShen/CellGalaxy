@@ -1,6 +1,4 @@
-/**
- * OME-TIFF 与 Viv 一致：@vivjs/loaders 的 loadOmeTiff（底层 geotiff.js），不经 cogeotiff / 虚拟 zarr。
- */
+/** OME-TIFF via @vivjs/loaders loadOmeTiff (geotiff.js); no cogeotiff / virtual zarr. */
 import { loadOmeTiff } from "@vivjs/loaders";
 import { Matrix4 } from "math.gl";
 import { assert, MAX_CHANNELS } from "./omeTiffUtils.js";
@@ -148,7 +146,7 @@ function rgbaToHex(rgba) {
 
 async function mapVivOmeImageToSource(ome) {
   const loader = ome?.data;
-  assert(loader?.length, "OME-TIFF: 无金字塔数据");
+  assert(loader?.length, "OME-TIFF: no pyramid levels");
   const labels = loader[0].labels;
   const pixels = ome.metadata?.Pixels;
   const sizeC =
@@ -177,8 +175,8 @@ async function mapVivOmeImageToSource(ome) {
   const imageWidth = loader[0].shape[ix("x")];
   const imageHeight = loader[0].shape[ix("y")];
 
-  // 像素 / CSV raw：y 向下；Viv MultiscaleImageLayer 默认 extent 与 deck 正交视图的 y 向上叠在一起会上下反。
-  // translate(0,h,0) * scale(1,-1,1) 把图像翻到与 Scatterplot 的 (x,y) 像素坐标一致。
+  // Pixels / CSV raw: y down; Viv default vs deck ortho y up → flip Y.
+  // translate(0,h,0)*scale(1,-1,1) aligns image to scatterplot pixel coords.
   const modelMatrix = new Matrix4().translate([0, imageHeight, 0]).scale([1, -1, 1]);
 
   return {
@@ -199,13 +197,13 @@ async function mapVivOmeImageToSource(ome) {
   };
 }
 
-/** 远程 URL（同源 /public/... 等） */
+/** Remote URL (same-origin /public/...) */
 export async function openOmeTiffAsPixelSources(absoluteUrl) {
   const ome = await loadOmeTiff(absoluteUrl);
   return await mapVivOmeImageToSource(ome);
 }
 
-/** 浏览器本地 File */
+/** Local browser File */
 export async function openOmeTiffFromFile(file) {
   const ome = await loadOmeTiff(file);
   return await mapVivOmeImageToSource(ome);
@@ -233,9 +231,7 @@ function hexToRGB(hex) {
   return [r, g, b];
 }
 
-/**
- * MultiscaleImageLayer：loader 为 Viv TiffPixelSource[]；selection 为 { t, c, z }（与 @vivjs/loaders 一致）。
- */
+/** MultiscaleImageLayer props: loader = TiffPixelSource[]; selection { t, c, z } per @vivjs/loaders. */
 export function buildMultiscaleImageLayerProps(source, ui) {
   const {
     loader,

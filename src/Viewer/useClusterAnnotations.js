@@ -22,7 +22,7 @@ export default function useClusterAnnotations({
   screenOutlines3D = [],
   level = 0,
   filteredDominantAnnotations = null,
-  /** 与 raw+OME 散点一致：2D 时翻转质心 y */
+  /** Match raw+OME scatter: flip centroid y in 2D */
   pixelYFlipHeight = null,
 }) {
   const [clusterLabelsJson, setClusterLabelsJson] = useState(null);

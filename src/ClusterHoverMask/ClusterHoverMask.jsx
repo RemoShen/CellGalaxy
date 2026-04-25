@@ -19,7 +19,7 @@ export default function ClusterHoverMask({
   containerRef,
   active = true,
   altPressed = false,
-  /** 与散点/PathLayer 一致：世界 y = h - raw_y */
+  /** Match scatter/PathLayer: world y = h - raw_y */
   pixelYFlipHeight = null,
 
   screenOutlines3D = [],
