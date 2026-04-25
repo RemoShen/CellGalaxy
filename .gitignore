@@ -3,6 +3,7 @@ public/cache
 public/output.zarr
 public/data.csv
 public/coords.json
+public/display_cell_subset.npz
 public/.DS_Store
 public/channel_info.json
 public/raw.json

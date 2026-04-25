@@ -6,7 +6,13 @@ from typing import Any, List, Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from .config import DATA_DIR, ZARR_DIR
+from .config import DATA_DIR, ZARR_DIR, clear_cache_dir
+from .display_subset import (
+    clear_display_subset_artifacts,
+    compute_display_indices,
+    save_display_subset,
+    subset_artifacts_exist,
+)
 from .zarr_utils import open_zarr, meta_from_img, stable_label
 
 
@@ -130,8 +136,17 @@ def generate_raw_json(raw_csv_path: str, out_path: str) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-def process_coord_row(row: pd.Series, idx: int, n_per_chunk: int) -> Dict[str, Any]:
-    """process a single coordinate row"""
+def process_coord_row(
+    row: pd.Series,
+    zarr_row_id: int,
+    display_position: int,
+    n_per_chunk: int,
+) -> Dict[str, Any]:
+    """process a single coordinate row.
+
+    ``zarr_row_id`` is the original cell index (Zarr axis 1 / CSV row).
+    ``display_position`` is 0..K-1 in packed atlas order (chunk_id / local_index).
+    """
     x_raw = float(row.get("X_centroid", 0))
     y_raw = float(row.get("Y_centroid", 0))
     
@@ -155,9 +170,9 @@ def process_coord_row(row: pd.Series, idx: int, n_per_chunk: int) -> Dict[str, A
                 extra[cluster_key] = iv
 
     base = {
-        "id": idx,
-        "chunk_id": int(idx // n_per_chunk),
-        "local_index": int(idx % n_per_chunk),
+        "id": int(zarr_row_id),
+        "chunk_id": int(display_position // n_per_chunk),
+        "local_index": int(display_position % n_per_chunk),
         "raw": {"x": x_raw, "y": y_raw, "z": 0},
         "umap2d": {
             "x": float(row.get("umap2_x", x_raw)),
@@ -174,7 +189,7 @@ def process_coord_row(row: pd.Series, idx: int, n_per_chunk: int) -> Dict[str, A
             _safe_int(row.get("label"))
             if row.get("label") is not None
             else _safe_int(row.get("clustering"))
-        ) or stable_label(idx),
+        ) or stable_label(int(zarr_row_id)),
     }
     base.update(extra)
     return base
@@ -504,6 +519,7 @@ async def generate_json_files() -> None:
     try:
         # coords.json generation (requires data.csv + zarr)
         coords_generated = False
+        coords: List[Dict[str, Any]] = []
         if os.path.exists(csv_path):
             df = pd.read_csv(csv_path)
             try:
@@ -515,7 +531,22 @@ async def generate_json_files() -> None:
                 img = None
                 n_per_chunk = 1
                 N = len(df)
-            coords = [process_coord_row(df.iloc[idx], idx, n_per_chunk) for idx in range(N)]
+            # Subset only when Zarr is present (atlas/coords alignment); otherwise keep all rows.
+            if img is None:
+                indices = np.arange(N, dtype=np.int64)
+            else:
+                indices = compute_display_indices(df, N)
+            if int(indices.size) == int(N):
+                if subset_artifacts_exist():
+                    clear_display_subset_artifacts()
+                    clear_cache_dir()
+            else:
+                save_display_subset(N, indices)
+                clear_cache_dir()
+            coords = [
+                process_coord_row(df.iloc[int(orig)], int(orig), pos, n_per_chunk)
+                for pos, orig in enumerate(indices)
+            ]
             with open(os.path.join(DATA_DIR, "coords.json"), "w", encoding="utf-8") as f:
                 json.dump(coords, f, ensure_ascii=False, indent=2)
             coords_generated = True
@@ -524,7 +555,7 @@ async def generate_json_files() -> None:
         channels = generate_channel_info_only()
 
         # Log
-        coords_msg = f"coords.json ({len(coords) if os.path.exists(csv_path) else 0} points)" if coords_generated else "coords.json (skipped)"
+        coords_msg = f"coords.json ({len(coords) if coords_generated else 0} points)" if coords_generated else "coords.json (skipped)"
         ch_msg = f"channel_info.json ({len(channels) if channels is not None else 0} channels)" if channels is not None else "channel_info.json (skipped)"
         print(f"Generated JSON files: {coords_msg}, {ch_msg}")
     except Exception as e:

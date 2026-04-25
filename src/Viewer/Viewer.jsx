@@ -269,9 +269,9 @@ const Viewer = ({
     setSemanticLevel(lvl);
   }, [isUMAPView, isSemanticAuto, viewState?.zoom]);
 
-  // Max visible points per level (5k..100k linear).
+  // Max visible points per level (5k..80k linear, step 15k).
   const SAMPLING_BUDGETS = useMemo(
-    () => [5000, 24000, 43000, 62000, 81000, 100000],
+    () => [5000, 20000, 35000, 50000, 65000, 80000],
     []
   );
 

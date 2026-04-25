@@ -14,6 +14,7 @@ from .data_paths import (
     zooming_csv_path,
 )
 from .data_utils import get_channel_info, process_coord_row, generate_channel_info_only
+from .display_subset import display_atlas_n_and_chunks, load_display_indices, subset_artifacts_exist
 from .zarr_utils import open_zarr, meta_from_img, grid_for_count, get_default_tile
 
 
@@ -109,18 +110,21 @@ def meta():
     try:
         img = open_zarr()
         C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
+        n_disp, n_chunks_eff = display_atlas_n_and_chunks(N, n_per_chunk)
         rows, cols = grid_for_count(n_per_chunk)
         tile = get_default_tile()
         atlas_w = cols * tile
         atlas_h = rows * tile
         return {
             "C": int(C),
-            "N": int(N),
+            "N": int(n_disp),
+            "N_zarr": int(N),
+            "display_subset": bool(subset_artifacts_exist()),
             "H": int(H),
             "W": int(W),
             "dtype": str(img.dtype),
             "chunks": tuple(int(x) for x in img.chunks),
-            "n_chunks": int(n_chunks),
+            "n_chunks": int(n_chunks_eff),
             "n_per_chunk": int(n_per_chunk),
             "atlas": {
                 "tile": int(tile),
@@ -219,10 +223,18 @@ def coords(limit: int | None = Query(None)):
         img = open_zarr()
         C, N, H, W, chunks, n_chunks, n_per_chunk = meta_from_img(img)
         N = min(len(df), N)
-        total = N if limit is None else min(N, int(limit))
+        ind = load_display_indices()
+        if ind is None:
+            max_i = N if limit is None else min(N, int(limit))
+            row_ids = list(range(max_i))
+        else:
+            k = int(ind.size)
+            max_i = k if limit is None else min(k, int(limit))
+            row_ids = [int(ind[i]) for i in range(max_i)]
 
         out = [
-            process_coord_row(df.iloc[idx], idx, n_per_chunk) for idx in range(total)
+            process_coord_row(df.iloc[zid], zid, pos, n_per_chunk)
+            for pos, zid in enumerate(row_ids)
         ]
         return JSONResponse(out)
     except Exception:
