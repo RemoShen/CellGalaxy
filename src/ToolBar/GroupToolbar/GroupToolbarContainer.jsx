@@ -23,7 +23,12 @@ export default function GroupToolbarContainer({
   onZoomToSelection,
   onRestoreView,
   isZoomedToSelection = false,
+  getWorldPosition = null,
 }) {
+  const toWorld =
+    typeof getWorldPosition === "function"
+      ? getWorldPosition
+      : (p) => [p.x, p.y, p.z ?? 0];
   const hasRawAnnotationColumns =
     rawAnnotationColumns && rawAnnotationColumns.celltype && rawAnnotationColumns.neigh_names;
   const regions = Array.isArray(selectedRegions)
@@ -57,7 +62,7 @@ export default function GroupToolbarContainer({
               : 1;
           for (const p of points) {
             if (!selectedIds.has(p.id)) continue;
-            const [px, py] = viewport.project([p.x, p.y, p.z ?? 0]);
+            const [px, py] = viewport.project(toWorld(p));
             sx += px / dpr;
             sy += py / dpr;
             cnt++;
@@ -122,7 +127,13 @@ export default function GroupToolbarContainer({
       mode={mode}
       onAnalyze={onAnalyze}
       onClear={() => {
-        if (typeof onRestoreView === "function") onRestoreView();
+        // 仅当用户点过「缩放到选中」时才恢复相机；否则只清选择，避免 OME 等空间视图被错误拉回 zoom=8
+        if (
+          isZoomedToSelection &&
+          typeof onRestoreView === "function"
+        ) {
+          onRestoreView();
+        }
         clearSelection();
         try {
           clearSimilarityRankings();

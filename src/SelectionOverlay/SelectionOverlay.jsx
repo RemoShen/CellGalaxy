@@ -8,6 +8,8 @@ export default function SelectionOverlay({
   viewerId = "viewer",
   selectionMode = "none", // 'none' | 'box' | 'lasso'
   points = [],
+  /** 可选：与 Deck 中散点一致的世界坐标（如 raw + OME 时 y 翻转） */
+  getWorldPositionForSelection,
   filteredIds = new Set(),
   selectedRegions = [],
   setSelectedRegions = () => {},
@@ -82,7 +84,12 @@ export default function SelectionOverlay({
       }
     }
     if (selectionMode === SELECTION_LASSO && lassoPts.length >= 3 && viewport) {
-      const lassoIds = performLassoSelection(points, viewport, lassoPts);
+      const lassoIds = performLassoSelection(
+        points,
+        viewport,
+        lassoPts,
+        getWorldPositionForSelection,
+      );
       const activeFilter = filteredIds && filteredIds.size > 0;
       if (activeFilter) {
         for (const id of lassoIds) { if (filteredIds.has(id)) ids.add(id); }
