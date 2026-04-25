@@ -1,5 +1,6 @@
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, List, Dict, Optional, Tuple
 
 import numpy as np
@@ -179,46 +180,110 @@ def process_coord_row(row: pd.Series, idx: int, n_per_chunk: int) -> Dict[str, A
     return base
 
 
+_AUTO_P_LO = 1.0
+_AUTO_P_HI = 99.0
+# Histogram paths: stride voxels before bincount when volume is huge (percentiles ~unchanged).
+_MAX_HIST_PIXELS = 4_000_000
+# Float / wide-range int: cap samples so percentile stays cheap (no full-array sort).
+_MAX_AUTO_SAMPLE = 2_000_000
+
+
+def _hist_sample_flat(flat: np.ndarray) -> np.ndarray:
+    n = int(flat.size)
+    if n <= _MAX_HIST_PIXELS:
+        return flat
+    step = int(np.ceil(n / _MAX_HIST_PIXELS))
+    return flat[::step]
+
+
+def _auto_lo_hi_from_counts(counts: np.ndarray, value_offset: float = 0.0) -> Tuple[float, float]:
+    """1st / 99th percentile mass on a nonnegative integer histogram; one ``cumsum``."""
+    total = counts.sum(dtype=np.float64)
+    if total <= 0:
+        return value_offset, value_offset
+    cdf = np.cumsum(counts, dtype=np.float64)
+
+    def value_at(p: float) -> float:
+        thr = (p / 100.0) * float(total)
+        thr = min(max(thr, np.nextafter(0.0, 1.0)), float(total))
+        idx = int(np.searchsorted(cdf, thr, side="left"))
+        return float(min(max(idx, 0), counts.size - 1)) + value_offset
+
+    return value_at(_AUTO_P_LO), value_at(_AUTO_P_HI)
+
+
 def _pixel_stats_from_array(channel_data: np.ndarray) -> Dict[str, float]:
-    flat = channel_data.astype(np.float32).ravel()
-    if flat.size == 0:
-        return {
-            "data_min": 0.0,
-            "data_max": 0.0,
-            "auto_min": 0.0,
-            "auto_max": 0.0,
-        }
+    """Contrast hint for UI: only auto_min / auto_max (slider bounds stay 0–65535 in client).
 
-    data_min = float(np.min(flat))
-    data_max = float(np.max(flat))
+    - uint8 / uint16: ``bincount`` (+ optional stride) + single CDF for two percentiles.
+    - int16: shifted into 0..65535 then same.
+    - Other dtypes: strided subsample + ``np.percentile`` on at most ``_MAX_AUTO_SAMPLE`` values.
+    """
+    if channel_data.size == 0:
+        return {"auto_min": 0.0, "auto_max": 0.0}
 
-    auto_low, auto_high = np.percentile(flat, [1.0, 99.0])
-    return {
-        "data_min": data_min,
-        "data_max": data_max,
-        "auto_min": float(auto_low),
-        "auto_max": float(auto_high),
-    }
+    dt = channel_data.dtype
+    flat = _hist_sample_flat(channel_data.ravel())
+
+    if dt == np.uint8 or (getattr(dt, "kind", None) == "u" and dt.itemsize == 1):
+        counts = np.bincount(flat)
+        lo, hi = _auto_lo_hi_from_counts(counts)
+        return {"auto_min": lo, "auto_max": hi}
+
+    if dt == np.uint16 or (getattr(dt, "kind", None) == "u" and dt.itemsize == 2):
+        # No fixed minlength: shorter histogram when dynamic range is narrow (faster cumsum).
+        counts = np.bincount(flat)
+        lo, hi = _auto_lo_hi_from_counts(counts)
+        return {"auto_min": lo, "auto_max": hi}
+
+    if dt == np.int16 or (getattr(dt, "kind", None) == "i" and dt.itemsize == 2):
+        shifted = np.clip(flat.astype(np.int32, copy=False) + 32768, 0, 65535)
+        counts = np.bincount(shifted)
+        lo, hi = _auto_lo_hi_from_counts(counts, value_offset=-32768.0)
+        return {"auto_min": lo, "auto_max": hi}
+
+    # Fallback: subsample then percentile (avoids O(n log n) on full volume).
+    x = flat.astype(np.float32, copy=False)
+    n = int(x.size)
+    if n > _MAX_AUTO_SAMPLE:
+        step = int(np.ceil(n / _MAX_AUTO_SAMPLE))
+        x = x[::step]
+    lo, hi = np.percentile(x, [_AUTO_P_LO, _AUTO_P_HI])
+    return {"auto_min": float(lo), "auto_max": float(hi)}
+
+
+def _channel_stats_max_threads(limit: int) -> int:
+    try:
+        raw = int(os.environ.get("CHANNEL_STATS_MAX_THREADS", "4"))
+    except ValueError:
+        raw = 4
+    return max(1, min(raw, limit))
 
 
 def get_channel_info(df: pd.DataFrame, img):
     """Extract channel information using Zarr image statistics (assumes Zarr is available)."""
     columns = list(df.columns)
     channel_columns = columns[9:]  # columns after the 9th are channels
-    channels = []
-    for i, col_name in enumerate(channel_columns):
-        # use Zarr image statistics pixel range
+
+    def _one(i: int) -> Dict[str, Any]:
+        col_name = channel_columns[i]
         channel_data = img[i, :, :, :]
         stats = _pixel_stats_from_array(channel_data)
-        channels.append(
-            {
-                "id": i,
-                "name": col_name,
-                "column_index": i + 9,
-                "pixel_value_range": stats,
-            }
-        )
-    return channels
+        return {
+            "id": i,
+            "name": col_name,
+            "column_index": i + 9,
+            "pixel_value_range": stats,
+        }
+
+    n = len(channel_columns)
+    if n == 0:
+        return []
+    if n == 1:
+        return [_one(0)]
+    workers = _channel_stats_max_threads(n)
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        return list(ex.map(_one, range(n)))
 
 
 def _channel_list_csv_path() -> str:
@@ -329,7 +394,6 @@ def _read_channel_entries_from_csv(path: str) -> List[Dict[str, Any]]:
 
 def get_channel_info_from_entries(entries: List[Dict[str, Any]], img) -> List[Dict[str, Any]]:
     """Build channel info from ordered channel entries and Zarr image statistics."""
-    channels: List[Dict[str, Any]] = []
     names = [str(e.get("name", "")).strip() for e in entries]
     raw_index_by_id = {
         int(e["id"]): _safe_int(e.get("raw_index"))
@@ -352,10 +416,8 @@ def get_channel_info_from_entries(entries: List[Dict[str, Any]], img) -> List[Di
                     else None
                 ),
                 "pixel_value_range": {
-                    "data_min": 0.0,
-                    "data_max": 0.0,
                     "auto_min": 0.0,
-                    "auto_max": 0.0,
+                    "auto_max": 65535.0,
                 },
             }
             for i in range(len(names))
@@ -365,28 +427,34 @@ def get_channel_info_from_entries(entries: List[Dict[str, Any]], img) -> List[Di
     except Exception:
         C = len(names)
     limit = min(len(names), int(C))
-    for i in range(limit):
+
+    def _build_one(i: int) -> Dict[str, Any]:
         ch_name = names[i] if i < len(names) else f"ch_{i}"
         raw_idx = raw_index_by_id.get(i)
-        raw_idx = int(raw_idx) if raw_idx is not None and raw_idx >= 1 else None
+        raw_idx_i = int(raw_idx) if raw_idx is not None and raw_idx >= 1 else None
         try:
             channel_data = img[i, :, :, :]
             stats = _pixel_stats_from_array(channel_data)
         except Exception:
             stats = {
-                "data_min": 0.0,
-                "data_max": 0.0,
                 "auto_min": 0.0,
-                "auto_max": 0.0,
+                "auto_max": 65535.0,
             }
-        channels.append({
+        return {
             "id": i,
             "name": ch_name,
-            "raw_index": raw_idx,
-            "ome_c": (raw_idx - 1) if raw_idx is not None else None,
+            "raw_index": raw_idx_i,
+            "ome_c": (raw_idx_i - 1) if raw_idx_i is not None else None,
             "pixel_value_range": stats,
-        })
-    return channels
+        }
+
+    if limit <= 0:
+        return []
+    if limit == 1:
+        return [_build_one(0)]
+    workers = _channel_stats_max_threads(limit)
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        return list(ex.map(_build_one, range(limit)))
 
 
 def generate_channel_info_only() -> Optional[List[Dict[str, Any]]]:
