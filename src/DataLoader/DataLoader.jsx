@@ -111,7 +111,8 @@ export default function useDataLoader() {
           if (Number.isFinite(raw) && raw >= 1) {
             omeC = Math.max(0, Math.floor(raw) - 1);
             explicit[id] = true;
-          } else if (Number.isFinite(Number(ch?.ome_c))) {
+            // JSON null → Number(null) is 0 (finite): must not treat as explicit ome_c.
+          } else if (ch?.ome_c != null && ch.ome_c !== "" && Number.isFinite(Number(ch.ome_c))) {
             omeC = Number(ch.ome_c);
             explicit[id] = true;
           } else {
