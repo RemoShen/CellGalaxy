@@ -256,7 +256,7 @@ const Viewer = ({
   }, [cameraSpaceId, setViewState]);
 
   const [semanticLevel, setSemanticLevel] = useState(6); // 1..6, finest default
-  const [isSemanticAuto, setIsSemanticAuto] = useState(true);
+  const [isSemanticAuto, setIsSemanticAuto] = useState(false);
   // UMAP: cluster_L*; raw: label
   const clusterLabelKey = isUMAPView
     ? `cluster_L${semanticLevel - 1}`
