@@ -391,31 +391,65 @@ const Viewer = ({
   const containerRef = useRef(null);
   // Defer DeckGL until layout + rAF×2 + 80ms so WebGL limits exist (avoids maxTextureDimension2D errors).
   const [containerReady, setContainerReady] = useState(false);
+  const [layoutEpoch, setLayoutEpoch] = useState(0);
   const readyTimeoutRef = useRef(null);
+  const readyOnceRef = useRef(false);
+  const containerReadyRef = useRef(false);
+  const lastDeckSizeRef = useRef({ width: 0, height: 0 });
+  containerReadyRef.current = containerReady;
+
+  const syncDeckToContainer = useCallback(() => {
+    const el = containerRef.current;
+    const deck = deckRef.current?.deck;
+    if (!el || !deck) return;
+    const w = Math.round(el.clientWidth);
+    const h = Math.round(el.clientHeight);
+    if (w <= 0 || h <= 0) return;
+    const prev = lastDeckSizeRef.current;
+    if (prev.width === w && prev.height === h) return;
+    lastDeckSizeRef.current = { width: w, height: h };
+    deck.setProps({ width: w, height: h });
+    deck.redraw(true);
+  }, []);
+
+  const scheduleLayoutEpoch = useCallback(() => {
+    setLayoutEpoch((n) => n + 1);
+  }, []);
+
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        if (entry.target !== el) continue;
-        const { width, height } = entry.contentRect;
-        if (width > 0 && height > 0) {
-          if (readyTimeoutRef.current) clearTimeout(readyTimeoutRef.current);
-          // rAF×2 + 80ms before showing canvas
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              readyTimeoutRef.current = setTimeout(() => setContainerReady(true), 80);
-            });
-          });
-        }
+
+    const onResize = () => {
+      if (containerReadyRef.current) {
+        syncDeckToContainer();
+        scheduleLayoutEpoch();
       }
-    });
+      if (readyOnceRef.current) return;
+      if (readyTimeoutRef.current) clearTimeout(readyTimeoutRef.current);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          readyTimeoutRef.current = setTimeout(() => {
+            readyOnceRef.current = true;
+            setContainerReady(true);
+          }, 80);
+        });
+      });
+    };
+
+    const ro = new ResizeObserver(onResize);
     ro.observe(el);
+    onResize();
     return () => {
       ro.disconnect();
       if (readyTimeoutRef.current) clearTimeout(readyTimeoutRef.current);
     };
-  }, []);
+  }, [syncDeckToContainer, scheduleLayoutEpoch]);
+
+  useLayoutEffect(() => {
+    if (!containerReady) return;
+    syncDeckToContainer();
+  }, [containerReady, syncDeckToContainer]);
 
   useEffect(() => {
     if (!rawUsesOmeTiff || !omeTiffSource || !containerReady) return;
@@ -615,7 +649,13 @@ const Viewer = ({
     points: visiblePoints,
     filteredIds,
     deckRef,
-    viewDeps: [viewState.zoom, viewState.rotationX, viewState.rotationOrbit, viewState.target],
+    viewDeps: [
+      viewState.zoom,
+      viewState.rotationX,
+      viewState.rotationOrbit,
+      viewState.target,
+      layoutEpoch,
+    ],
     labelKey: clusterLabelKey,
   });
 
@@ -879,6 +919,7 @@ const Viewer = ({
     viewState,
     deckRef,
     containerRef,
+    layoutEpoch,
     rawToWorld,
   ]);
 
@@ -1025,6 +1066,7 @@ const Viewer = ({
     viewState,
     deckRef,
     containerRef,
+    layoutEpoch,
     rawToWorld,
     isUMAPView,
     pointsRawPick,
@@ -1055,7 +1097,15 @@ const Viewer = ({
     });
     if (result.length === 0) return;
     setSimilarityRankingScreens(result);
-  }, [similarityRankings, points, viewState, deckRef, containerRef, rawToWorld]);
+  }, [
+    similarityRankings,
+    points,
+    viewState,
+    deckRef,
+    containerRef,
+    layoutEpoch,
+    rawToWorld,
+  ]);
 
   const hoverPickAll =
     !isUMAPView &&
