@@ -18,6 +18,7 @@ export default function FileUpload({
   onClearLocalOmeTiff,
   omeTiffRestoreNeedsClick = false,
   onRestoreOmeTiffFromDisk = async () => {},
+  renderClusterFilter = null,
 }) {
   const [status, setStatus] = useState({
     zarr: false,
@@ -321,6 +322,7 @@ export default function FileUpload({
         </div>
       )}
       <div className="file-upload-section">
+        <div className="upload-toolbar-row">
         <div className="upload-single">
           <button
             type="button"
@@ -480,6 +482,8 @@ export default function FileUpload({
               </div>
             </div>
           )}
+        </div>
+        {typeof renderClusterFilter === "function" ? renderClusterFilter() : null}
         </div>
         {omeTiffRestoreNeedsClick && !omeTiffFile && (
           <div className="ome-tiff-restore-hint" role="status">

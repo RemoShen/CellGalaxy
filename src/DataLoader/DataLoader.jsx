@@ -258,6 +258,16 @@ export default function useDataLoader() {
   const [selectionMode, setSelectionMode] = useState('none');
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [selectedRegions, setSelectedRegions] = useState(() => []);
+  const [highlightedClusters, setHighlightedClusters] = useState(() => new Set());
+
+  const availableClusterLabels = useMemo(() => {
+    const labels = new Set();
+    for (const c of allCoords || []) {
+      const lbl = c?.label;
+      if (Number.isFinite(lbl)) labels.add(lbl);
+    }
+    return Array.from(labels).sort((a, b) => a - b);
+  }, [allCoords]);
   const clearSelection = () => {
     setSelectedIds(new Set());
     setSelectedRegions([]);
@@ -795,6 +805,9 @@ export default function useDataLoader() {
     setSelectedIds,
     selectedRegions,
     setSelectedRegions,
+    highlightedClusters,
+    setHighlightedClusters,
+    availableClusterLabels,
     clearSelection,
     filteredIds,
     setFilteredIds,
