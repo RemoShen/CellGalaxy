@@ -25,6 +25,10 @@ import {
   ease,
   projectItemsToScreen,
   computeCenter,
+  passesDisplaySampling,
+  getSelectionOwner,
+  isSelectionOwnerSpatial,
+  isSelectionOwnerUmap,
 } from "../utils/utils";
 import { buildOutlineData2D, clusterColor } from "../utils/clustering";
 import "./Viewer.css";
@@ -55,6 +59,9 @@ const Viewer = ({
   viewerId = "viewer",
   meta,
   points,
+  pointsRawPick = null,
+  pointsUMAPPick = null,
+  displayCoordById = null,
   chunkUV,
   hoverMaskEnabled = false,
   atlasURL,
@@ -259,19 +266,48 @@ const Viewer = ({
     ? `rank_L${semanticLevel - 1}`
     : null;
 
-  // UMAP + auto: map zoom → semantic level 1..6
+  // UMAP + auto: map zoom → semantic level (debounced + hysteresis to avoid transition thrash while scrolling).
+  const zoomForSemanticRef = useRef(viewState?.zoom ?? 8);
+  zoomForSemanticRef.current =
+    typeof viewState?.zoom === "number" ? viewState.zoom : 8;
+  const semanticZoomTimerRef = useRef(null);
+
   useEffect(() => {
-    if (!isUMAPView || !isSemanticAuto || !viewState) return;
-    const z = typeof viewState.zoom === 'number' ? viewState.zoom : 8;
-    let lvl = 6;
-    if (z < 6) lvl = 1;
-    else if (z < 7) lvl = 2;
-    else if (z < 8) lvl = 3;
-    else if (z < 9) lvl = 4;
-    else if (z < 10) lvl = 5;
-    else lvl = 6;
-    
-    setSemanticLevel(lvl);
+    if (!isUMAPView || !isSemanticAuto) return undefined;
+
+    const applyLevelFromZoom = () => {
+      const z = zoomForSemanticRef.current;
+      setSemanticLevel((prev) => {
+        const h = 0.15;
+        let target = 6;
+        if (z < 6) target = 1;
+        else if (z < 7) target = 2;
+        else if (z < 8) target = 3;
+        else if (z < 9) target = 4;
+        else if (z < 10) target = 5;
+        if (target === prev) return prev;
+        const boundaries = [6, 7, 8, 9, 10];
+        if (target > prev) {
+          const boundary = boundaries[prev - 1];
+          if (z < boundary + h) return prev;
+        } else if (target < prev) {
+          const boundary = boundaries[target - 1];
+          if (z >= boundary - h) return prev;
+        }
+        return target;
+      });
+    };
+
+    if (semanticZoomTimerRef.current) {
+      clearTimeout(semanticZoomTimerRef.current);
+    }
+    semanticZoomTimerRef.current = setTimeout(applyLevelFromZoom, 250);
+
+    return () => {
+      if (semanticZoomTimerRef.current) {
+        clearTimeout(semanticZoomTimerRef.current);
+      }
+    };
   }, [isUMAPView, isSemanticAuto, viewState?.zoom]);
 
   // Max visible points per level (5k..80k linear, step 15k).
@@ -290,21 +326,23 @@ const Viewer = ({
     return Math.min(1.0, budget / total);
   }, [isUMAPView, semanticLevel, SAMPLING_BUDGETS, points]);
 
-  // CPU subset for outlines/selection; full `points` go to GPU sampling in ImageLayers.
+  // UMAP display always respects sampling; full selectedIds still used for spatial cross-view.
   const visiblePoints = useMemo(() => {
     if (!points || points.length === 0) return [];
     if (samplingThreshold >= 1.0) return points;
 
-    return points.filter((p) => {
-      if (selectedIds.has(p.id)) return true;
-      const hash = (p.id * 0.6180339887) % 1;
-      return hash < samplingThreshold;
-    });
-  }, [points, samplingThreshold, selectedIds]);
+    return points.filter((p) => passesDisplaySampling(p.id, samplingThreshold));
+  }, [points, samplingThreshold]);
   const selectablePoints = useMemo(
     () => (hasActiveChannels ? visiblePoints : []),
     [hasActiveChannels, visiblePoints],
   );
+
+  const umapGeometricSelectionPoints = useMemo(() => {
+    if (!isUMAPView) return selectablePoints;
+    if (pointsUMAPPick?.length) return pointsUMAPPick;
+    return points;
+  }, [isUMAPView, pointsUMAPPick, points, selectablePoints]);
 
   const iconMappingsByChunk = useMemo(
     () => buildIconMappingsByChunk(meta, chunkUV),
@@ -453,8 +491,11 @@ const Viewer = ({
 
   // Fit camera to selection bbox
   const zoomToSelection = useCallback(() => {
-    if (!points?.length || !selectedIds?.size) return;
-    const selected = points.filter((p) => selectedIds.has(p.id));
+    if (!selectedIds?.size) return;
+    const pool =
+      !isUMAPView && pointsRawPick?.length ? pointsRawPick : points;
+    if (!pool?.length) return;
+    const selected = pool.filter((p) => selectedIds.has(p.id));
     if (selected.length === 0) return;
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
     for (const p of selected) {
@@ -475,7 +516,7 @@ const Viewer = ({
         ? new LinearInterpolator(["target", "zoom"])
         : undefined,
     }));
-  }, [points, selectedIds, setViewState, transitionsEnabled, rawToWorld]);
+  }, [points, pointsRawPick, isUMAPView, selectedIds, setViewState, transitionsEnabled, rawToWorld]);
 
   // Back to data center + zoom 8
   const initialTarget = useMemo(() => {
@@ -858,7 +899,16 @@ const Viewer = ({
       setSelectedTileScreens([]);
       return;
     }
-    const selectedPointsForOutline = visiblePoints.filter((p) => selectedIds.has(p.id));
+    let selectedPointsForOutline = visiblePoints.filter((p) => selectedIds.has(p.id));
+    if (!isUMAPView && pointsRawPick?.length) {
+      const seen = new Set(selectedPointsForOutline.map((p) => p.id));
+      for (const p of pointsRawPick) {
+        if (selectedIds.has(p.id) && !seen.has(p.id)) {
+          selectedPointsForOutline.push(p);
+          seen.add(p.id);
+        }
+      }
+    }
     if (selectedPointsForOutline.length === 0) {
       setSelectedTileScreens([]);
       return;
@@ -900,6 +950,8 @@ const Viewer = ({
     getRegionIndexForId,
     regionColors,
     rawToWorld,
+    isUMAPView,
+    pointsRawPick,
   ]);
 
   useEffect(() => {
@@ -929,10 +981,39 @@ const Viewer = ({
     setSimilarityRankingScreens(result);
   }, [similarityRankings, points, viewState, deckRef, containerRef, rawToWorld]);
 
+  const hoverPickAll =
+    !isUMAPView &&
+    effectiveRenderMode === "sprites" &&
+    !rawUsesOmeTiff &&
+    hasActiveChannels;
+  const effectivePickPoints =
+    hoverPickAll && pointsRawPick?.length ? pointsRawPick : points;
+
+  // UMAP region select → spatial shows all selected; spatial select → UMAP uses sampling only.
+  const spatialVisualPoints = useMemo(() => {
+    if (isUMAPView || !selectedIds?.size) return points;
+    const owner = getSelectionOwner();
+    if (!isSelectionOwnerUmap(owner)) return points;
+    const inDisplay = points.filter((p) => selectedIds.has(p.id));
+    return inDisplay.length > 0 ? inDisplay : points;
+  }, [isUMAPView, points, selectedIds]);
+
+  const umapVisualPoints = useMemo(() => {
+    if (!isUMAPView) return points;
+    return visiblePoints;
+  }, [isUMAPView, points, visiblePoints]);
+
+  // UMAP never bypasses GPU sampling (selected cells included only if they pass hash budget).
+  const selectedBypassSampling = !isUMAPView;
+
+  const imageLayerPoints = isUMAPView ? umapVisualPoints : spatialVisualPoints;
+
   const imageLayers = ImageLayers({
     meta,
     renderMode: effectiveRenderMode,
-    points,
+    points: imageLayerPoints,
+    pickPoints: effectivePickPoints,
+    hoverPickAll,
     atlasURL,
     atlasByChannel,
     iconMappingsByChunk,
@@ -953,7 +1034,8 @@ const Viewer = ({
     labelKey: clusterLabelKey,
     samplingThreshold,
     selectedIds,
-    transitionsEnabled,
+    selectedBypassSampling,
+    transitionsEnabled: transitionsEnabled && !isUMAPView,
     dotOutlineForBrightBackground: rawUsesOmeTiff,
     suppressSpriteAtlases: rawUsesOmeTiff,
     hasRenderableChannels: hasActiveChannels,
@@ -977,7 +1059,7 @@ const Viewer = ({
             smoothZoom: true,
             smoothZoomDuration: 200
           }
-        : { 
+        : {
             type: OrthographicController,
             scrollZoom: true,
             doubleClickZoom: true,
@@ -985,8 +1067,9 @@ const Viewer = ({
             inertiaFriction: 0.95,
             inertiaDeceleration: 0.95,
             scrollZoomSpeed: zoomSpeed,
-            smoothZoom: true,
-            smoothZoomDuration: 200
+            // UMAP: instant zoom — smoothZoom + semantic resampling caused continuous sprite transitions.
+            smoothZoom: !isUMAPView,
+            smoothZoomDuration: isUMAPView ? 0 : 200,
           }
       : false;
 
@@ -1021,6 +1104,8 @@ const Viewer = ({
         viewerId={viewerId}
         selectionMode={selectionMode}
         points={selectablePoints}
+        selectionPoints={umapGeometricSelectionPoints}
+        useGeometricSelection={isUMAPView}
         getWorldPositionForSelection={rawToWorld}
         filteredIds={filteredIds}
         selectedRegions={selectedRegions}
@@ -1090,7 +1175,13 @@ const Viewer = ({
               isSelecting={isSelecting}
               selectedIds={selectedIds}
               selectedRegions={selectedRegions}
-              points={visiblePoints}
+              points={
+                isUMAPView
+                  ? visiblePoints
+                  : pointsRawPick?.length
+                    ? pointsRawPick
+                    : visiblePoints
+              }
               getWorldPosition={rawToWorld}
               deckRef={deckRef}
               containerRef={containerRef}
@@ -1298,8 +1389,9 @@ const Viewer = ({
         neighNamesAnnotationOn={neighNamesAnnotationOn}
         rawAnnotationById={rawAnnotationById}
         filteredIds={filteredIds}
+        displayCoordById={displayCoordById}
         getWorldPosition={rawToWorld}
-        pickRadius={rawUsesOmeTiff ? 14 : 6}
+        pickRadius={rawUsesOmeTiff ? 14 : hoverPickAll ? 10 : 6}
       />
 
       {/* Selection outlines */}

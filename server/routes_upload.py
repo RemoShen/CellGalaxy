@@ -10,6 +10,7 @@ from .data_paths import (
     features_npy_path,
     generating_marker_path,
     raw_csv_json_paths,
+    spatial_coords_path,
     zooming_csv_path,
 )
 from .display_subset import clear_display_subset_artifacts
@@ -39,6 +40,7 @@ async def upload_or_delete(
             remove_path(data_csv)
             remove_path(coords_json)
             remove_path(channel_json)
+            remove_path(spatial_coords_path())
             clear_display_subset_artifacts()
             return {"message": "CSV data cleared"}
 
