@@ -1,6 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import "./HoverPreview.css";
 import { projectItemsToScreen } from "../../utils/utils";
+import {
+  TONE_GAIN,
+  applyIntensityWindow01,
+  applyToneGainRgb,
+  windowFromChannel,
+} from "../../utils/intensityWindow";
 import { cellPreviewURL } from "../../api/api";
 
 // Hover tile: windowing like WindowedIconLayer; cached atlas images.
@@ -137,13 +143,7 @@ export async function drawCellPreviewToCanvas({
 
     const col = colors?.[ch] || [255, 255, 255];
     const alpha01 = Math.min(1, Math.max(0, alphas?.[ch] ?? 1));
-
-    const w = windows?.[ch] || {};
-    const rawMin = Number.isFinite(w.min) ? w.min : 0;
-    const rawMax = Number.isFinite(w.max) ? w.max : 65535;
-    const winMin01 = Math.max(0, Math.min(1, rawMin / 65535));
-    const winMax01 = Math.max(0, Math.min(1, rawMax / 65535));
-    const span = Math.max(1e-6, winMax01 - winMin01);
+    const { winMin01, winMax01 } = windowFromChannel(ch, windows);
 
     octx.clearRect(0, 0, outW, outH);
     octx.drawImage(img, bgX, bgY, tile, tile, 0, 0, outW, outH);
@@ -154,11 +154,7 @@ export async function drawCellPreviewToCanvas({
       for (let x = 0; x < outW; x++) {
         const idx = (y * outW + x) * 4;
         const gray01 = data[idx] / 255;
-        let t;
-        if (gray01 <= winMin01) t = 0;
-        else if (gray01 >= winMax01) t = 1;
-        else t = (gray01 - winMin01) / span;
-
+        const t = applyIntensityWindow01(gray01, winMin01, winMax01);
         const v = t * alpha01;
         if (v <= 0) continue;
         out[idx] += (col[0] ?? 255) * v;
@@ -181,25 +177,19 @@ export async function drawCellPreviewToCanvas({
 
   const outImg = octx.createImageData(outW, outH);
   const dst = outImg.data;
-  // Tone boost + clamp
-  const toneGain = 1.35;
   for (let i = 0; i < outW * outH; i++) {
     const base = i * 4;
-    let r = out[base];
-    let g = out[base + 1];
-    let b = out[base + 2];
-    let a = out[base + 3];
-    if (a < 5) {
-      r = g = b = a = 0;
-    } else {
-      r = Math.min(255, r * toneGain);
-      g = Math.min(255, g * toneGain);
-      b = Math.min(255, b * toneGain);
-    }
-    dst[base] = r;
-    dst[base + 1] = g;
-    dst[base + 2] = b;
-    dst[base + 3] = Math.max(0, Math.min(255, a));
+    const toned = applyToneGainRgb(
+      out[base],
+      out[base + 1],
+      out[base + 2],
+      out[base + 3],
+      TONE_GAIN,
+    );
+    dst[base] = toned.r;
+    dst[base + 1] = toned.g;
+    dst[base + 2] = toned.b;
+    dst[base + 3] = toned.a;
   }
   octx.putImageData(outImg, 0, 0);
 

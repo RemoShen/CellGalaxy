@@ -1,0 +1,2 @@
+"use strict";(globalThis.webpackChunkmultiscale_project=globalThis.webpackChunkmultiscale_project||[]).push([[426],{426(e,l,c){c.d(l,{default:()=>a});var s=c(659);class a extends s.A{decodeBlock(e){return e}}}}]);
+//# sourceMappingURL=426.0a9f627e.chunk.js.map

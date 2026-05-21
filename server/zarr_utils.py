@@ -244,6 +244,7 @@ def render_cell_preview_png(
         accum[..., 2] += col[2] * v
         accum[..., 3] = np.maximum(accum[..., 3], v)
 
+    # Keep in sync with src/utils/intensityWindow.js TONE_GAIN
     tone_gain = 1.35
     rgba = np.zeros((int(H), int(W), 4), dtype=np.uint8)
     a = accum[..., 3]
