@@ -1,2 +1,0 @@
-"use strict";(globalThis.webpackChunkmultiscale_project=globalThis.webpackChunkmultiscale_project||[]).push([[391],{772(e,t,l){l.d(t,{default:()=>n});var s=l(659);class n extends s.A{decodeBlock(e){const t=new DataView(e),l=[];for(let s=0;s<e.byteLength;++s){let e=t.getInt8(s);if(e<0){const n=t.getUint8(s+1);e=-e;for(let t=0;t<=e;++t)l.push(n);s+=1}else{for(let n=0;n<=e;++n)l.push(t.getUint8(s+n+1));s+=e+1}}return new Uint8Array(l).buffer}}}}]);
-//# sourceMappingURL=391.4b695fa1.chunk.js.map
