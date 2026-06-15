@@ -10,8 +10,7 @@ import {
 import { ANALYSIS_SINGLE } from "../constants/analysis";
 import { SELECTION_NONE} from "../constants/selection";
 import {
-  CELL_FOCUS_ZOOM_SPATIAL,
-  CELL_FOCUS_ZOOM_UMAP,
+  cellFocusZoomForView,
   OME_AUTO_FIT_ZOOM_SUB,
   OME_SPATIAL_IMAGE_SIZE_FIXED,
 } from "../constants/render";
@@ -667,9 +666,10 @@ const Viewer = ({
     const zoomThreshold = 9;
     if (currentZoom < zoomThreshold && info?.object) {
       const [cellX, cellY, cellZ] = rawToWorld(info.object);
-      const cellFocusZoom = isUMAPView
-        ? CELL_FOCUS_ZOOM_UMAP
-        : CELL_FOCUS_ZOOM_SPATIAL;
+      const cellFocusZoom = cellFocusZoomForView({
+        isUMAPView,
+        rawUsesOmeTiff,
+      });
 
       setViewState((prev) => ({
         ...prev,
@@ -983,6 +983,7 @@ const Viewer = ({
     transitionsEnabled,
     setSimilarityRankings,
     mapWorldPosition: rawToWorld,
+    rawUsesOmeTiff,
   });
 
   // Selected tile outline DOM positions
@@ -1091,11 +1092,12 @@ const Viewer = ({
   const effectivePickPoints =
     hoverPickAll && pointsRawPick?.length ? pointsRawPick : points;
 
-  // UMAP region select → spatial shows all selected; spatial select → UMAP uses sampling only.
+  // UMAP multi-cell region select → spatial shows only selected; single-cell pick keeps full context.
   const spatialVisualPoints = useMemo(() => {
     if (isUMAPView || !selectedIds?.size) return points;
     const owner = getSelectionOwner();
     if (!isSelectionOwnerUmap(owner)) return points;
+    if (selectedIds.size <= 1) return points;
     const inDisplay = points.filter((p) => selectedIds.has(p.id));
     return inDisplay.length > 0 ? inDisplay : points;
   }, [isUMAPView, points, selectedIds]);
