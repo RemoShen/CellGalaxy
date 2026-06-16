@@ -10,7 +10,7 @@ Distinct clusters may reflect differences in immune enrichment, tumour-associate
 Your task:
 Using the cluster-level marker behavior (top/high vs. low markers relative to peers in the same level) and size/percentage statistics, produce:
 1) A short English title (≤ 6 words, no punctuation).
-2) A concise 80–150 word English description that summarizes the dominant biological pattern represented by the cluster and its potential biological relevance.
+2) A concise English description (2–3 sentences, not too long) that summarizes the dominant biological pattern represented by the cluster and its potential biological relevance.
 The goal is to provide a semantic summary that helps users understand and compare biological patterns during exploration.
 
 Semantic Guidance:
