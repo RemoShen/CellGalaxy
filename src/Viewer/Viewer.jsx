@@ -57,7 +57,9 @@ import ClusterPreviewThumb from "./ClusterPreviewThumb/ClusterPreviewThumb";
 import ClusterAnnotationOverlay from "./ClusterAnnotationOverlay/ClusterAnnotationOverlay";
 import SimilarityRankingOverlay from "./SimilarityRankingOverlay/SimilarityRankingOverlay";
 import useGlobalCellFocusAndRanking from "./useGlobalCellFocusAndRanking";
+import useCoreMetadataLayer from "./useCoreMetadataLayer";
 import AnnotationStatsPopover from "../AnnotationStatsPopover/AnnotationStatsPopover";
+import CoreMetadataOverlay from "./CoreMetadataOverlay/CoreMetadataOverlay";
 
 const Viewer = ({
   viewerId = "viewer",
@@ -110,6 +112,10 @@ const Viewer = ({
   cellTypeAnnotationOn = false,
   neighNamesAnnotationOn = false,
   rawAnnotationColumns = { celltype: false, neigh_names: false },
+  // CORE_ID metadata labels (OME spatial only)
+  coreMetadataActive = false,
+  coreMetadataSelectedFields = [],
+  coreMetadataRows = [],
   // Optional synced zoom across viewers
   sharedZoom,
   setSharedZoom,
@@ -1179,7 +1185,61 @@ const Viewer = ({
     omeSpatialScatterPickOnly: rawUsesOmeTiff && !clusterColorOn,
   });
 
-  const layers = omeDeckLayer ? [omeDeckLayer, ...imageLayers] : imageLayers;
+  const showCoreMetadata =
+    !isUMAPView &&
+    coreMetadataActive &&
+    rawUsesOmeTiff &&
+    Number.isFinite(omeTiffSource?.imageWidth) &&
+    Number.isFinite(omeTiffSource?.imageHeight);
+
+  const { layer: coreMetadataLayer, worldItems: coreMetadataWorldItems } =
+    useCoreMetadataLayer({
+      enabled: showCoreMetadata,
+      viewerId,
+      rows: coreMetadataRows,
+      selectedFields: coreMetadataSelectedFields,
+      imageWidth: omeTiffSource?.imageWidth,
+      imageHeight: omeTiffSource?.imageHeight,
+      pixelYFlipHeight: omePixelYFlip,
+      viewState,
+    });
+
+  const [coreMetadataScreens, setCoreMetadataScreens] = useState([]);
+  const updateCoreMetadataScreens = useCallback(() => {
+    if (!showCoreMetadata || !coreMetadataWorldItems.length) {
+      setCoreMetadataScreens([]);
+      return;
+    }
+    const result = projectItemsToScreen({
+      deckRef,
+      containerRef,
+      items: coreMetadataWorldItems,
+      getWorldPosition: (d) => d.position,
+      mapResult: (d, sx, sy, offsetX, offsetY) => ({
+        id: d.id,
+        lines: d.lines,
+        x: sx + offsetX,
+        y: sy + offsetY,
+      }),
+    });
+    if (result.length > 0) setCoreMetadataScreens(result);
+  }, [showCoreMetadata, coreMetadataWorldItems, deckRef, containerRef]);
+
+  useEffect(() => {
+    updateCoreMetadataScreens();
+  }, [
+    updateCoreMetadataScreens,
+    viewState,
+    layoutEpoch,
+    containerReady,
+    omeTiffSource,
+  ]);
+
+  const layers = [
+    ...(omeDeckLayer ? [omeDeckLayer] : []),
+    ...imageLayers,
+    ...(showCoreMetadata && coreMetadataLayer ? [coreMetadataLayer] : []),
+  ].filter(Boolean);
 
   const controller =
     selectionMode === SELECTION_NONE
@@ -1413,6 +1473,10 @@ const Viewer = ({
             </div>
           ))}
         </div>
+      )}
+
+      {showCoreMetadata && coreMetadataScreens.length > 0 && (
+        <CoreMetadataOverlay items={coreMetadataScreens} />
       )}
 
       {/* Cell toolbar */}
