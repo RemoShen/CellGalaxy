@@ -50,3 +50,7 @@ def spatial_coords_path() -> str:
 
 def cluster_channel_avg_csv_path() -> str:
     return os.path.join(DATA_DIR, "cluster_channel_avg.csv")
+
+
+def cluster_labels_json_path() -> str:
+    return os.path.join(DATA_DIR, "cluster_labels.json")
