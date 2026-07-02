@@ -21,3 +21,5 @@ server/__pycache__/
 .DS_Store
 server/secrets/hf_token.txt
 server/prompts/cluster_label_prompt.txt
+
+data/
