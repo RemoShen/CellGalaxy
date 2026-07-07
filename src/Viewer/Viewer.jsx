@@ -106,6 +106,7 @@ const Viewer = ({
   // LLM cluster titles/descriptions
   clusterAnnotationOn = false,
   clusterAnnotationModel = "MedGemma",
+  clusterLabelReviewMode = false,
   // UMAP: per-cluster preview thumb
   clusterPreviewOn = true,
   // Raw columns celltype / neigh_names when present
@@ -1455,6 +1456,7 @@ const Viewer = ({
             levelKey={String(semanticLevel - 1)}
             clusterAnnotationModel={clusterAnnotationModel}
             reviewsEnabled={clusterAnnotationOn}
+            reviewMode={clusterLabelReviewMode}
           />
         )}
 

@@ -4,6 +4,10 @@ import {
   saveClusterLabelReview,
 } from "../../api/api";
 
+export function isReviewConfirmed(status) {
+  return status === "accepted" || status === "corrected";
+}
+
 /** Legacy rows: accepted + user_title → corrected */
 export function normalizeReview(review) {
   if (!review) return null;

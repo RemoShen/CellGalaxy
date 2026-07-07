@@ -69,6 +69,7 @@ export default function useDataLoader() {
   // LLM cluster text
   const [clusterAnnotationOn, setClusterAnnotationOn] = useState(false);
   const [clusterAnnotationModel, setClusterAnnotationModel] = useState("MedGemma");
+  const [clusterLabelReviewMode, setClusterLabelReviewMode] = useState(false);
   // UMAP cluster preview thumbs
   const [clusterPreviewOn, setClusterPreviewOn] = useState(false);
 
@@ -879,6 +880,8 @@ export default function useDataLoader() {
     setClusterAnnotationOn,
     clusterAnnotationModel,
     setClusterAnnotationModel,
+    clusterLabelReviewMode,
+    setClusterLabelReviewMode,
     clusterPreviewOn,
     setClusterPreviewOn,
 
