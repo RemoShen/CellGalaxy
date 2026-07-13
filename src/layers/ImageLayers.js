@@ -427,8 +427,19 @@ export default function useImageLayers({
                 },
                 updateTriggers: {
                   ...baseConfig.updateTriggers,
-                  getColor: [filteredIds, colors, alphas, windows, omePixelRangeByChannelId],
+                  getColor: [
+                    filteredIds,
+                    colors,
+                    alphas,
+                    windows,
+                    omePixelRangeByChannelId,
+                    winMin01,
+                    winMax01,
+                  ],
                   getFilterValue: [selectedPoints.length],
+                  // Ensure intensity window uniforms refresh with tile/OME auto range.
+                  windowMin: [winMin01, windows, omePixelRangeByChannelId],
+                  windowMax: [winMax01, windows, omePixelRangeByChannelId],
                 },
               })
             );

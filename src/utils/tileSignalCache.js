@@ -2,10 +2,12 @@
  * Per-tile atlas signal cache for UMAP empty-tile filtering.
  * Atlas gray = raw/65535 (full scale 0..65535). We store tile mean in 0–1,
  * then score in raw units so display window stretch cannot revive empty tiles.
+ * Same pass can collect raw pixel samples for Zarr-only intensity range.
  */
 import {
   applyIntensityWindow01,
   INTENSITY_FULL_RANGE,
+  INTENSITY_RANGE_SAMPLE_CAP,
   readAtlasIntensity01,
   windowFromChannel,
 } from "./intensityWindow";
@@ -21,10 +23,15 @@ export const TILE_SIGNAL_MIN_RAW = 1900;
 export const TILE_SIGNAL_MIN_WINDOWED = 0.02;
 
 /**
- * Scan one atlas PNG → Float32Array[local_index] = mean intensity in 0–1
- * (atlas encodes raw/65535).
+ * Scan one atlas PNG once:
+ * - means: Float32Array[local_index] = mean intensity in 0–1
+ * - rawSamples: subsampled raw intensities (gray01 * 65535) for range stats
  */
-export async function scanAtlasTileMean01(atlasUrl, { tile, cols, nTiles }) {
+export async function scanAtlasTileStats(
+  atlasUrl,
+  { tile, cols, nTiles },
+  { collectSamples = false, sampleCap = INTENSITY_RANGE_SAMPLE_CAP } = {},
+) {
   const t = Number(tile) || 16;
   const c = Number(cols);
   const n = Number(nTiles);
@@ -46,7 +53,14 @@ export async function scanAtlasTileMean01(atlasUrl, { tile, cols, nTiles }) {
   ctx.drawImage(img, 0, 0);
   const { data } = ctx.getImageData(0, 0, w, h);
 
-  const out = new Float32Array(n);
+  const means = new Float32Array(n);
+  const rawSamples = collectSamples ? [] : null;
+  const pixelBudget = Math.max(1, n * t * t);
+  const stride = collectSamples
+    ? Math.max(1, Math.floor(pixelBudget / Math.max(1, sampleCap)))
+    : 1;
+  let sampleCursor = 0;
+
   for (let i = 0; i < n; i++) {
     const row = Math.floor(i / c);
     const col = i % c;
@@ -61,13 +75,29 @@ export async function scanAtlasTileMean01(atlasUrl, { tile, cols, nTiles }) {
         const xx = x0 + dx;
         if (xx >= w) break;
         const bi = (yy * w + xx) * 4;
-        sum += readAtlasIntensity01(data, bi);
+        const g01 = readAtlasIntensity01(data, bi);
+        sum += g01;
         count++;
+        if (rawSamples) {
+          if (sampleCursor % stride === 0) {
+            rawSamples.push(g01 * INTENSITY_FULL_RANGE);
+          }
+          sampleCursor++;
+        }
       }
     }
-    out[i] = count > 0 ? sum / count : 0;
+    means[i] = count > 0 ? sum / count : 0;
   }
-  return out;
+  return { means, rawSamples };
+}
+
+/**
+ * Scan one atlas PNG → Float32Array[local_index] = mean intensity in 0–1
+ * (atlas encodes raw/65535).
+ */
+export async function scanAtlasTileMean01(atlasUrl, layout) {
+  const stats = await scanAtlasTileStats(atlasUrl, layout, { collectSamples: false });
+  return stats?.means ?? null;
 }
 
 /** Layout from /atlas_uv response (or infer from atlas pixel size). */

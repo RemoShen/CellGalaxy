@@ -7,6 +7,8 @@ import {
   resolveChannelRawWindow,
   readOmePixelRange,
   firstFinite,
+  normalizeIntensityRange,
+  computeRangeFromNumericArray,
 } from "../utils/intensityWindow.js";
 import { rgbaToHex } from "../utils/color.js";
 
@@ -21,21 +23,9 @@ function defaultContrastForPixelType(type) {
   return [0, 65535];
 }
 
-function normalizeRange(dataMin, dataMax, autoMin, autoMax, fallbackLo, fallbackHi) {
-  const lo0 = Number.isFinite(dataMin) ? dataMin : fallbackLo;
-  const hi0 = Number.isFinite(dataMax) ? dataMax : fallbackHi;
-  const lo = Math.min(lo0, hi0);
-  const hi = Math.max(lo0, hi0);
-  const aLo0 = Number.isFinite(autoMin) ? autoMin : lo;
-  const aHi0 = Number.isFinite(autoMax) ? autoMax : hi;
-  const aLo = Math.min(aLo0, aHi0);
-  const aHi = Math.max(aLo0, aHi0);
-  return { dataMin: lo, dataMax: hi, autoMin: aLo, autoMax: aHi };
-}
-
 function readChannelRangeFromOmeMetadata(channel, fallbackLo, fallbackHi) {
   if (!channel || typeof channel !== "object") {
-    return normalizeRange(undefined, undefined, undefined, undefined, fallbackLo, fallbackHi);
+    return normalizeIntensityRange(undefined, undefined, undefined, undefined, fallbackLo, fallbackHi);
   }
   const windowObj = channel.Window && typeof channel.Window === "object" ? channel.Window : null;
   const dataMin = firstFinite(
@@ -74,48 +64,7 @@ function readChannelRangeFromOmeMetadata(channel, fallbackLo, fallbackHi) {
     windowObj?.End,
     windowObj?.end,
   );
-  return normalizeRange(dataMin, dataMax, autoMin, autoMax, fallbackLo, fallbackHi);
-}
-
-function percentileFromSorted(sorted, p01) {
-  if (!Array.isArray(sorted) || sorted.length === 0) return undefined;
-  const p = Math.max(0, Math.min(1, p01));
-  const idx = (sorted.length - 1) * p;
-  const lo = Math.floor(idx);
-  const hi = Math.ceil(idx);
-  if (lo === hi) return sorted[lo];
-  const t = idx - lo;
-  return sorted[lo] * (1 - t) + sorted[hi] * t;
-}
-
-function computeRangeFromNumericArray(values) {
-  if (!values || typeof values.length !== "number" || values.length === 0) return null;
-  let min = Infinity;
-  let max = -Infinity;
-  // Percentiles on non-zero pixels only (matches Viv getChannelStats).
-  // Domain min/max still include zeros for slider bounds.
-  const sample = [];
-  const stride = Math.max(1, Math.floor(values.length / 50000));
-  let sampleCursor = 0;
-  for (let i = 0; i < values.length; i++) {
-    const v = Number(values[i]);
-    if (!Number.isFinite(v)) continue;
-    if (v < min) min = v;
-    if (v > max) max = v;
-    if (v > 0) {
-      if (sampleCursor % stride === 0) sample.push(v);
-      sampleCursor++;
-    }
-  }
-  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
-  if (sample.length === 0) {
-    return normalizeRange(min, max, min, max, min, max);
-  }
-  sample.sort((a, b) => a - b);
-  // Non-zero pixels: 1st–99th percentile (sampled).
-  const autoMin = percentileFromSorted(sample, 0.01);
-  const autoMax = percentileFromSorted(sample, 0.99);
-  return normalizeRange(min, max, autoMin, autoMax, min, max);
+  return normalizeIntensityRange(dataMin, dataMax, autoMin, autoMax, fallbackLo, fallbackHi);
 }
 
 async function readChannelRangeFromPixels(loader, labels, channelIndex) {

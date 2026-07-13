@@ -404,12 +404,31 @@ const Viewer = ({
     return Math.min(1.0, budget / pool.length);
   }, [isUMAPView, semanticLevel, SAMPLING_BUDGETS, dedupedPoints, zoomLodFactor]);
 
-  // UMAP display always respects sampling; full selectedIds still used for spatial cross-view.
+  // UMAP: selected cells must stay visible even if empty-tile / overlap / budget dropped them
+  // (e.g. select in spatial → focus in UMAP).
   const visiblePoints = useMemo(() => {
-    if (!dedupedPoints || dedupedPoints.length === 0) return [];
-    if (!isUMAPView || samplingThreshold >= 1.0) return dedupedPoints;
-    return dedupedPoints.filter((p) => passesDisplaySampling(p.id, samplingThreshold));
-  }, [dedupedPoints, isUMAPView, samplingThreshold]);
+    let base = [];
+    if (dedupedPoints?.length) {
+      base =
+        !isUMAPView || samplingThreshold >= 1.0
+          ? dedupedPoints
+          : dedupedPoints.filter((p) => passesDisplaySampling(p.id, samplingThreshold));
+    }
+
+    if (isUMAPView && selectedIds?.size && points?.length) {
+      const seen = new Set(base.map((p) => p.id));
+      let merged = null;
+      for (let i = 0; i < points.length; i++) {
+        const p = points[i];
+        if (!selectedIds.has(p.id) || seen.has(p.id)) continue;
+        if (!merged) merged = base.slice();
+        merged.push(p);
+        seen.add(p.id);
+      }
+      if (merged) base = merged;
+    }
+    return base;
+  }, [dedupedPoints, isUMAPView, samplingThreshold, selectedIds, points]);
   const selectablePoints = useMemo(
     () => (hasActiveChannels ? visiblePoints : []),
     [hasActiveChannels, visiblePoints],
@@ -732,6 +751,9 @@ const Viewer = ({
       const cellFocusZoom = cellFocusZoomForView({
         isUMAPView,
         rawUsesOmeTiff,
+        tilePx,
+        markerSizeAtBase: effectiveImageSize,
+        markerBaseZoom,
       });
 
       setViewState((prev) => ({
@@ -1047,6 +1069,9 @@ const Viewer = ({
     setSimilarityRankings,
     mapWorldPosition: rawToWorld,
     rawUsesOmeTiff,
+    tilePx,
+    markerSizeAtBase: effectiveImageSize,
+    markerBaseZoom,
   });
 
   // Selected tile outline DOM positions
@@ -1061,6 +1086,15 @@ const Viewer = ({
     if (!isUMAPView && pointsRawPick?.length) {
       const seen = new Set(selectedPointsForOutline.map((p) => p.id));
       for (const p of pointsRawPick) {
+        if (selectedIds.has(p.id) && !seen.has(p.id)) {
+          selectedPointsForOutline.push(p);
+          seen.add(p.id);
+        }
+      }
+    }
+    if (isUMAPView && points?.length && selectedPointsForOutline.length < selectedIds.size) {
+      const seen = new Set(selectedPointsForOutline.map((p) => p.id));
+      for (const p of points) {
         if (selectedIds.has(p.id) && !seen.has(p.id)) {
           selectedPointsForOutline.push(p);
           seen.add(p.id);
@@ -1110,6 +1144,7 @@ const Viewer = ({
     rawToWorld,
     isUMAPView,
     pointsRawPick,
+    points,
   ]);
 
   useEffect(() => {
@@ -1170,8 +1205,8 @@ const Viewer = ({
     return visiblePoints;
   }, [isUMAPView, points, visiblePoints]);
 
-  // UMAP never bypasses GPU sampling (selected cells included only if they pass hash budget).
-  const selectedBypassSampling = !isUMAPView;
+  // Selected cells bypass GPU hash sampling so forced-in UMAP sprites (and spatial) stay on.
+  const selectedBypassSampling = true;
 
   const imageLayerPoints = isUMAPView ? umapVisualPoints : spatialVisualPoints;
 

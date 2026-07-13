@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   fetchChannelInfoMaps,
   defaultChannelColor,
   pickChannelColor,
 } from "../utils/channelInfo";
-import { readOmePixelRange, INTENSITY_FULL_RANGE } from "../utils/intensityWindow";
+import { readOmePixelRange, INTENSITY_FULL_RANGE, isFullRangePlaceholderWindow } from "../utils/intensityWindow";
 import { rgbToHex, hexToRgb } from "../utils/color";
 import "./ChannelManager.css";
 
@@ -22,8 +22,10 @@ export default function ChannelManager({
   const [showDropdown, setShowDropdown] = useState(false);
   const [serverChannelInfo, setServerChannelInfo] = useState({});
   const [tooltip, setTooltip] = useState({ show: false, value: '', x: 0, y: 0 });
+  /** Last applied auto window per channel — re-sync when tile/OME stats refine, unless user dragged. */
+  const lastAutoWindowRef = useRef({});
 
-  // OME-TIFF metadata / pixel sampling → slider bounds + auto window (shared with Viv + Zarr)
+  // OME-TIFF or Zarr atlas tile stats → slider bounds + auto window (shared with Viv + Zarr)
   const getChannelRanges = (channel) => {
     const channelId = Number(channel?.id);
     const ome =
@@ -39,7 +41,7 @@ export default function ChannelManager({
         autoMax: range.autoMax,
       };
     }
-    // No OME yet: leave full-range placeholder (handled later).
+    // No OME / Zarr range yet: full-range placeholder until tile or OME stats arrive.
     return {
       dataMin: 0,
       dataMax: INTENSITY_FULL_RANGE,
@@ -112,14 +114,21 @@ export default function ChannelManager({
         const ome = readOmePixelRange(omePixelRangeByChannelId?.[channelId]);
         if (!ome) continue;
         const cur = prev?.[channelId];
-        const isDefaultWindow =
+        const lastAuto = lastAutoWindowRef.current[channelId];
+        const isDefaultWindow = isFullRangePlaceholderWindow(cur);
+        const matchesLastAuto =
+          lastAuto &&
           cur &&
-          Math.abs((cur.min ?? NaN) - 0) < eps &&
-          Math.abs((cur.max ?? NaN) - INTENSITY_FULL_RANGE) < eps;
-        if (!cur || isDefaultWindow) {
+          Math.abs((cur.min ?? NaN) - lastAuto.min) < eps &&
+          Math.abs((cur.max ?? NaN) - lastAuto.max) < eps;
+        if (!cur || isDefaultWindow || matchesLastAuto || !lastAuto) {
           next[channelId] = { min: ome.autoMin, max: ome.autoMax };
           changed = true;
         }
+        lastAutoWindowRef.current[channelId] = {
+          min: ome.autoMin,
+          max: ome.autoMax,
+        };
       }
       return changed ? next : prev;
     });

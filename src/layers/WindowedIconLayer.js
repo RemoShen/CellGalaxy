@@ -7,6 +7,14 @@ import { windowUniforms } from "./windowUniforms";
 const DEFAULT_MIN = 0.0;
 const DEFAULT_MAX = 1.0;
 
+const defaultProps = {
+  windowMin: { type: "number", value: DEFAULT_MIN, min: 0, max: 1 },
+  windowMax: { type: "number", value: DEFAULT_MAX, min: 0, max: 1 },
+  flatColor: false,
+  channelAlpha: { type: "number", value: 1, min: 0, max: 1 },
+  toneGain: { type: "number", value: TONE_GAIN, min: 0 },
+};
+
 export default class WindowedIconLayer extends IconLayer {
   getShaders() {
     const shaders = super.getShaders();
@@ -53,3 +61,6 @@ color.a = 1.0;
     super.draw(opts);
   }
 }
+
+WindowedIconLayer.defaultProps = defaultProps;
+WindowedIconLayer.layerName = "WindowedIconLayer";
