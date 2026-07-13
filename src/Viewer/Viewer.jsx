@@ -1617,7 +1617,7 @@ const Viewer = ({
         filteredIds={filteredIds}
         displayCoordById={displayCoordById}
         getWorldPosition={rawToWorld}
-        pickRadius={rawUsesOmeTiff ? 14 : hoverPickAll ? 10 : 6}
+        pickRadius={null}
         isUMAPView={isUMAPView}
       />
 

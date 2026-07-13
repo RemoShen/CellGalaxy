@@ -20,6 +20,13 @@ import { cellPreviewURL } from "../../api/api";
 
 const PREVIEW_SIZE = 128;
 
+/** deck.gl pickObject radius (px from cursor) matching on-screen tile half-extent. */
+export function pickRadiusFromTileScreenPx(tileScreenPx) {
+  const d = Number(tileScreenPx);
+  if (!Number.isFinite(d) || d <= 0) return 4;
+  return Math.max(2, Math.ceil(d / 2));
+}
+
 export function resolveDisplayObject(object, displayCoordById) {
   if (!object) return null;
   const disp =
@@ -415,9 +422,9 @@ export default function HoverPreview({
   channelZarrIndexById = {},
   omePixelRangeByChannelId = {},
   getWorldPosition = null,
-  pickRadius = 6,
+  pickRadius = null,
   hoverRingScale = 1,
-  isUMAPView = false,
+  isUMAPView: _isUMAPView = false,
   outlineSize = null,
   rawUsesOmeTiff = false,
   tilePx = 16,
@@ -427,9 +434,12 @@ export default function HoverPreview({
       ? getWorldPosition
       : (p) => [p.x, p.y, p.z ?? 0];
 
-  const effectivePickRadius = isUMAPView
-    ? Math.max(pickRadius, Math.ceil(Math.max(8, computedImageSize * 1.8)))
-    : pickRadius;
+  // Same on-screen tile size as the hover ring / zarr sprite (not an inflated UMAP radius).
+  const tileScreenPx = outlineSize ?? computedImageSize;
+  const effectivePickRadius =
+    Number.isFinite(pickRadius) && pickRadius > 0
+      ? pickRadius
+      : pickRadiusFromTileScreenPx(tileScreenPx);
 
   const [hoverInfo, setHoverInfo] = useState(null);
   const [outlineRect, setOutlineRect] = useState(null);
@@ -481,7 +491,24 @@ export default function HoverPreview({
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
 
-      const picked = deckInstance.pickObject({ x, y, radius: effectivePickRadius });
+      // Prefer live viewport span for OME (world tilePx → screen), else sprite pixel size.
+      let radius = effectivePickRadius;
+      if (rawUsesOmeTiff && Number.isFinite(tilePx) && tilePx > 0) {
+        const viewport = deckInstance.getViewports?.()?.[0];
+        if (viewport) {
+          const center =
+            typeof viewport.unproject === "function"
+              ? viewport.unproject([x, y])
+              : null;
+          const span =
+            center != null
+              ? tileWorldSpanToScreenPx(viewport, center, tilePx)
+              : null;
+          if (span != null) radius = pickRadiusFromTileScreenPx(span);
+        }
+      }
+
+      const picked = deckInstance.pickObject({ x, y, radius });
       if (picked?.object) {
         setHoverInfo({ ...picked, x: e.clientX, y: e.clientY });
       } else {
@@ -497,7 +524,15 @@ export default function HoverPreview({
       containerEl.removeEventListener("mousemove", handleMove);
       containerEl.removeEventListener("mouseleave", handleLeave);
     };
-  }, [deckRef, containerRef, selectedIds, hoverEnabled, effectivePickRadius]);
+  }, [
+    deckRef,
+    containerRef,
+    selectedIds,
+    hoverEnabled,
+    effectivePickRadius,
+    rawUsesOmeTiff,
+    tilePx,
+  ]);
 
   useEffect(() => {
     if (!hoverInfo?.object) {
