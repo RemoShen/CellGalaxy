@@ -10,7 +10,7 @@
  */
 
 /** Centers closer than this × tile edge (world, Chebyshev) → keep stronger only. */
-export const TILE_OVERLAP_RATIO = 0.7;
+export const TILE_OVERLAP_RATIO = 0.8;
 
 /**
  * World-space exclusion radius from slider size at marker zoom baseline.

@@ -409,14 +409,31 @@ const Viewer = ({
     return dedupPrescoredByOverlap(scoredEligible, overlapRadius);
   }, [isUMAPView, eligiblePoints, scoredEligible, overlapRadius]);
 
+  // Overview LOD: below marker baseline, keep thinning as you zoom out.
+  // Quantize zoom so scroll doesn't rebuild the visible set every frame.
+  const zoomLodFactor = useMemo(() => {
+    if (!isUMAPView) return 1;
+    const zRaw =
+      typeof sharedZoom === "number"
+        ? sharedZoom
+        : typeof viewState?.zoom === "number"
+          ? viewState.zoom
+          : markerBaseZoom;
+    const z = Math.round(zRaw * 4) / 4;
+    const base = Number.isFinite(markerBaseZoom) ? markerBaseZoom : z;
+    if (!(z < base)) return 1;
+    // One zoom step out → ~half the budget; floor so overview still has a few hundred.
+    return Math.max(0.02, Math.pow(2, z - base));
+  }, [isUMAPView, sharedZoom, viewState?.zoom, markerBaseZoom]);
+
   const samplingThreshold = useMemo(() => {
     if (!isUMAPView) return 1.0;
     const pool = dedupedPoints;
     if (!pool || pool.length === 0) return 1.0;
     const idx = Math.max(0, Math.min(SAMPLING_BUDGETS.length - 1, semanticLevel - 1));
-    const budget = SAMPLING_BUDGETS[idx];
+    const budget = SAMPLING_BUDGETS[idx] * zoomLodFactor;
     return Math.min(1.0, budget / pool.length);
-  }, [isUMAPView, semanticLevel, SAMPLING_BUDGETS, dedupedPoints]);
+  }, [isUMAPView, semanticLevel, SAMPLING_BUDGETS, dedupedPoints, zoomLodFactor]);
 
   // UMAP display always respects sampling; full selectedIds still used for spatial cross-view.
   const visiblePoints = useMemo(() => {
