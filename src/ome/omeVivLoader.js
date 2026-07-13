@@ -2,7 +2,11 @@
 import { loadOmeTiff } from "@vivjs/loaders";
 import { Matrix4 } from "math.gl";
 import { assert, MAX_CHANNELS } from "./omeTiffUtils.js";
-import { INTENSITY_FULL_RANGE, scaleRgbByToneGain, resolveRawWindow } from "../utils/intensityWindow.js";
+import {
+  scaleRgbByToneGain,
+  resolveChannelRawWindow,
+  readOmePixelRange,
+} from "../utils/intensityWindow.js";
 
 export { MAX_CHANNELS };
 
@@ -243,7 +247,14 @@ export function buildMultiscaleImageLayerProps(source, ui) {
     modelMatrix,
     channelRanges = [],
   } = source;
-  const { channels, colors, windows, alphas, channelOmeIndexById } = ui;
+  const {
+    channels,
+    colors,
+    windows,
+    alphas,
+    channelOmeIndexById,
+    omePixelRangeByChannelId = {},
+  } = ui;
 
   const selections = [];
   const contrastLimits = [];
@@ -273,19 +284,33 @@ export function buildMultiscaleImageLayerProps(source, ui) {
       throw new Error("Unsupported OME loader backend");
     }
 
+    // Shared OME range (same as Zarr/UMAP). If map not ready yet, use loader metadata.
+    const omeRange = readOmePixelRange(omePixelRangeByChannelId?.[chIdx]);
     const cRange =
-      Number.isFinite(selectedOmeC) &&
-      channelRanges[selectedOmeC]
+      Number.isFinite(selectedOmeC) && channelRanges[selectedOmeC]
         ? channelRanges[selectedOmeC]
         : null;
-    const fallback = {
-      min: Number.isFinite(cRange?.autoMin) ? cRange.autoMin : 0,
-      max: Number.isFinite(cRange?.autoMax) ? cRange.autoMax : INTENSITY_FULL_RANGE,
-    };
-    const { min: wMin, max: wMax } = resolveRawWindow(windows?.[chIdx], fallback);
+    const rangeById =
+      omeRange || !cRange
+        ? omePixelRangeByChannelId
+        : {
+            ...omePixelRangeByChannelId,
+            [chIdx]: {
+              data_min: cRange.dataMin,
+              data_max: cRange.dataMax,
+              auto_min: cRange.autoMin,
+              auto_max: cRange.autoMax,
+            },
+          };
+    const { min: wMin, max: wMax } = resolveChannelRawWindow(
+      chIdx,
+      windows,
+      rangeById,
+    );
     contrastLimits.push([wMin, wMax]);
-    const rMin = Number.isFinite(cRange?.dataMin) ? cRange.dataMin : wMin;
-    const rMax = Number.isFinite(cRange?.dataMax) ? cRange.dataMax : wMax;
+    const bounds = readOmePixelRange(rangeById?.[chIdx]);
+    const rMin = bounds?.dataMin ?? wMin;
+    const rMax = bounds?.dataMax ?? wMax;
     contrastLimitsRange.push([Math.min(rMin, rMax), Math.max(rMin, rMax)]);
 
     const rgb = colors?.[chIdx] || [255, 255, 255];

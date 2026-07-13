@@ -142,12 +142,22 @@ export default function useDataLoader() {
         if (cancelled) return;
 
         const mapped = {};
-        const selectedList = Array.isArray(channels)
-          ? channels.map((x) => Number(x)).filter((x) => Number.isFinite(x))
-          : [];
-        for (const id of selectedList) {
-          const omeIdx = Number(channelOmeIndexById?.[id] ?? id);
-          if (!Number.isFinite(id) || !Number.isFinite(omeIdx) || omeIdx < 0) continue;
+        const idSet = new Set();
+        for (const key of Object.keys(channelOmeIndexById || {})) {
+          const id = Number(key);
+          if (Number.isFinite(id)) idSet.add(id);
+        }
+        for (const raw of Array.isArray(channels) ? channels : []) {
+          const id = Number(raw);
+          if (Number.isFinite(id)) idSet.add(id);
+        }
+        for (const id of idSet) {
+          const omeIdx = Number(
+            Object.prototype.hasOwnProperty.call(channelOmeIndexById || {}, id)
+              ? channelOmeIndexById[id]
+              : id,
+          );
+          if (!Number.isFinite(omeIdx) || omeIdx < 0) continue;
           const fromMetadata = source?.channelRanges?.[omeIdx];
           const computed = await computeOmeChannelRangeFromPixels(source, omeIdx);
           const r = computed || fromMetadata;

@@ -74,11 +74,13 @@ export default function ClusterAnnotationOverlay({
   const size = Math.max(10, Math.min(32, baseSize * scale));
   const reviewGrayBg = "rgba(72, 72, 78, 0.88)";
 
-  const buildEntry = (ann, status, userTitle = null) => ({
+  const buildEntry = (ann, status, userTitle = null, extra = {}) => ({
     status,
     llm_title: ann.title,
     llm_model: ann.model || clusterAnnotationModel,
     user_title: userTitle,
+    llm_accuracy: extra.llmAccuracy ?? null,
+    confidence: extra.confidence ?? null,
     reviewed_at: new Date().toISOString(),
   });
 
@@ -97,13 +99,13 @@ export default function ClusterAnnotationOverlay({
     setModalAnn(null);
   };
 
-  const saveReview = (status, userTitle = null) => {
+  const saveReview = (status, userTitle = null, extra = {}) => {
     const ann = modalAnnRef.current;
     if (!ann) return Promise.reject(new Error("No cluster selected"));
     return upsertReview({
       levelKey,
       clusterId: ann.label,
-      entry: buildEntry(ann, status, userTitle),
+      entry: buildEntry(ann, status, userTitle, extra),
     });
   };
 
@@ -236,9 +238,19 @@ export default function ClusterAnnotationOverlay({
         initialUserTitle={
           modalReview?.status === "corrected" ? modalReview.user_title || "" : ""
         }
+        initialAccuracy={
+          modalReview?.status === "corrected" || modalReview?.status === "rejected"
+            ? modalReview?.llm_accuracy ?? null
+            : null
+        }
+        initialConfidence={
+          modalReview?.status === "unsure" ? modalReview?.confidence ?? null : null
+        }
         onAccept={() => saveReview("accepted", null)}
-        onUnsure={() => saveReview("unsure", null)}
-        onRejectConfirm={(userTitle) => saveReview("corrected", userTitle)}
+        onUnsure={(confidence) => saveReview("unsure", null, { confidence })}
+        onRejectConfirm={(userTitle, llmAccuracy) =>
+          saveReview("corrected", userTitle, { llmAccuracy })
+        }
       />
     </>
   );

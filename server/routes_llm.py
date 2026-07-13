@@ -512,6 +512,17 @@ def _empty_cluster_label_reviews() -> dict[str, object]:
     return {"version": 1, "updated_at": None, "levels": {}}
 
 
+def _coerce_score(value):
+    """Clamp a 0–5 review score; return None when unset/invalid."""
+    if value is None:
+        return None
+    try:
+        score = int(round(float(value)))
+    except (TypeError, ValueError):
+        return None
+    return max(0, min(5, score))
+
+
 def _load_cluster_label_reviews() -> dict[str, object]:
     legacy = os.path.join(DATA_DIR, "cluster_label_reviews.json")
     if not os.path.exists(CLUSTER_LABEL_REVIEWS_JSON) and os.path.exists(legacy):
@@ -587,6 +598,8 @@ def patch_cluster_label_review(body: Dict[str, Any] | None = None):
             "llm_title": entry.get("llm_title"),
             "llm_model": entry.get("llm_model"),
             "user_title": entry.get("user_title"),
+            "llm_accuracy": _coerce_score(entry.get("llm_accuracy")),
+            "confidence": _coerce_score(entry.get("confidence")),
             "reviewed_at": entry.get("reviewed_at")
             or datetime.now(timezone.utc).isoformat(),
         }

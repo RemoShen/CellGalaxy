@@ -1,21 +1,70 @@
 /**
  * Shared intensity windowing + tone gain.
+ * With OME-TIFF: Viv + Zarr/UMAP share the same raw-unit window (from omePixelRangeByChannelId).
  * Zarr atlas: gray = raw / INTENSITY_FULL_RANGE; mask icons use alpha as intensity (deck.gl IconLayer).
+ * Viv: contrastLimits use the same raw [min, max] directly.
  */
 
 export const INTENSITY_FULL_RANGE = 65535;
-export const TONE_GAIN = 1.35;
+export const TONE_GAIN = 1.0;
 /** Legacy server PNG only; UMAP sprites do not clear sub-threshold pixels. */
 export const ALPHA_VISIBLE_MIN = 5 / 255;
 /** 2× supersample + max-pool approximates deck.gl linear icon texture filtering. */
 export const HOVER_ICON_SUPERSAMPLE = 2;
 
+function firstFinite(...vals) {
+  for (const v of vals) {
+    const n = Number(v);
+    if (Number.isFinite(n)) return n;
+  }
+  return undefined;
+}
+
+/**
+ * Normalize OME-derived pixel range (DataLoader / ChannelManager shape).
+ * Returns null when OME range is unavailable (no-OME path left unchanged for now).
+ */
+export function readOmePixelRange(omePv) {
+  if (!omePv || typeof omePv !== "object") return null;
+  const dataMin = firstFinite(omePv.data_min, omePv.dataMin, omePv.min);
+  const dataMax = firstFinite(omePv.data_max, omePv.dataMax, omePv.max);
+  if (!Number.isFinite(dataMin) || !Number.isFinite(dataMax)) return null;
+  const autoMin = firstFinite(omePv.auto_min, omePv.autoMin, dataMin);
+  const autoMax = firstFinite(omePv.auto_max, omePv.autoMax, dataMax);
+  return {
+    dataMin: Math.min(dataMin, dataMax),
+    dataMax: Math.max(dataMin, dataMax),
+    autoMin: Math.min(autoMin, autoMax),
+    autoMax: Math.max(autoMin, autoMax),
+  };
+}
+
+/** Viv-style default contrast window from OME range (auto / percentile). */
+export function omeWindowDefaults(omePv) {
+  const range = readOmePixelRange(omePv);
+  if (!range) return null;
+  return { min: range.autoMin, max: range.autoMax };
+}
+
 export function resolveRawWindow(window, defaults = { min: 0, max: INTENSITY_FULL_RANGE }) {
   const w = window || {};
+  const d = defaults || { min: 0, max: INTENSITY_FULL_RANGE };
   return {
-    min: Number.isFinite(w.min) ? w.min : defaults.min,
-    max: Number.isFinite(w.max) ? w.max : defaults.max,
+    min: Number.isFinite(w.min) ? w.min : d.min,
+    max: Number.isFinite(w.max) ? w.max : d.max,
   };
+}
+
+/**
+ * Same raw-unit window for Viv contrastLimits and Zarr sprite windowing.
+ * Prefer user `windows[ch]`; else OME auto range; else full 16-bit (no-OME placeholder).
+ */
+export function resolveChannelRawWindow(ch, windows, omePixelRangeByChannelId) {
+  const omeDefaults = omeWindowDefaults(omePixelRangeByChannelId?.[ch]);
+  return resolveRawWindow(
+    windows?.[ch],
+    omeDefaults || { min: 0, max: INTENSITY_FULL_RANGE },
+  );
 }
 
 export function rawWindowToNormalized01(min, max, fullRange = INTENSITY_FULL_RANGE) {
@@ -28,8 +77,9 @@ export function rawWindowToNormalized01(min, max, fullRange = INTENSITY_FULL_RAN
   };
 }
 
-export function windowFromChannel(ch, windows) {
-  const { min, max } = resolveRawWindow(windows?.[ch]);
+/** Atlas / hover path: Viv-equivalent window expressed in 0–1 (atlas = raw/65535). */
+export function windowFromChannel(ch, windows, omePixelRangeByChannelId) {
+  const { min, max } = resolveChannelRawWindow(ch, windows, omePixelRangeByChannelId);
   return rawWindowToNormalized01(min, max);
 }
 
@@ -40,17 +90,21 @@ export function applyIntensityWindow01(gray01, winMin01, winMax01) {
   return (gray01 - winMin01) / span;
 }
 
-export function combinedRawWindow(channels, windows) {
+export function combinedRawWindow(channels, windows, omePixelRangeByChannelId) {
   const list = Array.isArray(channels) ? channels : [];
-  if (list.length === 0) return resolveRawWindow(null);
+  if (list.length === 0) {
+    return resolveChannelRawWindow(null, windows, omePixelRangeByChannelId);
+  }
   let rawMin = Infinity;
   let rawMax = -Infinity;
   for (const ch of list) {
-    const { min, max } = resolveRawWindow(windows?.[ch]);
+    const { min, max } = resolveChannelRawWindow(ch, windows, omePixelRangeByChannelId);
     rawMin = Math.min(rawMin, min);
     rawMax = Math.max(rawMax, max);
   }
-  if (!Number.isFinite(rawMin)) return resolveRawWindow(null);
+  if (!Number.isFinite(rawMin)) {
+    return resolveChannelRawWindow(null, windows, omePixelRangeByChannelId);
+  }
   return { min: rawMin, max: rawMax };
 }
 

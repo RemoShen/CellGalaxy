@@ -4,6 +4,7 @@ import {
   defaultChannelColor,
   pickChannelColor,
 } from "../utils/channelInfo";
+import { readOmePixelRange, INTENSITY_FULL_RANGE } from "../utils/intensityWindow";
 import "./ChannelManager.css";
 
 export default function ChannelManager({
@@ -21,22 +22,29 @@ export default function ChannelManager({
   const [serverChannelInfo, setServerChannelInfo] = useState({});
   const [tooltip, setTooltip] = useState({ show: false, value: '', x: 0, y: 0 });
 
-  // OME-TIFF metadata / pixel sampling → slider bounds + auto window
+  // OME-TIFF metadata / pixel sampling → slider bounds + auto window (shared with Viv + Zarr)
   const getChannelRanges = (channel) => {
     const channelId = Number(channel?.id);
-    const pv =
+    const ome =
       Number.isFinite(channelId) && omePixelRangeByChannelId?.[channelId]
         ? omePixelRangeByChannelId[channelId]
-        : {};
-    const dataMin = Number.isFinite(pv.data_min)
-      ? pv.data_min
-      : (Number.isFinite(pv.min) ? pv.min : 0);
-    const dataMax = Number.isFinite(pv.data_max)
-      ? pv.data_max
-      : (Number.isFinite(pv.max) ? pv.max : 65535);
-    const autoMin = Number.isFinite(pv.auto_min) ? pv.auto_min : dataMin;
-    const autoMax = Number.isFinite(pv.auto_max) ? pv.auto_max : dataMax;
-    return { dataMin, dataMax, autoMin, autoMax };
+        : null;
+    const range = readOmePixelRange(ome);
+    if (range) {
+      return {
+        dataMin: range.dataMin,
+        dataMax: range.dataMax,
+        autoMin: range.autoMin,
+        autoMax: range.autoMax,
+      };
+    }
+    // No OME yet: leave full-range placeholder (handled later).
+    return {
+      dataMin: 0,
+      dataMax: INTENSITY_FULL_RANGE,
+      autoMin: 0,
+      autoMax: INTENSITY_FULL_RANGE,
+    };
   };
 
   useEffect(() => {
@@ -100,15 +108,15 @@ export default function ChannelManager({
       for (const channelId of selected) {
         const channel = channels.find((ch) => ch.id === channelId);
         if (!channel) continue;
-        const ome = omePixelRangeByChannelId?.[channelId];
+        const ome = readOmePixelRange(omePixelRangeByChannelId?.[channelId]);
         if (!ome) continue;
         const cur = prev?.[channelId];
         const isDefaultWindow =
           cur &&
           Math.abs((cur.min ?? NaN) - 0) < eps &&
-          Math.abs((cur.max ?? NaN) - 65535) < eps;
+          Math.abs((cur.max ?? NaN) - INTENSITY_FULL_RANGE) < eps;
         if (!cur || isDefaultWindow) {
-          next[channelId] = { min: ome.auto_min, max: ome.auto_max };
+          next[channelId] = { min: ome.autoMin, max: ome.autoMax };
           changed = true;
         }
       }
@@ -154,7 +162,7 @@ export default function ChannelManager({
   const handleSliderChange = (channelId, type, value) => {
     const v = Number(value);
     setWindows((prev) => {
-      const cur = prev[channelId] || { min: 0, max: 65535 };
+      const cur = prev[channelId] || { min: 0, max: INTENSITY_FULL_RANGE };
       const next = { ...cur, [type]: v };
       if (next.min > next.max) {
         if (type === 'min') next.max = next.min;

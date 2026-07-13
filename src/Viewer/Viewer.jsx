@@ -132,6 +132,8 @@ const Viewer = ({
   channelOmeIndexById = {},
   /** channel_id → Zarr 0-based c; missing = OME-only. */
   channelZarrIndexById = {},
+  /** Shared OME-derived intensity ranges for Viv + Zarr/UMAP. */
+  omePixelRangeByChannelId = {},
 }) => {
   const isUMAPView =
     viewerId === "umap" || (viewerId === "single" && !!useUMAP);
@@ -414,10 +416,11 @@ const Viewer = ({
       windows,
       alphas,
       channelOmeIndexById: map,
+      omePixelRangeByChannelId,
     });
     if (!props) return null;
     return new MultiscaleImageLayer({ ...props, pickable: false });
-  }, [rawUsesOmeTiff, omeTiffSource, channels, colors, windows, alphas, channelOmeIndexById]);
+  }, [rawUsesOmeTiff, omeTiffSource, channels, colors, windows, alphas, channelOmeIndexById, omePixelRangeByChannelId]);
 
   const { selectClusterByLabel, selectSingleById } = useClusterSelection({
     points: visiblePoints,
@@ -1156,6 +1159,7 @@ const Viewer = ({
     colors,
     alphas,
     windows,
+    omePixelRangeByChannelId,
     is3D: viewIs3D,
     filteredIds,
     highlightedClusters,
@@ -1432,6 +1436,7 @@ const Viewer = ({
               colors={colors}
               alphas={alphas}
               windows={windows}
+              omePixelRangeByChannelId={omePixelRangeByChannelId}
             />
           );
         })}
@@ -1594,6 +1599,7 @@ const Viewer = ({
         colors={colors}
         alphas={alphas}
         windows={windows}
+        omePixelRangeByChannelId={omePixelRangeByChannelId}
         clusterColorOn={clusterColorOn}
         clusterOpacity={clusterOpacity}
         clusterLineWidth={clusterLineWidth}
