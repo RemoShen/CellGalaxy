@@ -26,6 +26,10 @@ import {
 import { logicalToZarrC, resolveZarrLogicalChannels, hasZarrChannelMap } from "../utils/utils";
 import { fetchChannelInfoMaps } from "../utils/channelInfo";
 import { fetchCoreMetadataRows } from "../utils/coreMetadata";
+import {
+  atlasLayoutFromUv,
+  scanAtlasTileMax01,
+} from "../utils/tileSignalCache";
 
 const OME_TIFF_PUBLIC_PATH = "/public/image.ome.tif";
 
@@ -102,6 +106,9 @@ export default function useDataLoader() {
   const [chunkUV, setChunkUV] = useState({});
   const [atlasURL, setAtlasURL] = useState({}); // legacy merged atlas
   const [atlasByChannel, setAtlasByChannel] = useState({}); // per-ch grayscale
+  /** channel → chunkId → Float32Array(local_index → max01) for UMAP empty-tile filter */
+  const [tileSignalByChannel, setTileSignalByChannel] = useState({});
+  const tileSignalScanKeyRef = useRef(new Set()); // `${ch}:${chunkId}:${url}`
   const [fetchingChunks, setFetchingChunks] = useState(new Set());
   const [dataVersion, setDataVersion] = useState(0);
 
@@ -507,6 +514,8 @@ export default function useDataLoader() {
         setChunkUV({});
         setAtlasURL({});
         setAtlasByChannel({});
+        setTileSignalByChannel({});
+        tileSignalScanKeyRef.current = new Set();
         setFetchingChunks(new Set());
         try {
           const metaJson = await fetchMeta(abort.signal);
@@ -565,6 +574,8 @@ export default function useDataLoader() {
         setChunkUV({});
         setAtlasURL({});
         setAtlasByChannel({});
+        setTileSignalByChannel({});
+        tileSignalScanKeyRef.current = new Set();
         setFetchingChunks(new Set());
       }
 
@@ -671,6 +682,8 @@ export default function useDataLoader() {
       setChunkUV({});
       setAtlasURL({});
       setAtlasByChannel({});
+        setTileSignalByChannel({});
+        tileSignalScanKeyRef.current = new Set();
       setFetchingChunks(new Set());
       setChannels([]);
       setWeights({});
@@ -835,6 +848,56 @@ export default function useDataLoader() {
     })();
   }, [meta, loading, channels, renderMode, is3D, allCoords, channelZarrIndexById]);
 
+  // Scan atlas PNGs → per-tile max01 (once per url); used to drop empty UMAP tiles before sampling.
+  useEffect(() => {
+    let cancelled = false;
+    const tileFallback = meta?.atlas?.tile ?? 16;
+    const jobs = [];
+    for (const [chunkIdStr, byCh] of Object.entries(atlasByChannel || {})) {
+      const chunkId = Number(chunkIdStr);
+      const layout = atlasLayoutFromUv(chunkUV?.[chunkId] ?? chunkUV?.[chunkIdStr], tileFallback);
+      if (!layout) continue;
+      for (const [chStr, url] of Object.entries(byCh || {})) {
+        if (!url) continue;
+        const ch = Number(chStr);
+        const key = `${ch}:${chunkId}:${url}:mean_v2`;
+        if (tileSignalScanKeyRef.current.has(key)) continue;
+        tileSignalScanKeyRef.current.add(key);
+        jobs.push({ ch, chunkId, url, layout, key });
+      }
+    }
+    if (jobs.length === 0) return undefined;
+
+    (async () => {
+      for (const job of jobs) {
+        if (cancelled) return;
+        try {
+          const arr = await scanAtlasTileMax01(job.url, job.layout);
+          if (cancelled || !arr) {
+            tileSignalScanKeyRef.current.delete(job.key);
+            continue;
+          }
+          setTileSignalByChannel((prev) => ({
+            ...prev,
+            [job.ch]: {
+              ...(prev[job.ch] || {}),
+              [job.chunkId]: arr,
+            },
+          }));
+          // Yield so channel/window UI stays responsive while scanning.
+          await new Promise((r) => setTimeout(r, 0));
+        } catch (e) {
+          tileSignalScanKeyRef.current.delete(job.key);
+          console.error("tile signal scan failed", e);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [atlasByChannel, chunkUV, meta]);
+
   // Prewarm atlas on channel change
   useEffect(() => {
     if (!meta || !channels || channels.length === 0) return;
@@ -865,6 +928,7 @@ export default function useDataLoader() {
     chunkUV,
     atlasURL,
     atlasByChannel,
+    tileSignalByChannel,
     fetchingChunks,
     
     channels,

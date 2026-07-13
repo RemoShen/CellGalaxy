@@ -37,6 +37,7 @@ import {
   resolveTileOutlineSize,
   resolveZarrLogicalChannels,
 } from "../utils/utils";
+import { passesTileSignalFilter } from "../utils/tileSignalCache";
 import { buildOutlineData2D, clusterColor } from "../utils/clustering";
 import "./Viewer.css";
 import ClickToolbar from "../ToolBar/ClickToolbar/ClickToolbar";
@@ -74,6 +75,7 @@ const Viewer = ({
   hoverMaskEnabled = false,
   atlasURL,
   atlasByChannel,
+  tileSignalByChannel = {},
   channels = [],
   colors = {},
   alphas = {},
@@ -349,23 +351,40 @@ const Viewer = ({
     []
   );
 
-  const samplingThreshold = useMemo(() => {
-    if (!points || points.length === 0) return 1.0;
-    if (!isUMAPView) return 1.0;
+  // Drop empty (post-window composite) tiles first, then apply budget sampling.
+  const signalFilterOpts = useMemo(
+    () => ({
+      channels: zarrChannels,
+      tileSignalByChannel,
+      windows,
+      alphas,
+      omePixelRangeByChannelId,
+    }),
+    [zarrChannels, tileSignalByChannel, windows, alphas, omePixelRangeByChannelId],
+  );
 
+  const eligiblePoints = useMemo(() => {
+    if (!points || points.length === 0) return [];
+    if (!isUMAPView) return points;
+    if (!zarrChannels?.length) return points;
+    return points.filter((p) => passesTileSignalFilter(p, signalFilterOpts));
+  }, [points, isUMAPView, zarrChannels, signalFilterOpts]);
+
+  const samplingThreshold = useMemo(() => {
+    if (!isUMAPView) return 1.0;
+    const pool = eligiblePoints;
+    if (!pool || pool.length === 0) return 1.0;
     const idx = Math.max(0, Math.min(SAMPLING_BUDGETS.length - 1, semanticLevel - 1));
     const budget = SAMPLING_BUDGETS[idx];
-    const total = points.length;
-    return Math.min(1.0, budget / total);
-  }, [isUMAPView, semanticLevel, SAMPLING_BUDGETS, points]);
+    return Math.min(1.0, budget / pool.length);
+  }, [isUMAPView, semanticLevel, SAMPLING_BUDGETS, eligiblePoints]);
 
   // UMAP display always respects sampling; full selectedIds still used for spatial cross-view.
   const visiblePoints = useMemo(() => {
-    if (!points || points.length === 0) return [];
-    if (samplingThreshold >= 1.0) return points;
-
-    return points.filter((p) => passesDisplaySampling(p.id, samplingThreshold));
-  }, [points, samplingThreshold]);
+    if (!eligiblePoints || eligiblePoints.length === 0) return [];
+    if (!isUMAPView || samplingThreshold >= 1.0) return eligiblePoints;
+    return eligiblePoints.filter((p) => passesDisplaySampling(p.id, samplingThreshold));
+  }, [eligiblePoints, isUMAPView, samplingThreshold]);
   const selectablePoints = useMemo(
     () => (hasActiveChannels ? visiblePoints : []),
     [hasActiveChannels, visiblePoints],
