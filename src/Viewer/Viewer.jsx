@@ -37,7 +37,11 @@ import {
   resolveTileOutlineSize,
   resolveZarrLogicalChannels,
 } from "../utils/utils";
-import { passesTileSignalFilter } from "../utils/tileSignalCache";
+import { passesTileSignalFilter, compositeTileSignalScore } from "../utils/tileSignalCache";
+import {
+  dedupPrescoredByOverlap,
+  worldOverlapRadius,
+} from "../utils/umapOverlapDedup";
 import { buildOutlineData2D, clusterColor } from "../utils/clustering";
 import "./Viewer.css";
 import ClickToolbar from "../ToolBar/ClickToolbar/ClickToolbar";
@@ -258,6 +262,7 @@ const Viewer = ({
     setViewState,
     handleViewStateChange,
     computedImageSize,
+    markerBaseZoom,
     altPressed,
     autoRotate,
   } = DeckViewState({
@@ -351,7 +356,7 @@ const Viewer = ({
     []
   );
 
-  // Drop empty (post-window composite) tiles first, then apply budget sampling.
+  // Drop empty tiles → overlap dedup (slider/zoom aware) → budget sampling.
   const signalFilterOpts = useMemo(
     () => ({
       channels: zarrChannels,
@@ -370,21 +375,55 @@ const Viewer = ({
     return points.filter((p) => passesTileSignalFilter(p, signalFilterOpts));
   }, [points, isUMAPView, zarrChannels, signalFilterOpts]);
 
+  // Score+sort once when the candidate pool / windows change — not on every zoom frame.
+  const scoredEligible = useMemo(() => {
+    if (!isUMAPView || !eligiblePoints.length) return null;
+    const items = new Array(eligiblePoints.length);
+    for (let i = 0; i < eligiblePoints.length; i++) {
+      const p = eligiblePoints[i];
+      const s = compositeTileSignalScore(p, signalFilterOpts);
+      const x = Number(p?.x);
+      const y = Number(p?.y);
+      items[i] = {
+        p,
+        x: Number.isFinite(x) ? x : 0,
+        y: Number.isFinite(y) ? y : 0,
+        score: s?.meanRaw ?? 0,
+        id: Number.isFinite(p?.id) ? p.id : i,
+      };
+    }
+    items.sort((a, b) => b.score - a.score || a.id - b.id);
+    return items;
+  }, [isUMAPView, eligiblePoints, signalFilterOpts]);
+
+  // World footprint is imageSize/2^baseZoom (zoom cancels with computedImageSize).
+  // Depend only on slider size + baseline so pan/zoom does not re-dedup.
+  const overlapRadius = useMemo(() => {
+    if (!isUMAPView) return 0;
+    return worldOverlapRadius(effectiveImageSize, markerBaseZoom);
+  }, [isUMAPView, effectiveImageSize, markerBaseZoom]);
+
+  const dedupedPoints = useMemo(() => {
+    if (!isUMAPView) return eligiblePoints;
+    if (!scoredEligible?.length || !(overlapRadius > 0)) return eligiblePoints;
+    return dedupPrescoredByOverlap(scoredEligible, overlapRadius);
+  }, [isUMAPView, eligiblePoints, scoredEligible, overlapRadius]);
+
   const samplingThreshold = useMemo(() => {
     if (!isUMAPView) return 1.0;
-    const pool = eligiblePoints;
+    const pool = dedupedPoints;
     if (!pool || pool.length === 0) return 1.0;
     const idx = Math.max(0, Math.min(SAMPLING_BUDGETS.length - 1, semanticLevel - 1));
     const budget = SAMPLING_BUDGETS[idx];
     return Math.min(1.0, budget / pool.length);
-  }, [isUMAPView, semanticLevel, SAMPLING_BUDGETS, eligiblePoints]);
+  }, [isUMAPView, semanticLevel, SAMPLING_BUDGETS, dedupedPoints]);
 
   // UMAP display always respects sampling; full selectedIds still used for spatial cross-view.
   const visiblePoints = useMemo(() => {
-    if (!eligiblePoints || eligiblePoints.length === 0) return [];
-    if (!isUMAPView || samplingThreshold >= 1.0) return eligiblePoints;
-    return eligiblePoints.filter((p) => passesDisplaySampling(p.id, samplingThreshold));
-  }, [eligiblePoints, isUMAPView, samplingThreshold]);
+    if (!dedupedPoints || dedupedPoints.length === 0) return [];
+    if (!isUMAPView || samplingThreshold >= 1.0) return dedupedPoints;
+    return dedupedPoints.filter((p) => passesDisplaySampling(p.id, samplingThreshold));
+  }, [dedupedPoints, isUMAPView, samplingThreshold]);
   const selectablePoints = useMemo(
     () => (hasActiveChannels ? visiblePoints : []),
     [hasActiveChannels, visiblePoints],
