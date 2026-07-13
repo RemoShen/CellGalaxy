@@ -1,8 +1,8 @@
 // IconLayer + intensity window in FS (windowUniforms, v9 shaderInputs).
 // Window on icon alpha, then × channelAlpha × toneGain (same order as hover preview).
-import { IconLayer } from '@deck.gl/layers';
-import { TONE_GAIN } from '../utils/intensityWindow';
-import { windowUniforms } from './windowUniforms';
+import { IconLayer } from "@deck.gl/layers";
+import { TONE_GAIN } from "../utils/intensityWindow";
+import { windowUniforms } from "./windowUniforms";
 
 const DEFAULT_MIN = 0.0;
 const DEFAULT_MAX = 1.0;
@@ -14,7 +14,7 @@ export default class WindowedIconLayer extends IconLayer {
       ...shaders,
       modules: [...(shaders.modules || []), windowUniforms],
       inject: {
-        'fs:DECKGL_FILTER_COLOR': `
+        "fs:DECKGL_FILTER_COLOR": `
 float iconA = color.a;
 float t = iconA;
 if (window.flatColor < 0.5) {

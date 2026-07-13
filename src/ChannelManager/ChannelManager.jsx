@@ -5,6 +5,7 @@ import {
   pickChannelColor,
 } from "../utils/channelInfo";
 import { readOmePixelRange, INTENSITY_FULL_RANGE } from "../utils/intensityWindow";
+import { rgbToHex, hexToRgb } from "../utils/color";
 import "./ChannelManager.css";
 
 export default function ChannelManager({
@@ -128,16 +129,6 @@ export default function ChannelManager({
     (ch) => !selected.includes(ch.id)
   ) || [];
 
-  const toHex = (rgb) => {
-    const [r, g, b] = rgb || [255, 255, 255];
-    return `#${[r, g, b].map(v => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join('')}`;
-  };
-  
-  const fromHex = (hex) => {
-    const match = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex || '#ffffff');
-    return match ? [parseInt(match[1], 16), parseInt(match[2], 16), parseInt(match[3], 16)] : [255, 255, 255];
-  };
-  
   const defaultColorFor = (id) => defaultChannelColor(id);
 
   const addChannel = (channel) => {
@@ -256,8 +247,8 @@ export default function ChannelManager({
               <input
                 type="color"
                 className="color-picker"
-                value={toHex(colors[channelId] || defaultColorFor(channelId))}
-                onChange={(e) => setColors((prev) => ({ ...prev, [channelId]: fromHex(e.target.value) }))}
+                value={rgbToHex(colors[channelId] || defaultColorFor(channelId))}
+                onChange={(e) => setColors((prev) => ({ ...prev, [channelId]: hexToRgb(e.target.value) }))}
               />
 
               <span className="channel-name" title={channel.name}>{channel.name}</span>

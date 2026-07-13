@@ -72,36 +72,3 @@ export function dedupPrescoredByOverlap(items, radius) {
   }
   return kept;
 }
-
-/**
- * Greedy dedup: sort by score desc, keep a point only if no kept neighbor
- * is within `radius` (Chebyshev x/y — square tiles).
- */
-export function dedupPointsByOverlap(
-  points,
-  {
-    radius,
-    getPosition = (p) => [p.x, p.y],
-    getScore = () => 0,
-  } = {},
-) {
-  if (!Array.isArray(points) || points.length === 0) return [];
-  if (!(radius > 0) || !Number.isFinite(radius)) return points;
-
-  const items = new Array(points.length);
-  for (let i = 0; i < points.length; i++) {
-    const p = points[i];
-    const pos = getPosition(p);
-    const x = Number(pos?.[0]);
-    const y = Number(pos?.[1]);
-    items[i] = {
-      p,
-      x: Number.isFinite(x) ? x : 0,
-      y: Number.isFinite(y) ? y : 0,
-      score: Number(getScore(p)) || 0,
-      id: Number.isFinite(p?.id) ? p.id : i,
-    };
-  }
-  items.sort((a, b) => b.score - a.score || a.id - b.id);
-  return dedupPrescoredByOverlap(items, radius);
-}

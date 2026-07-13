@@ -6,7 +6,9 @@ import {
   scaleRgbByToneGain,
   resolveChannelRawWindow,
   readOmePixelRange,
+  firstFinite,
 } from "../utils/intensityWindow.js";
+import { rgbaToHex } from "../utils/color.js";
 
 export { MAX_CHANNELS };
 
@@ -17,14 +19,6 @@ function defaultContrastForPixelType(type) {
   if (t === "uint32" || t === "int32") return [0, 65535];
   if (t === "float" || t === "double") return [0, 1];
   return [0, 65535];
-}
-
-function firstFinite(...vals) {
-  for (const v of vals) {
-    const n = Number(v);
-    if (Number.isFinite(n)) return n;
-  }
-  return undefined;
 }
 
 function normalizeRange(dataMin, dataMax, autoMin, autoMax, fallbackLo, fallbackHi) {
@@ -118,7 +112,7 @@ function computeRangeFromNumericArray(values) {
     return normalizeRange(min, max, min, max, min, max);
   }
   sample.sort((a, b) => a - b);
-  // Non-zero pixels: 0.5th–99.5th percentile.
+  // Non-zero pixels: 1st–99th percentile (sampled).
   const autoMin = percentileFromSorted(sample, 0.01);
   const autoMax = percentileFromSorted(sample, 0.99);
   return normalizeRange(min, max, autoMin, autoMax, min, max);
@@ -150,13 +144,6 @@ async function readChannelRangeFromPixels(loader, labels, channelIndex) {
   } catch {
     return null;
   }
-}
-
-function rgbaToHex(rgba) {
-  if (!rgba || rgba.length < 3) return "#ffffff";
-  const [r, g, b] = rgba;
-  const clamp = (v) => Math.max(0, Math.min(255, Number(v) | 0));
-  return `#${[r, g, b].map((v) => clamp(v).toString(16).padStart(2, "0")).join("")}`;
 }
 
 async function mapVivOmeImageToSource(ome) {
@@ -212,16 +199,41 @@ async function mapVivOmeImageToSource(ome) {
   };
 }
 
+/** Dedupe concurrent / Strict-Mode double mounts (Viewer + DataLoader share one decode). */
+const _omeSourceByUrl = new Map();
+const _omeSourceByFile = new WeakMap();
+
 /** Remote URL (same-origin /public/...) */
 export async function openOmeTiffAsPixelSources(absoluteUrl) {
-  const ome = await loadOmeTiff(absoluteUrl);
-  return await mapVivOmeImageToSource(ome);
+  const key = String(absoluteUrl || "");
+  if (!key) throw new Error("OME-TIFF: empty URL");
+  let pending = _omeSourceByUrl.get(key);
+  if (!pending) {
+    pending = loadOmeTiff(absoluteUrl)
+      .then((ome) => mapVivOmeImageToSource(ome))
+      .catch((err) => {
+        _omeSourceByUrl.delete(key);
+        throw err;
+      });
+    _omeSourceByUrl.set(key, pending);
+  }
+  return pending;
 }
 
 /** Local browser File */
 export async function openOmeTiffFromFile(file) {
-  const ome = await loadOmeTiff(file);
-  return await mapVivOmeImageToSource(ome);
+  if (!file) throw new Error("OME-TIFF: empty file");
+  let pending = _omeSourceByFile.get(file);
+  if (!pending) {
+    pending = loadOmeTiff(file)
+      .then((ome) => mapVivOmeImageToSource(ome))
+      .catch((err) => {
+        _omeSourceByFile.delete(file);
+        throw err;
+      });
+    _omeSourceByFile.set(file, pending);
+  }
+  return pending;
 }
 
 export async function computeOmeChannelRangeFromPixels(source, omeChannelIndex) {
@@ -229,21 +241,6 @@ export async function computeOmeChannelRangeFromPixels(source, omeChannelIndex) 
   if (!Number.isFinite(idx) || idx < 0) return null;
   const computed = await readChannelRangeFromPixels(source?.loader, source?.labels, idx);
   return computed || null;
-}
-
-function hexToRGB(hex) {
-  let h = String(hex || "").replace(/^#/, "");
-  if (h.length === 3) {
-    h = h
-      .split("")
-      .map((c) => c + c)
-      .join("");
-  }
-  const r = Number.parseInt(h.slice(0, 2), 16);
-  const g = Number.parseInt(h.slice(2, 4), 16);
-  const b = Number.parseInt(h.slice(4, 6), 16);
-  if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) return [255, 255, 255];
-  return [r, g, b];
 }
 
 /** MultiscaleImageLayer props: loader = TiffPixelSource[]; selection { t, c, z } per @vivjs/loaders. */
@@ -358,5 +355,3 @@ export function buildMultiscaleImageLayerProps(source, ui) {
     modelMatrix,
   };
 }
-
-export { hexToRGB };

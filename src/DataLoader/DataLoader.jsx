@@ -23,12 +23,12 @@ import {
   openOmeTiffFromFile,
   computeOmeChannelRangeFromPixels,
 } from "../ome/omeVivLoader";
-import { logicalToZarrC, resolveZarrLogicalChannels, hasZarrChannelMap } from "../utils/utils";
+import { logicalToZarrC, hasZarrChannelMap } from "../utils/utils";
 import { fetchChannelInfoMaps } from "../utils/channelInfo";
 import { fetchCoreMetadataRows } from "../utils/coreMetadata";
 import {
   atlasLayoutFromUv,
-  scanAtlasTileMax01,
+  scanAtlasTileMean01,
 } from "../utils/tileSignalCache";
 
 const OME_TIFF_PUBLIC_PATH = "/public/image.ome.tif";
@@ -102,15 +102,66 @@ export default function useDataLoader() {
   const [channelNameById, setChannelNameById] = useState({});
   /** channel_id (UI) -> pixel range derived from OME-TIFF metadata */
   const [omePixelRangeByChannelId, setOmePixelRangeByChannelId] = useState({});
+  /** Shared Viv source — Viewer must not open OME again. */
+  const [omeTiffSource, setOmeTiffSource] = useState(null);
+  const [omeTiffLoadError, setOmeTiffLoadError] = useState(null);
 
   const [chunkUV, setChunkUV] = useState({});
   const [atlasURL, setAtlasURL] = useState({}); // legacy merged atlas
   const [atlasByChannel, setAtlasByChannel] = useState({}); // per-ch grayscale
-  /** channel → chunkId → Float32Array(local_index → max01) for UMAP empty-tile filter */
+  /** channel → chunkId → Float32Array(local_index → mean01) for UMAP empty-tile filter */
   const [tileSignalByChannel, setTileSignalByChannel] = useState({});
   const tileSignalScanKeyRef = useRef(new Set()); // `${ch}:${chunkId}:${url}`
+  /** Coalesce scans from successive atlas arrivals into fewer UMAP pipeline rebuilds. */
+  const tileSignalPendingRef = useRef({});
+  const tileSignalFlushTimerRef = useRef(null);
   const [fetchingChunks, setFetchingChunks] = useState(new Set());
   const [dataVersion, setDataVersion] = useState(0);
+
+  const flushTileSignalPending = useCallback(() => {
+    if (tileSignalFlushTimerRef.current != null) {
+      clearTimeout(tileSignalFlushTimerRef.current);
+      tileSignalFlushTimerRef.current = null;
+    }
+    const pending = tileSignalPendingRef.current;
+    tileSignalPendingRef.current = {};
+    if (Object.keys(pending).length === 0) return;
+    setTileSignalByChannel((prev) => {
+      const next = { ...prev };
+      for (const [ch, byChunk] of Object.entries(pending)) {
+        const chKey = Number(ch);
+        next[chKey] = { ...(next[chKey] || {}), ...byChunk };
+      }
+      return next;
+    });
+  }, []);
+
+  const scheduleTileSignalFlush = useCallback(() => {
+    if (tileSignalFlushTimerRef.current != null) return;
+    tileSignalFlushTimerRef.current = setTimeout(() => {
+      tileSignalFlushTimerRef.current = null;
+      flushTileSignalPending();
+    }, 100);
+  }, [flushTileSignalPending]);
+
+  const resetTileSignalState = useCallback(() => {
+    if (tileSignalFlushTimerRef.current != null) {
+      clearTimeout(tileSignalFlushTimerRef.current);
+      tileSignalFlushTimerRef.current = null;
+    }
+    tileSignalPendingRef.current = {};
+    tileSignalScanKeyRef.current.clear();
+    setTileSignalByChannel({});
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (tileSignalFlushTimerRef.current != null) {
+        clearTimeout(tileSignalFlushTimerRef.current);
+        tileSignalFlushTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,6 +182,8 @@ export default function useDataLoader() {
     const hasRemoteOme = Boolean(!omeTiffFile && omeTiffPresent);
     const hasLocalOme = Boolean(omeTiffFile);
     if (!hasLocalOme && !hasRemoteOme) {
+      setOmeTiffSource(null);
+      setOmeTiffLoadError(null);
       setOmePixelRangeByChannelId({});
       return undefined;
     }
@@ -147,6 +200,8 @@ export default function useDataLoader() {
           ? await openOmeTiffFromFile(omeTiffFile)
           : await openOmeTiffAsPixelSources(remoteUrl);
         if (cancelled) return;
+        setOmeTiffSource(source);
+        setOmeTiffLoadError(null);
 
         const mapped = {};
         const idSet = new Set();
@@ -159,6 +214,7 @@ export default function useDataLoader() {
           if (Number.isFinite(id)) idSet.add(id);
         }
         for (const id of idSet) {
+          if (cancelled) return;
           const omeIdx = Number(
             Object.prototype.hasOwnProperty.call(channelOmeIndexById || {}, id)
               ? channelOmeIndexById[id]
@@ -176,9 +232,13 @@ export default function useDataLoader() {
             auto_max: Number.isFinite(r.autoMax) ? r.autoMax : 65535,
           };
         }
-        setOmePixelRangeByChannelId(mapped);
-      } catch {
-        if (!cancelled) setOmePixelRangeByChannelId({});
+        if (!cancelled) setOmePixelRangeByChannelId(mapped);
+      } catch (e) {
+        if (!cancelled) {
+          setOmeTiffSource(null);
+          setOmeTiffLoadError(e?.message || String(e));
+          setOmePixelRangeByChannelId({});
+        }
       }
     })();
 
@@ -514,8 +574,7 @@ export default function useDataLoader() {
         setChunkUV({});
         setAtlasURL({});
         setAtlasByChannel({});
-        setTileSignalByChannel({});
-        tileSignalScanKeyRef.current = new Set();
+        resetTileSignalState();
         setFetchingChunks(new Set());
         try {
           const metaJson = await fetchMeta(abort.signal);
@@ -574,8 +633,7 @@ export default function useDataLoader() {
         setChunkUV({});
         setAtlasURL({});
         setAtlasByChannel({});
-        setTileSignalByChannel({});
-        tileSignalScanKeyRef.current = new Set();
+        resetTileSignalState();
         setFetchingChunks(new Set());
       }
 
@@ -682,8 +740,7 @@ export default function useDataLoader() {
       setChunkUV({});
       setAtlasURL({});
       setAtlasByChannel({});
-        setTileSignalByChannel({});
-        tileSignalScanKeyRef.current = new Set();
+      resetTileSignalState();
       setFetchingChunks(new Set());
       setChannels([]);
       setWeights({});
@@ -694,7 +751,7 @@ export default function useDataLoader() {
     } finally {
       if (!skipLoading) setLoading(false);
     }
-  }, [refreshUploadStatus]);
+  }, [refreshUploadStatus, resetTileSignalState]);
 
   useEffect(() => {
     refreshData();
@@ -848,7 +905,7 @@ export default function useDataLoader() {
     })();
   }, [meta, loading, channels, renderMode, is3D, allCoords, channelZarrIndexById]);
 
-  // Scan atlas PNGs → per-tile max01 (once per url); used to drop empty UMAP tiles before sampling.
+  // Scan atlas PNGs → per-tile mean01 (once per url); used to drop empty UMAP tiles before sampling.
   useEffect(() => {
     let cancelled = false;
     const tileFallback = meta?.atlas?.tile ?? 16;
@@ -869,21 +926,21 @@ export default function useDataLoader() {
     if (jobs.length === 0) return undefined;
 
     (async () => {
+      const doneKeys = new Set();
       for (const job of jobs) {
-        if (cancelled) return;
+        if (cancelled) break;
         try {
-          const arr = await scanAtlasTileMax01(job.url, job.layout);
-          if (cancelled || !arr) {
+          const arr = await scanAtlasTileMean01(job.url, job.layout);
+          if (cancelled) break;
+          if (!arr) {
             tileSignalScanKeyRef.current.delete(job.key);
             continue;
           }
-          setTileSignalByChannel((prev) => ({
-            ...prev,
-            [job.ch]: {
-              ...(prev[job.ch] || {}),
-              [job.chunkId]: arr,
-            },
-          }));
+          const pending = tileSignalPendingRef.current;
+          if (!pending[job.ch]) pending[job.ch] = {};
+          pending[job.ch][job.chunkId] = arr;
+          doneKeys.add(job.key);
+          scheduleTileSignalFlush();
           // Yield so channel/window UI stays responsive while scanning.
           await new Promise((r) => setTimeout(r, 0));
         } catch (e) {
@@ -891,12 +948,15 @@ export default function useDataLoader() {
           console.error("tile signal scan failed", e);
         }
       }
+      for (const job of jobs) {
+        if (!doneKeys.has(job.key)) tileSignalScanKeyRef.current.delete(job.key);
+      }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [atlasByChannel, chunkUV, meta]);
+  }, [atlasByChannel, chunkUV, meta, scheduleTileSignalFlush]);
 
   // Prewarm atlas on channel change
   useEffect(() => {
@@ -982,6 +1042,8 @@ export default function useDataLoader() {
     channelOmeIndexById,
     channelZarrIndexById,
     omePixelRangeByChannelId,
+    omeTiffSource,
+    omeTiffLoadError,
     /** Server-hosted OME-TIFF URL (only if no local file). */
     omeTiffUrl:
       !omeTiffFile && omeTiffPresent

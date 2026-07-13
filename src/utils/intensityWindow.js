@@ -7,12 +7,10 @@
 
 export const INTENSITY_FULL_RANGE = 65535;
 export const TONE_GAIN = 1.0;
-/** Legacy server PNG only; UMAP sprites do not clear sub-threshold pixels. */
-export const ALPHA_VISIBLE_MIN = 5 / 255;
 /** 2× supersample + max-pool approximates deck.gl linear icon texture filtering. */
 export const HOVER_ICON_SUPERSAMPLE = 2;
 
-function firstFinite(...vals) {
+export function firstFinite(...vals) {
   for (const v of vals) {
     const n = Number(v);
     if (Number.isFinite(n)) return n;
@@ -163,18 +161,6 @@ export function sampleIconIntensityGrid(imageData, outW, outH, supersample = HOV
     }
   }
   return grid;
-}
-
-export function applyToneGainRgb(r, g, b, a, toneGain = TONE_GAIN, clearSubThreshold = true) {
-  if (clearSubThreshold && a < ALPHA_VISIBLE_MIN * 255) {
-    return { r: 0, g: 0, b: 0, a: 0 };
-  }
-  return {
-    r: Math.min(255, r * toneGain),
-    g: Math.min(255, g * toneGain),
-    b: Math.min(255, b * toneGain),
-    a: Math.max(0, Math.min(255, a)),
-  };
 }
 
 export function scaleRgbByToneGain(rgb, toneGain = TONE_GAIN) {

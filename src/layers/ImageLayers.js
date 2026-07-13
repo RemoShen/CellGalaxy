@@ -12,7 +12,13 @@ import {
   ease,
   resolveMarkerPixelSize,
   semanticMarkerSizeFactor,
+  pointToWorld,
+  pathToWorld,
+  displaySampleHash,
 } from "../utils/utils";
+
+/** Shared DataFilterExtension — one instance for sampling filters across layers. */
+const SAMPLING_FILTER = new DataFilterExtension({ filterSize: 1 });
 
 function clusterLabelForPoint(d, labelKey = "label", getLabelForId = null) {
   if (typeof getLabelForId === "function" && Number.isFinite(d?.id)) {
@@ -32,11 +38,15 @@ function isClusterHighlighted(d, highlightedClusters, labelKey, getLabelForId) {
 }
 
 const CLUSTER_OUTLINE_ICON = getClusterOutlineIconDescriptor();
-const CLUSTER_HIGHLIGHT_FILTER = new DataFilterExtension({ filterSize: 1 });
 /** Below this marker px size (2D), cluster highlight renders as a dot; at/above → square frame. */
 const CLUSTER_SQUARE_OUTLINE_MIN_PX = 12;
 /** 3D orbit: deck zoom reflects navigation better than computedImageSize alone. */
 const CLUSTER_SQUARE_OUTLINE_MIN_ZOOM_3D = 9.5;
+
+function samplingFilterValue(d, selectedIds, selectedBypassSampling) {
+  if (selectedBypassSampling && selectedIds && selectedIds.has(d.id)) return 0;
+  return displaySampleHash(d.id);
+}
 
 function markerSizeForOutline({
   computedImageSize,
@@ -88,11 +98,9 @@ function appendClusterHighlightOutlineLayers(
   const readMarkerSize = () => markerSizeForOutline(sizeStateRef.current);
 
   const filterExt = {
-    extensions: [CLUSTER_HIGHLIGHT_FILTER],
-    getFilterValue: (d) => {
-      if (selectedBypassSampling && selectedIds && selectedIds.has(d.id)) return 0;
-      return (d.id * 0.6180339887) % 1;
-    },
+    extensions: [SAMPLING_FILTER],
+    getFilterValue: (d) =>
+      samplingFilterValue(d, selectedIds, selectedBypassSampling),
     filterRange: [0, samplingThreshold],
   };
 
@@ -200,11 +208,10 @@ function appendClusterHighlightOutlineLayers(
   );
 }
 
-export default function ImageLayers({
+export default function useImageLayers({
   meta,
   renderMode = "sprites",
   points = [],
-  atlasURL,
   atlasByChannel,
   iconMappingsByChunk,
   channels = [],
@@ -226,7 +233,6 @@ export default function ImageLayers({
   labelKey = "label",
   /** Cluster Filter checkbox labels (always base `label` column). */
   clusterHighlightLabelKey = "label",
-  rankKey = null,
   semanticSizeOn = false,
   samplingThreshold = 1.0,
   /** Points used for invisible pick layer (spatial: all cells; visual may be sampled). */
@@ -258,22 +264,8 @@ export default function ImageLayers({
   /** Shared OME-derived intensity ranges (same source as Viv contrastLimits). */
   omePixelRangeByChannelId = {},
 }) {
-  const worldPos = (d) => {
-    const z = d.z ?? 0;
-    if (pixelYFlipHeight == null || !Number.isFinite(pixelYFlipHeight)) {
-      return [d.x, d.y, z];
-    }
-    return [d.x, pixelYFlipHeight - (d.y ?? 0), z];
-  };
-
-  const worldPath = (path) => {
-    if (!Array.isArray(path)) return path;
-    if (pixelYFlipHeight == null || !Number.isFinite(pixelYFlipHeight)) {
-      return path;
-    }
-    const h = pixelYFlipHeight;
-    return path.map(([x, y, z = 0]) => [x, h - y, z]);
-  };
+  const worldPos = (d) => pointToWorld(d, pixelYFlipHeight);
+  const worldPath = (path) => pathToWorld(path, pixelYFlipHeight);
 
   const effectivePickPoints = pickPoints ?? points;
   const effectiveClusterHighlightPoints = clusterHighlightPoints ?? points;
@@ -358,16 +350,14 @@ export default function ImageLayers({
         if (!mapping) continue;
 
         const baseConfig = {
-          data: arr.map((d) => ({ ...d, icon: `t_${d.local_index}` })),
+          data: arr,
           iconMapping: mapping,
-          getIcon: (d) => d.icon,
+          getIcon: (d) => `t_${d.local_index}`,
           getPosition: (d) => [d.x, d.y, d.z ?? 0],
           
-          extensions: [new DataFilterExtension({ filterSize: 1 })],
-          getFilterValue: (d) => {
-            if (selectedBypassSampling && selectedIds && selectedIds.has(d.id)) return 0;
-            return (d.id * 0.6180339887) % 1;
-          },
+          extensions: [SAMPLING_FILTER],
+          getFilterValue: (d) =>
+            samplingFilterValue(d, selectedIds, selectedBypassSampling),
           filterRange: [0, samplingThreshold],
           getSize: () => {
             const s = sizeStateRef.current;
@@ -491,11 +481,9 @@ export default function ImageLayers({
                 data: arr,
                 getPosition: (d) => [d.x, d.y, d.z ?? 0],
                 stroked: false,
-                extensions: [new DataFilterExtension({ filterSize: 1 })],
-                getFilterValue: (d) => {
-                  if (selectedBypassSampling && selectedIds && selectedIds.has(d.id)) return 0;
-                  return (d.id * 0.6180339887) % 1;
-                },
+                extensions: [SAMPLING_FILTER],
+                getFilterValue: (d) =>
+                  samplingFilterValue(d, selectedIds, selectedBypassSampling),
                 filterRange: [0, samplingThreshold],
                 getFillColor: (d) => {
                   const rIdx = getRegionIndexForId?.(d.id);
@@ -532,11 +520,11 @@ export default function ImageLayers({
       }
 
       if (!is3D && clusterOutlineOn && clusterLineWidth > 0 && outlineData.length > 0) {
-            all.push(
-              new PathLayer({
-                id: "cluster-outlines",
-                data: outlineData,
-                getPath: (d) => worldPath(d.path),
+        all.push(
+          new PathLayer({
+            id: "cluster-outlines",
+            data: outlineData,
+            getPath: (d) => worldPath(d.path),
             getColor: (d) => d.color,
             widthUnits: "pixels",
             getWidth: Math.max(0, clusterLineWidth),
@@ -551,7 +539,7 @@ export default function ImageLayers({
               getWidth: [clusterLineWidth],
               getPath: [pixelYFlipHeight, outlineData.length],
             },
-          })
+          }),
         );
       }
 
@@ -563,7 +551,8 @@ export default function ImageLayers({
         sizeStateRef,
         useSquareOutline,
         is3D,
-        worldPos: (d) => [d.x, d.y, d.z ?? 0],
+        // Sprites are UMAP / non-OME — never apply spatial Y flip here.
+        worldPos: (d) => pointToWorld(d),
         samplingThreshold,
         selectedIds,
         selectedBypassSampling,
@@ -589,11 +578,9 @@ export default function ImageLayers({
           lineWidthUnits: "pixels",
           getLineWidth: dotOutlineForBrightBackground ? 1 : 0,
           getLineColor: () => [0, 0, 0, 210],
-          extensions: [new DataFilterExtension({ filterSize: 1 })],
-          getFilterValue: (d) => {
-            if (selectedBypassSampling && selectedIds && selectedIds.has(d.id)) return 0;
-            return (d.id * 0.6180339887) % 1;
-          },
+          extensions: [SAMPLING_FILTER],
+          getFilterValue: (d) =>
+            samplingFilterValue(d, selectedIds, selectedBypassSampling),
           filterRange: [0, samplingThreshold],
           getFillColor: (d) => {
             const rIdx = getRegionIndexForId?.(d.id);
@@ -636,11 +623,9 @@ export default function ImageLayers({
           id: "scatter",
           data: points ?? [],
           getPosition: (d) => worldPos(d),
-          extensions: [new DataFilterExtension({ filterSize: 1 })],
-          getFilterValue: (d) => {
-            if (selectedBypassSampling && selectedIds && selectedIds.has(d.id)) return 0;
-            return (d.id * 0.6180339887) % 1;
-          },
+          extensions: [SAMPLING_FILTER],
+          getFilterValue: (d) =>
+            samplingFilterValue(d, selectedIds, selectedBypassSampling),
           filterRange: [0, samplingThreshold],
           getFillColor: (d) => {
             const activeFilter = filteredIds && filteredIds.size > 0;
@@ -746,7 +731,6 @@ export default function ImageLayers({
     hoverPickAll,
     effectivePickPoints,
     pixelYFlipHeight,
-    atlasURL,
     atlasByChannel,
     iconMappingsByChunk,
     channels,

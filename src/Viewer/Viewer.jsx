@@ -32,12 +32,17 @@ import {
   computeCenter,
   passesDisplaySampling,
   getSelectionOwner,
-  isSelectionOwnerSpatial,
   isSelectionOwnerUmap,
   resolveTileOutlineSize,
   resolveZarrLogicalChannels,
+  pointToWorld,
 } from "../utils/utils";
-import { passesTileSignalFilter, compositeTileSignalScore } from "../utils/tileSignalCache";
+import {
+  TILE_SIGNAL_MIN_RAW,
+  TILE_SIGNAL_MIN_WINDOWED,
+  buildScoredEligibleItems,
+  tileSignalsReadyForPoints,
+} from "../utils/tileSignalCache";
 import {
   dedupPrescoredByOverlap,
   worldOverlapRadius,
@@ -48,11 +53,9 @@ import ClickToolbar from "../ToolBar/ClickToolbar/ClickToolbar";
 import GroupToolbarContainer from "../ToolBar/GroupToolbar/GroupToolbarContainer";
 import ClusterHoverMask from "../ClusterHoverMask/ClusterHoverMask";
 import DeckViewState from "./DeckViewState";
-import ImageLayers from "../layers/ImageLayers";
+import useImageLayers from "../layers/ImageLayers";
 import { MultiscaleImageLayer } from "@hms-dbmi/viv";
 import {
-  openOmeTiffAsPixelSources,
-  openOmeTiffFromFile,
   buildMultiscaleImageLayerProps,
   MAX_CHANNELS,
 } from "../ome/omeVivLoader";
@@ -142,10 +145,14 @@ const Viewer = ({
   channelZarrIndexById = {},
   /** Shared OME-derived intensity ranges for Viv + Zarr/UMAP. */
   omePixelRangeByChannelId = {},
+  /** Opened once in DataLoader — do not re-open in Viewer. */
+  omeTiffSource: omeTiffSourceProp = null,
+  omeTiffLoadError = null,
 }) => {
   const isUMAPView =
     viewerId === "umap" || (viewerId === "single" && !!useUMAP);
   const rawUsesOmeTiff = Boolean(omeTiffUrl || omeTiffFile) && !isUMAPView;
+  const omeTiffSource = rawUsesOmeTiff ? omeTiffSourceProp : null;
 
   const zarrChannels = useMemo(
     () => resolveZarrLogicalChannels(channels, channelZarrIndexById),
@@ -202,8 +209,6 @@ const Viewer = ({
           : "single-spatial"
       : viewerId;
 
-  const [omeTiffSource, setOmeTiffSource] = useState(null);
-  const [omeTiffLoadError, setOmeTiffLoadError] = useState(null);
   const omeFittedRef = useRef(false);
   /** Bump after OME fit so marker size zoom baseline matches post-fit camera. */
   const [omeMarkerZoomBaselineSeq, setOmeMarkerZoomBaselineSeq] = useState(0);
@@ -211,35 +216,7 @@ const Viewer = ({
   useEffect(() => {
     omeFittedRef.current = false;
     setOmeMarkerZoomBaselineSeq(0);
-  }, [omeTiffUrl, omeTiffFile, rawUsesOmeTiff]);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!rawUsesOmeTiff || (!omeTiffFile && !omeTiffUrl)) {
-      setOmeTiffSource(null);
-      setOmeTiffLoadError(null);
-      return undefined;
-    }
-    (async () => {
-      try {
-        const src = omeTiffFile
-          ? await openOmeTiffFromFile(omeTiffFile)
-          : await openOmeTiffAsPixelSources(omeTiffUrl);
-        if (!cancelled) {
-          setOmeTiffSource(src);
-          setOmeTiffLoadError(null);
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setOmeTiffSource(null);
-          setOmeTiffLoadError(e?.message || String(e));
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [rawUsesOmeTiff, omeTiffFile, omeTiffUrl]);
+  }, [omeTiffUrl, omeTiffFile, rawUsesOmeTiff, omeTiffSource]);
 
   const omePixelYFlip =
     rawUsesOmeTiff &&
@@ -249,11 +226,7 @@ const Viewer = ({
       : null;
 
   const rawToWorld = useCallback(
-    (p) => {
-      const z = p.z ?? 0;
-      if (omePixelYFlip == null) return [p.x, p.y, z];
-      return [p.x, omePixelYFlip - p.y, z];
-    },
+    (p) => pointToWorld(p, omePixelYFlip),
     [omePixelYFlip],
   );
 
@@ -368,33 +341,29 @@ const Viewer = ({
     [zarrChannels, tileSignalByChannel, windows, alphas, omePixelRangeByChannelId],
   );
 
+  // Wait until every active (channel, chunk) is scanned before empty-tile filter,
+  // so the pool does not shrink after each atlas finishes (avoids UMAP flicker).
+  const tileSignalsReady = useMemo(() => {
+    if (!isUMAPView || !zarrChannels?.length) return true;
+    return tileSignalsReadyForPoints(points, zarrChannels, tileSignalByChannel);
+  }, [isUMAPView, points, zarrChannels, tileSignalByChannel]);
+
+  // Filter + score in one pass (no second compositeTileSignalScore walk).
+  const scoredEligible = useMemo(() => {
+    if (!isUMAPView || !points?.length) return null;
+    return buildScoredEligibleItems(points, signalFilterOpts, {
+      applyFilter: Boolean(zarrChannels?.length) && tileSignalsReady,
+      minRaw: TILE_SIGNAL_MIN_RAW,
+      minWindowed: TILE_SIGNAL_MIN_WINDOWED,
+    });
+  }, [isUMAPView, points, signalFilterOpts, zarrChannels, tileSignalsReady]);
+
   const eligiblePoints = useMemo(() => {
     if (!points || points.length === 0) return [];
     if (!isUMAPView) return points;
-    if (!zarrChannels?.length) return points;
-    return points.filter((p) => passesTileSignalFilter(p, signalFilterOpts));
-  }, [points, isUMAPView, zarrChannels, signalFilterOpts]);
-
-  // Score+sort once when the candidate pool / windows change — not on every zoom frame.
-  const scoredEligible = useMemo(() => {
-    if (!isUMAPView || !eligiblePoints.length) return null;
-    const items = new Array(eligiblePoints.length);
-    for (let i = 0; i < eligiblePoints.length; i++) {
-      const p = eligiblePoints[i];
-      const s = compositeTileSignalScore(p, signalFilterOpts);
-      const x = Number(p?.x);
-      const y = Number(p?.y);
-      items[i] = {
-        p,
-        x: Number.isFinite(x) ? x : 0,
-        y: Number.isFinite(y) ? y : 0,
-        score: s?.meanRaw ?? 0,
-        id: Number.isFinite(p?.id) ? p.id : i,
-      };
-    }
-    items.sort((a, b) => b.score - a.score || a.id - b.id);
-    return items;
-  }, [isUMAPView, eligiblePoints, signalFilterOpts]);
+    if (!scoredEligible) return points;
+    return scoredEligible.map((it) => it.p);
+  }, [points, isUMAPView, scoredEligible]);
 
   // World footprint is imageSize/2^baseZoom (zoom cancels with computedImageSize).
   // Depend only on slider size + baseline so pan/zoom does not re-dedup.
@@ -1230,13 +1199,12 @@ const Viewer = ({
     getLabelForId,
   ]);
 
-  const imageLayers = ImageLayers({
+  const imageLayers = useImageLayers({
     meta,
     renderMode: effectiveRenderMode,
     points: imageLayerPoints,
     pickPoints: effectivePickPoints,
     hoverPickAll,
-    atlasURL,
     atlasByChannel,
     iconMappingsByChunk,
     channels: zarrChannels,
@@ -1671,9 +1639,6 @@ const Viewer = ({
       <HoverPreview
         deckRef={deckRef}
         containerRef={containerRef}
-        meta={meta}
-        renderMode={effectiveRenderMode}
-        suppressSpriteAtlases={rawUsesOmeTiff}
         iconMappingsByChunk={iconMappingsByChunk}
         chunkUV={chunkUV}
         atlasByChannel={atlasByChannel}
@@ -1684,11 +1649,6 @@ const Viewer = ({
         alphas={alphas}
         windows={windows}
         omePixelRangeByChannelId={omePixelRangeByChannelId}
-        clusterColorOn={clusterColorOn}
-        clusterOpacity={clusterOpacity}
-        clusterLineWidth={clusterLineWidth}
-        clusterOutlineOn={clusterOutlineOn}
-        labelKey={clusterLabelKey}
         computedImageSize={computedImageSize}
         outlineSize={tileOutlineSize}
         rawUsesOmeTiff={rawUsesOmeTiff}
@@ -1702,7 +1662,6 @@ const Viewer = ({
         displayCoordById={displayCoordById}
         getWorldPosition={rawToWorld}
         pickRadius={deckPickingRadius}
-        isUMAPView={isUMAPView}
       />
 
       {/* Selection outlines */}

@@ -9,6 +9,7 @@ import {
   readAtlasIntensity01,
   windowFromChannel,
 } from "./intensityWindow";
+import { loadImageCached } from "./loadImageCached";
 
 /**
  * Minimum composite tile mean in raw units (0..65535 × alpha sum).
@@ -19,45 +20,18 @@ export const TILE_SIGNAL_MIN_RAW = 1900;
 /** Also require some post-window response (drops tiles entirely below contrast min). */
 export const TILE_SIGNAL_MIN_WINDOWED = 0.02;
 
-const _imageCache = new Map(); // url -> HTMLImageElement | Promise
-
-function loadImage(url) {
-  if (!url) return Promise.resolve(null);
-  const hit = _imageCache.get(url);
-  if (hit instanceof HTMLImageElement && hit.complete && hit.naturalWidth > 0) {
-    return Promise.resolve(hit);
-  }
-  if (hit && typeof hit.then === "function") return hit;
-  const pending = new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      _imageCache.set(url, img);
-      resolve(img);
-    };
-    img.onerror = () => {
-      _imageCache.delete(url);
-      resolve(null);
-    };
-    img.src = url;
-  });
-  _imageCache.set(url, pending);
-  return pending;
-}
-
 /**
  * Scan one atlas PNG → Float32Array[local_index] = mean intensity in 0–1
  * (atlas encodes raw/65535).
  */
-export async function scanAtlasTileMax01(atlasUrl, { tile, cols, nTiles }) {
-  // Name kept for call sites; value is mean01 (better empty detection than max).
+export async function scanAtlasTileMean01(atlasUrl, { tile, cols, nTiles }) {
   const t = Number(tile) || 16;
   const c = Number(cols);
   const n = Number(nTiles);
   if (!atlasUrl || !Number.isFinite(c) || c <= 0 || !Number.isFinite(n) || n <= 0) {
     return null;
   }
-  const img = await loadImage(String(atlasUrl));
+  const img = await loadImageCached(String(atlasUrl));
   if (!img) return null;
 
   const w = img.naturalWidth || img.width;
@@ -71,7 +45,6 @@ export async function scanAtlasTileMax01(atlasUrl, { tile, cols, nTiles }) {
   if (!ctx) return null;
   ctx.drawImage(img, 0, 0);
   const { data } = ctx.getImageData(0, 0, w, h);
-  const pixPerTile = t * t;
 
   const out = new Float32Array(n);
   for (let i = 0; i < n; i++) {
@@ -93,9 +66,6 @@ export async function scanAtlasTileMax01(atlasUrl, { tile, cols, nTiles }) {
       }
     }
     out[i] = count > 0 ? sum / count : 0;
-    if (count < pixPerTile && count > 0) {
-      // partial tile at atlas edge — already averaged over available pixels
-    }
   }
   return out;
 }
@@ -161,6 +131,72 @@ export function compositeTileSignalScore(
   return { meanRaw, windowed };
 }
 
+/**
+ * True when every active channel has a scanned array for every chunk present in points.
+ * Until then, empty-tile filtering should stay off to avoid progressive flicker.
+ */
+export function tileSignalsReadyForPoints(points, channels, tileSignalByChannel) {
+  const list = Array.isArray(channels) ? channels : [];
+  if (list.length === 0) return true;
+  if (!Array.isArray(points) || points.length === 0) return true;
+
+  const chunks = new Set();
+  for (let i = 0; i < points.length; i++) {
+    const c = points[i]?.chunk_id ?? 0;
+    chunks.add(c);
+  }
+
+  for (const ch of list) {
+    const byChunk = tileSignalByChannel?.[ch] ?? tileSignalByChannel?.[String(ch)];
+    if (!byChunk) return false;
+    for (const chunkId of chunks) {
+      const arr = byChunk[chunkId] ?? byChunk[String(chunkId)];
+      if (!arr) return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * One-pass filter + score + sort for UMAP candidate pool.
+ * When applyFilter is false (signals not ready / no channels), keep all points.
+ */
+export function buildScoredEligibleItems(
+  points,
+  opts,
+  {
+    applyFilter = true,
+    minRaw = TILE_SIGNAL_MIN_RAW,
+    minWindowed = TILE_SIGNAL_MIN_WINDOWED,
+  } = {},
+) {
+  if (!Array.isArray(points) || points.length === 0) return [];
+
+  const items = [];
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    let score = 0;
+    if (applyFilter) {
+      const s = compositeTileSignalScore(p, opts);
+      // Ready path: missing score should not keep the point (treat as empty).
+      if (s == null) continue;
+      if (!(s.meanRaw > minRaw && s.windowed > minWindowed)) continue;
+      score = s.meanRaw;
+    }
+    const x = Number(p?.x);
+    const y = Number(p?.y);
+    items.push({
+      p,
+      x: Number.isFinite(x) ? x : 0,
+      y: Number.isFinite(y) ? y : 0,
+      score,
+      id: Number.isFinite(p?.id) ? p.id : i,
+    });
+  }
+  items.sort((a, b) => b.score - a.score || a.id - b.id);
+  return items;
+}
+
 /** True if point should stay in the UMAP candidate pool. */
 export function passesTileSignalFilter(
   point,
@@ -169,6 +205,7 @@ export function passesTileSignalFilter(
   minWindowed = TILE_SIGNAL_MIN_WINDOWED,
 ) {
   const score = compositeTileSignalScore(point, opts);
-  if (score == null) return true; // no data yet → do not drop
+  // No data yet → keep (callers that gate on tileSignalsReadyForPoints skip this path).
+  if (score == null) return true;
   return score.meanRaw > minRaw && score.windowed > minWindowed;
 }

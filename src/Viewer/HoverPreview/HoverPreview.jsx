@@ -17,6 +17,7 @@ import {
   windowFromChannel,
 } from "../../utils/intensityWindow";
 import { cellPreviewURL } from "../../api/api";
+import { loadImageCached } from "../../utils/loadImageCached";
 
 const PREVIEW_SIZE = 128;
 
@@ -39,30 +40,6 @@ export function resolveDisplayObject(object, displayCoordById) {
     return { ...object, chunk_id: disp.chunk_id, local_index: disp.local_index };
   }
   return object;
-}
-
-const _previewImageCache = new Map();
-
-function loadImageCached(src) {
-  if (!src) return Promise.resolve(null);
-  return new Promise((resolve) => {
-    const cached = _previewImageCache.get(src);
-    if (cached) {
-      if (cached.complete && cached.naturalWidth > 0) {
-        resolve(cached);
-      } else {
-        cached.addEventListener("load", () => resolve(cached), { once: true });
-        cached.addEventListener("error", () => resolve(null), { once: true });
-      }
-      return;
-    }
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = src;
-    _previewImageCache.set(src, img);
-  });
 }
 
 async function drawCellPreviewFromUrl(canvas, url, previewSize = 128) {
@@ -305,8 +282,10 @@ function HoverCellTooltip({
     if (!canvas || !info?.object) return undefined;
     let cancelled = false;
     (async () => {
+      // Draw off-screen first so a cancelled hover never paints a stale cell.
+      const tmp = document.createElement("canvas");
       await drawCellPreviewToCanvas({
-        canvas,
+        canvas: tmp,
         object: info.object,
         iconMappingsByChunk,
         chunkUV,
@@ -322,6 +301,13 @@ function HoverCellTooltip({
         omePixelRangeByChannelId,
       });
       if (cancelled) return;
+      canvas.width = tmp.width;
+      canvas.height = tmp.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(tmp, 0, 0);
     })();
     return () => {
       cancelled = true;
@@ -395,9 +381,6 @@ function HoverCellTooltip({
 export default function HoverPreview({
   deckRef,
   containerRef,
-  meta,
-  renderMode = "sprites",
-  suppressSpriteAtlases = false,
   iconMappingsByChunk,
   chunkUV,
   atlasByChannel,
@@ -406,11 +389,6 @@ export default function HoverPreview({
   colors,
   alphas,
   windows,
-  clusterColorOn = false,
-  clusterOpacity = 0.25,
-  clusterLineWidth = 1,
-  clusterOutlineOn = false,
-  labelKey = "label",
   computedImageSize = 16,
   hoverEnabled = true,
   selectedIds = new Set(),
@@ -424,7 +402,6 @@ export default function HoverPreview({
   getWorldPosition = null,
   pickRadius = null,
   hoverRingScale = 1,
-  isUMAPView: _isUMAPView = false,
   outlineSize = null,
   rawUsesOmeTiff = false,
   tilePx = 16,
@@ -446,9 +423,29 @@ export default function HoverPreview({
 
   useEffect(() => {
     const containerEl = containerRef.current;
-    if (!containerEl) return;
+    if (!containerEl) return undefined;
 
-    const handleMove = (e) => {
+    let raf = 0;
+    let pendingEvent = null;
+    const blockerCache = { rects: [], at: 0 };
+    const BLOCKER_TTL_MS = 250;
+
+    const refreshBlockerRects = () => {
+      const now = performance.now();
+      if (now - blockerCache.at <= BLOCKER_TTL_MS) return blockerCache.rects;
+      try {
+        const nodes = document.querySelectorAll(
+          ".cluster-preview-thumb, .cluster-annotation-title",
+        );
+        blockerCache.rects = Array.from(nodes, (el) => el.getBoundingClientRect());
+      } catch {
+        blockerCache.rects = [];
+      }
+      blockerCache.at = now;
+      return blockerCache.rects;
+    };
+
+    const runPick = (e) => {
       if (!hoverEnabled) {
         setHoverInfo(null);
         return;
@@ -464,24 +461,18 @@ export default function HoverPreview({
       }
       const xClient = e.clientX;
       const yClient = e.clientY;
-      try {
-        const blockers = document.querySelectorAll(
-          ".cluster-preview-thumb, .cluster-annotation-title",
-        );
-        for (const el of blockers) {
-          const rect = el.getBoundingClientRect();
-          if (
-            xClient >= rect.left &&
-            xClient <= rect.right &&
-            yClient >= rect.top &&
-            yClient <= rect.bottom
-          ) {
-            setHoverInfo(null);
-            return;
-          }
+      const blockers = refreshBlockerRects();
+      for (let i = 0; i < blockers.length; i++) {
+        const rect = blockers[i];
+        if (
+          xClient >= rect.left &&
+          xClient <= rect.right &&
+          yClient >= rect.top &&
+          yClient <= rect.bottom
+        ) {
+          setHoverInfo(null);
+          return;
         }
-      } catch {
-        /* ignore */
       }
       const deckInstance = deckRef.current?.deck;
       const canvas = deckInstance?.canvas;
@@ -516,11 +507,31 @@ export default function HoverPreview({
       }
     };
 
-    const handleLeave = () => setHoverInfo(null);
+    const handleMove = (e) => {
+      pendingEvent = e;
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const ev = pendingEvent;
+        pendingEvent = null;
+        if (ev) runPick(ev);
+      });
+    };
+
+    const handleLeave = () => {
+      pendingEvent = null;
+      if (raf) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+      }
+      setHoverInfo(null);
+    };
 
     containerEl.addEventListener("mousemove", handleMove);
     containerEl.addEventListener("mouseleave", handleLeave);
     return () => {
+      pendingEvent = null;
+      if (raf) cancelAnimationFrame(raf);
       containerEl.removeEventListener("mousemove", handleMove);
       containerEl.removeEventListener("mouseleave", handleLeave);
     };
