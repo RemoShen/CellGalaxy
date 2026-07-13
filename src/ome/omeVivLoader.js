@@ -98,17 +98,27 @@ function computeRangeFromNumericArray(values) {
   if (!values || typeof values.length !== "number" || values.length === 0) return null;
   let min = Infinity;
   let max = -Infinity;
+  // Percentiles on non-zero pixels only (matches Viv getChannelStats).
+  // Domain min/max still include zeros for slider bounds.
   const sample = [];
   const stride = Math.max(1, Math.floor(values.length / 50000));
+  let sampleCursor = 0;
   for (let i = 0; i < values.length; i++) {
     const v = Number(values[i]);
     if (!Number.isFinite(v)) continue;
     if (v < min) min = v;
     if (v > max) max = v;
-    if (i % stride === 0) sample.push(v);
+    if (v > 0) {
+      if (sampleCursor % stride === 0) sample.push(v);
+      sampleCursor++;
+    }
   }
   if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+  if (sample.length === 0) {
+    return normalizeRange(min, max, min, max, min, max);
+  }
   sample.sort((a, b) => a - b);
+  // Non-zero pixels: 0.5th–99.5th percentile.
   const autoMin = percentileFromSorted(sample, 0.01);
   const autoMax = percentileFromSorted(sample, 0.99);
   return normalizeRange(min, max, autoMin, autoMax, min, max);
