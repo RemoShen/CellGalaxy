@@ -412,6 +412,10 @@ export default function ImageLayers({
                 ...baseConfig,
                 id: `icon-ch${ch}-${chunkId}`,
                 iconAtlas: String(atlasGray),
+                // Atlas stores raw/65535; dim markers are often << 0.05.
+                // Default IconLayer alphaCutoff discards them *before* windowing
+                // (hover windows first — that is why hover matched OME and UMAP did not).
+                alphaCutoff: 0,
                 // Additive blend (multi-channel fluorescence)
                 parameters: { depthTest: false, blend: true, blendFunc: [1, 1], blendEquation: 32774 },
                 windowMin: winMin01,
@@ -449,6 +453,7 @@ export default function ImageLayers({
                 ...baseConfig,
                 id: `cluster-color-atlas-${chunkId}`,
                 iconAtlas: String(atlasAny),
+                alphaCutoff: 0,
                 parameters: { depthTest: false, blend: false },
                 windowMin: 0.0,
                 windowMax: 1.0,

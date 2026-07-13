@@ -3,6 +3,9 @@ import React, { useMemo, useState, useRef, useEffect, useLayoutEffect, useCallba
 import DeckGL from "@deck.gl/react";
 import AnalysisPopover from "../AnalysisPopover/AnalysisPopover";
 import SelectionOverlay from "../SelectionOverlay/SelectionOverlay";
+import HoverPreview, {
+  pickRadiusFromTileScreenPx,
+} from "./HoverPreview/HoverPreview";
 import {
   defaultRegionColors,
   makeRegionIndexGetter,
@@ -52,7 +55,6 @@ import ClusterOutlines from "../ClusterHoverMask/ClusterOutlines";
 import useClusterSelection from "./useClusterSelection";
 import useClusterAnnotations from "./useClusterAnnotations";
 import SemanticZoomControl from "./SemanticZoomControl/SemanticZoomControl";
-import HoverPreview from "./HoverPreview/HoverPreview";
 import ClusterPreviewThumb from "./ClusterPreviewThumb/ClusterPreviewThumb";
 import ClusterAnnotationOverlay from "./ClusterAnnotationOverlay/ClusterAnnotationOverlay";
 import SimilarityRankingOverlay from "./SimilarityRankingOverlay/SimilarityRankingOverlay";
@@ -400,6 +402,13 @@ const Viewer = ({
       clusterColorOn,
       effectiveRenderMode,
     ],
+  );
+
+  // Hover preview and Deck click must share the same pick radius; otherwise
+  // overlapping UMAP tiles can show one cell on hover and select another on click.
+  const deckPickingRadius = useMemo(
+    () => pickRadiusFromTileScreenPx(tileOutlineSize),
+    [tileOutlineSize],
   );
 
   const omeDeckLayer = useMemo(() => {
@@ -1350,7 +1359,7 @@ const Viewer = ({
                   onDragEnd={onDragEnd}
                   getTooltip={null}
                   getCursor={() => "default"}
-                  pickingRadius={6}
+                  pickingRadius={deckPickingRadius}
                 />
               )}
             </ClusterHoverMask>
@@ -1617,7 +1626,7 @@ const Viewer = ({
         filteredIds={filteredIds}
         displayCoordById={displayCoordById}
         getWorldPosition={rawToWorld}
-        pickRadius={null}
+        pickRadius={deckPickingRadius}
         isUMAPView={isUMAPView}
       />
 
