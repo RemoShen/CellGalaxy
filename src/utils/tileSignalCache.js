@@ -14,7 +14,7 @@ import {
  * Minimum composite tile mean in raw units (0..65535 × alpha sum).
  * Edge-only / haze tiles stay below this; real content usually clears it.
  */
-export const TILE_SIGNAL_MIN_RAW = 600;
+export const TILE_SIGNAL_MIN_RAW = 1500;
 
 /** Also require some post-window response (drops tiles entirely below contrast min). */
 export const TILE_SIGNAL_MIN_WINDOWED = 0.02;
