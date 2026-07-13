@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import ClusterLabelReviewModal from "./ClusterLabelReviewModal";
 import useClusterLabelReviews, {
   isReviewConfirmed,
@@ -64,6 +64,12 @@ export default function ClusterAnnotationOverlay({
   const modalAnnRef = useRef(null);
   modalAnnRef.current = modalAnn;
 
+  // Reviews are per-model; closing avoids showing the wrong model's status in the modal.
+  useEffect(() => {
+    modalAnnRef.current = null;
+    setModalAnn(null);
+  }, [clusterAnnotationModel]);
+
   if (!annotations || annotations.length === 0) {
     return null;
   }
@@ -84,7 +90,11 @@ export default function ClusterAnnotationOverlay({
     reviewed_at: new Date().toISOString(),
   });
 
-  const modalReview = modalAnn ? normalizeReview(getReview(levelKey, modalAnn.label)) : null;
+  const reviewModelFor = (ann) => ann?.model || clusterAnnotationModel;
+
+  const modalReview = modalAnn
+    ? normalizeReview(getReview(levelKey, modalAnn.label, reviewModelFor(modalAnn)))
+    : null;
   const modalCurrentTitle = modalReview
     ? resolveAnnotationDisplay(modalAnn, modalReview).displayTitle
     : null;
@@ -114,7 +124,8 @@ export default function ClusterAnnotationOverlay({
       {annotations.map((ann) => {
         const { label, title, description, x, y, dominantCelltype, dominantNeighNames } = ann;
         if (!title) return null;
-        const review = getReview(levelKey, label);
+        const modelKey = reviewModelFor(ann);
+        const review = getReview(levelKey, label, modelKey);
         const display = resolveAnnotationDisplay(ann, review);
         const rgb = clusterColor(label);
         const darkBg = [
@@ -142,7 +153,7 @@ export default function ClusterAnnotationOverlay({
 
         return (
           <div
-            key={`cluster-annotation-title-${label}`}
+            key={`cluster-annotation-title-${label}-${modelKey}`}
             className="cluster-annotation-title"
             style={{
               left: x,
