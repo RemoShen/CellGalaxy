@@ -93,6 +93,17 @@ export function mapLogicalChannelsToZarr(logicalChannels, zarrIndexById) {
     .filter((z) => z != null);
 }
 
+/** Zarr c index → logical channel id (channel_info.json). */
+export function zarrCToLogicalId(zarrC, zarrIndexById) {
+  const z = Number(zarrC);
+  if (!Number.isFinite(z)) return zarrC;
+  if (!hasZarrChannelMap(zarrIndexById)) return z;
+  for (const [lid, zc] of Object.entries(zarrIndexById)) {
+    if (Number(zc) === z) return Number(lid);
+  }
+  return z;
+}
+
 /** Ray-cast: point [px,py] inside polygon [[x,y],...]. */
 export function pointInPolygon([px, py], polygon) {
     let inside = false;
