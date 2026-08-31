@@ -9,8 +9,19 @@ import {
 import CellAnalysisPanel from "../FeaturePanel/LocalFeaturePanel/LocalFeaturePanel";
 import GroupAnalysisPanel from "../FeaturePanel/GroupFeaturePanel/GroupFeaturePanel";
 import CompareAnalysisPanel from "../FeaturePanel/CompareFeaturePanel/CompareFeaturePanel";
-import { ANALYSIS_SINGLE, ANALYSIS_GROUP, ANALYSIS_COMPARE } from "../constants/analysis";
-import { buildIconMappingsByChunk, clampPositionToViewport, mapLogicalChannelsToZarr } from "../utils/utils";
+import {
+  ANALYSIS_SINGLE,
+  ANALYSIS_GROUP,
+  ANALYSIS_COMPARE,
+  SIMILARITY_GALLERY_K,
+  SIMILARITY_FETCH_K,
+} from "../constants/analysis";
+import {
+  buildIconMappingsByChunk,
+  clampPositionToViewport,
+  mapLogicalChannelsToZarr,
+  pickDisplayableNeighbors,
+} from "../utils/utils";
 
 export default function AnalysisPopover({
   open,
@@ -168,12 +179,17 @@ export default function AnalysisPopover({
           setMode("single");
           setT2(null);
           setTCompare(null);
-          const res = await fetchT1(Number(command.q), 8, undefined, "embedding");
+          const res = await fetchT1(Number(command.q), SIMILARITY_FETCH_K, undefined, "embedding");
           if (!openRef.current) return;
           if (!res || res.error) return;
-          setT1(res);
+          const neighbors = pickDisplayableNeighbors(
+            res.neighbors,
+            [pointsRaw, pointsUMAP],
+            SIMILARITY_GALLERY_K,
+          );
+          setT1({ ...res, neighbors, k: neighbors.length });
           try {
-            const neighborIds = (res.neighbors || []).map((n) => n.id);
+            const neighborIds = neighbors.map((n) => n.id);
             const all = new Set([Number(command.q), ...neighborIds]);
             setSelectedIds(all);
           } catch {}
@@ -261,7 +277,7 @@ export default function AnalysisPopover({
       }
     };
     run();
-  }, [open, command, setSelectedIds, channels, channelZarrIndexById]);
+  }, [open, command, setSelectedIds, channels, channelZarrIndexById, pointsRaw, pointsUMAP]);
 
   if (!open || mode === "none") return null;
   const points = useUMAP ? pointsUMAP : pointsRaw;

@@ -115,9 +115,9 @@ export default function LocalFeaturePanel({
   const rankingIds = useMemo(
     () =>
       data
-        ? [data.query, ...(data.neighbors || []).map((n) => n.id)].filter((id) => id != null)
+        ? [data.query, ...neighborObjs.map((n) => n.id)].filter((id) => id != null)
         : [],
-    [data]
+    [data, neighborObjs]
   );
 
   const focusCellWithRankings = useCallback(

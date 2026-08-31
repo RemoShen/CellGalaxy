@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import "./FeatureDock.css";
 import { fetchT1, fetchT2 } from "../api/api";
-import { buildIconMappingsByChunk } from "../utils";
+import { buildIconMappingsByChunk, pickDisplayableNeighbors } from "../utils/utils";
+import { SIMILARITY_GALLERY_K, SIMILARITY_FETCH_K } from "../constants/analysis";
 import CellAnalysisPanel from "../FeaturePanel/LocalFeaturePanel/LocalFeaturePanel";
 import GroupAnalysisPanel from "../FeaturePanel/GroupFeaturePanel/GroupFeaturePanel";
 
@@ -38,12 +39,17 @@ export default function FeatureDock({
         const q = Number(analysisCommand.q);
         setMode("t1");
         setT2(null);
-        const res = await fetchT1(q, 30, undefined, "embedding");
+        const res = await fetchT1(q, SIMILARITY_FETCH_K, undefined, "embedding");
         if (!res || res.error) return;
-        setT1(res);
+        const neighbors = pickDisplayableNeighbors(
+          res.neighbors,
+          [pointsRaw, pointsUMAP],
+          SIMILARITY_GALLERY_K,
+        );
+        setT1({ ...res, neighbors, k: neighbors.length });
 
         try {
-          const neighborIds = (res.neighbors || []).map((n) => n.id);
+          const neighborIds = neighbors.map((n) => n.id);
           const all = new Set([q, ...neighborIds]);
           setSelectedIds(all);
         } catch {}
